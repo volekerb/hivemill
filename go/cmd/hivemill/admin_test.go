@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"factory/go/internal/hm"
 )
 
 type cli struct {
@@ -126,6 +128,47 @@ func TestSessionsCannotChangeTasks(t *testing.T) {
 			t.Errorf("%v as a session: exit %d %q %q", args, code, out, errs)
 		}
 	}
+}
+
+func TestTaskLintAll(t *testing.T) {
+	c, home := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "g")
+	whole := "1. a - cmd:go test ./... => exit 0"
+	if code, _, errs := c.run("", "task", "add", "--goal", "G-001", "--title", "t", "--spec", "s", "--acceptance", whole); code != 3 || !strings.Contains(errs, "name the packages") {
+		t.Errorf("add: exit %d %q", code, errs)
+	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "ok", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0")
+	if out := c.ok("task", "lint", "--all"); !strings.Contains(out, "0 of 1 ") {
+		t.Errorf("clean: %q", out)
+	}
+	c.ok("task", "add", "--goal", "G-001", "--title", "d", "--acceptance", whole, "--draft")
+	code, out, _ := c.run("", "task", "lint", "--all")
+	if code != 1 || !strings.Contains(out, "T-0002 draft: criterion 1: name the packages") || strings.Contains(out, "T-0001") {
+		t.Errorf("offenders: exit %d %q", code, out)
+	}
+	if code, _, _ := c.run("", "task", "update", "T-0002", "--status", "todo"); code != 3 {
+		t.Errorf("promote a draft offender: exit %d, want 3", code)
+	}
+	c.ok("task", "update", "T-0002", "--status", "cancelled")
+	if code, _, _ := c.run("", "task", "update", "T-0002", "--status", "todo"); code != 3 {
+		t.Errorf("promote through cancelled: exit %d, want 3", code)
+	}
+	c.ok("task", "update", "T-0002", "--status", "draft")
+	if code, _, _ := c.run("", "task", "update", "T-0001", "--acceptance", whole); code != 3 {
+		t.Errorf("new offending criteria: exit %d, want 3", code)
+	}
+	// A task filed before the rule keeps its criteria and may still change status.
+	s, err := hm.OpenSQLite(filepath.Join(home, "db", "factory.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.UpdateTask("T-0001", map[string]any{"acceptance": whole}); err != nil {
+		t.Fatal(err)
+	}
+	c.ok("task", "update", "T-0001", "--status", "blocked")
+	c.ok("task", "update", "T-0001", "--status", "todo")
 }
 
 func TestConfigRefusesFableModels(t *testing.T) {

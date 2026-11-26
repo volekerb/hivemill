@@ -355,7 +355,7 @@ func (r *Runner) GoalCheck(run *Run) {
 	r.Tools.Git(run.Worktree, "checkout", "-q", "--detach", "origin/"+run.Base)
 	dir := filepath.Join(r.Env.StateDir(), "runs", run.Task)
 	_ = os.MkdirAll(dir, 0o700)
-	res := r.RerunProofs(run.Worktree, checks, dir)
+	res := r.RerunProofs(run, checks, dir)
 	ok := true
 	for _, x := range res {
 		ok = ok && x.OK != nil && *x.OK
