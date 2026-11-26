@@ -74,6 +74,25 @@ def _block(rows, i):
     return j
 
 
+def _flow_top(s):
+    """Top-level names of a scalar, a flow list or a flow mapping: not nested keys or values."""
+    if s[0] not in "[{":
+        return re.findall(r"[A-Za-z_][\w-]*", s)
+    out, depth, value = [], 0, False
+    for tok in re.findall(r"""[\[\]{},:]|["']?[A-Za-z_][\w-]*["']?""", s):
+        if tok in "[{":
+            depth += 1
+        elif tok in "]}":
+            depth -= 1
+        elif depth == 1 and tok == ",":
+            value = False
+        elif depth == 1 and tok == ":":
+            value = True
+        elif depth == 1 and not value and tok not in ",:":
+            out.append(tok.strip("'\""))
+    return out
+
+
 def _triggers(rows):
     """({trigger: lineno}, {trigger: [child key names]}) from the top-level `on:` key.
 
@@ -94,7 +113,7 @@ def _triggers(rows):
                     k += 1
                 if depth(inline) != 0:
                     return {"<unparsed>": n}, kids
-            for t in re.findall(r"[A-Za-z_][\w-]*", inline):
+            for t in _flow_top(inline):
                 found[t] = n
             if not found:
                 found["<unparsed>"] = n
@@ -306,9 +325,11 @@ class RunnerRule(PolicyBase):  # a
                          ("on: {push,\n  issue_comment}\n", "issue_comment"),
                          ("on: {push: {branches: [main]},\n  issue_comment: {}}\n", "issue_comment"),
                          ("on: [push,\n", "<unparsed>"),
+                         ("on: {'push', \"issue_comment\": null}\n", "issue_comment"),
                          ("on :\n  issue_comment:\n", "<unparsed>"),
                          ("? on\n: [issue_comment]\n", "<unparsed>")):
             self.assertBlocked(wf.replace(block, on), want)
+        self.assertClean(wf.replace(block, "on: {pull_request: {branches: [main]},\n  workflow_dispatch: {}}\n"))
 
     def test_self_hosted_for_forks_blocked(self):
         # a fork must never reach the self-hosted runners: every other spelling is blocked

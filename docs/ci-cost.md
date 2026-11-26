@@ -25,7 +25,7 @@ It scans `.github/workflows/*.yml|*.yaml`, `ci/public-overlay/.github/workflows/
 
 | Rule | Check |
 |---|---|
-| a | every `runs-on:` is `ubuntu-latest`, `ubuntu-24.04` or `ubuntu-22.04` or exactly the same-repository `hm-ci` expression (no other `self-hosted` form, no matrix-expanded value) |
+| a | every `runs-on:` is `ubuntu-latest`, `ubuntu-24.04` or `ubuntu-22.04` or exactly the same-repository `hm-ci` expression (no other `self-hosted` form, no matrix-expanded value); a workflow with the `hm-ci` expression may have only the triggers `pull_request`, `push` and `workflow_dispatch`, so no fork-reachable event reaches the self-hosted host |
 | b | no `pull_request_target`, `workflow_run` or `schedule` trigger |
 | c | a top-level `permissions:` block that grants only `read`; a job-level `contents: write` is allowed only when the workflow triggers on `push: tags` and/or `workflow_dispatch` |
 | d | no `secrets.` reference except `secrets.GITHUB_TOKEN` (`github.token` is fine); no `secrets: inherit` |

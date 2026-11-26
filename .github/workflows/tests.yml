@@ -164,6 +164,9 @@ jobs:
           # setup-go put its go on PATH only to build ci-shard: take that one directory off so the shards see the PATH they saw before.
           d=$(dirname "$(command -v go)")
           PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF -e "$d" -e "$d/" | paste -sd: -)
+          # Private TMPDIR, as in guard-diff: shards on the shared hm-ci host must not share fixed-name test fixtures.
+          TMPDIR=$(mktemp -d /tmp/hm-shard.XXXXXX); export TMPDIR
+          trap 'rm -rf "$TMPDIR"' EXIT
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
           "$RUNNER_TEMP/ci-shard" run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
