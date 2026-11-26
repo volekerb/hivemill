@@ -855,6 +855,9 @@ func roundsFixture(t *testing.T, many int) (*Runner, http.Handler) {
 	t.Helper()
 	r, _ := testRunner(t, "")
 	r.Log.Machine = "box-a"
+	if err := r.Store.SetCfg("obs_banner_stage_pct", "100"); err != nil { // these tests are about the rounds rule alone
+		t.Fatal(err)
+	}
 	ts := time.Now().UTC().Format("2006-01-02") + "T00:00:00Z"
 	e := func(kind, task string, data map[string]any) Event {
 		return ev(ts, kind, task, "G-1", "www", "", "", data)
@@ -944,6 +947,58 @@ func TestObsFlowBannerHTML(t *testing.T) {
 			t.Fatalf("no banner: %q", html)
 		}
 	})
+}
+
+// stageFixture is one merged task that spent one hour each in dispatched, gate and judge and ci hours in ci.
+func stageFixture(t *testing.T, ci int) (*Runner, http.Handler) {
+	t.Helper()
+	r, _ := testRunner(t, "")
+	r.Log.Machine = "box-a"
+	start := time.Now().UTC().Add(-48 * time.Hour)
+	e := func(hour int, kind, role string) Event {
+		ts := start.Add(time.Duration(hour) * time.Hour).Format(time.RFC3339)
+		return ev(ts, kind, "T-1", "G-1", "www", "", role, nil)
+	}
+	writeEvents(t, r.Log.Path, e(0, "task.dispatched", ""), e(1, "gate.blocked", ""), e(2, "gate.passed", ""),
+		e(2+ci, "session.started", "judge"), e(3+ci, "pr.merged", ""))
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, h
+}
+
+func TestObsBannerStage(t *testing.T) {
+	t.Run("below", func(t *testing.T) {
+		_, h := stageFixture(t, 1) // 25% each
+		if p := flowBanners(t, h); len(p.Tasks) != 1 || p.Tasks[0].Total != 4*3600 || len(p.Banners) != 0 {
+			t.Fatalf("no banner: %+v", p)
+		}
+	})
+	t.Run("above", func(t *testing.T) {
+		_, h := stageFixture(t, 3) // ci 50%
+		want := "ci holds 3 of 6 stage hours (50%)."
+		if p := flowBanners(t, h); !reflect.DeepEqual(p.Banners, []string{want}) {
+			t.Fatalf("one banner: %q", p.Banners)
+		}
+		html := flowBannerHTML(t, h)
+		if len(html) != 1 || !strings.Contains(html[0], want) {
+			t.Fatalf("one banner: %q", html)
+		}
+		if strings.Contains(html[0], "<button") || strings.Contains(html[0], "<form") {
+			t.Fatalf("a banner is text only: %s", html[0])
+		}
+	})
+}
+
+func TestObsBannerStageConfig(t *testing.T) {
+	r, h := stageFixture(t, 3)
+	if err := r.Store.SetCfg("obs_banner_stage_pct", "90"); err != nil {
+		t.Fatal(err)
+	}
+	if p := flowBanners(t, h); len(p.Banners) != 0 {
+		t.Fatalf("50%% is under the configured 90%%: %q", p.Banners)
+	}
 }
 
 func TestSessionPollingUSD(t *testing.T) {

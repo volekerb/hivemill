@@ -248,6 +248,31 @@ func spendRole(s *ObsSession) string {
 	return "task"
 }
 
+// stageBanners is the largest-stage recommendation: one line when one stage holds strictly more than pct percent of
+// the seconds of all stages, held included.
+func (p *FlowPage) stageBanners(pct int) []string {
+	sum := map[string]int64{}
+	var total, most int64
+	for _, t := range p.Tasks {
+		for stage, s := range t.Seconds {
+			sum[stage] += s
+			total += s
+		}
+	}
+	var largest string
+	for _, stage := range append(FlowStages, "held") { // a fixed order, so a tie names the same stage every time
+		if sum[stage] > most {
+			largest, most = stage, sum[stage]
+		}
+	}
+	if total == 0 || most*100 <= int64(pct)*total {
+		return []string{}
+	}
+	hours := func(s int64) float64 { return math.Round(float64(s) / 3600) }
+	share := math.Round(100 * float64(most) / float64(total))
+	return []string{fmt.Sprintf("%s holds %.0f of %.0f stage hours (%.0f%%).", largest, hours(most), hours(total), share)}
+}
+
 // pollingBanners is the polling recommendation: at most one line, for the factory when its share is strictly above
 // pct, else for the role with the most polling $ among those above it.
 func (p *SpendPage) pollingBanners(pct int) []string {
