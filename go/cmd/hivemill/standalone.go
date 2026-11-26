@@ -171,10 +171,12 @@ func cmdAffected(args []string, stdout, stderr io.Writer) int {
 	return affected.Main(args, stdout, stderr)
 }
 
-// cmdProofs is `hivemill proofs touched --base REF [--root DIR]`: the tests of every JS package changed since REF, a
-// project's gate proof. The test output goes to stderr, one line per package to stdout.
+// cmdProofs is `hivemill proofs touched`: the tests of every JS package changed since REF and, with --ios-dir, an
+// xcodebuild of the app when iOS files changed; a project's gate proof. The test and build output goes to stderr, one
+// line per proof to stdout.
 func cmdProofs(args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill proofs touched --base REF [--root DIR]"
+	usage := "usage: hivemill proofs touched --base REF [--root DIR] " +
+		"[--ios-dir DIR --xcode-workspace PATH|--xcode-project PATH --xcode-scheme NAME]"
 	if len(args) == 0 || args[0] != "touched" {
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -182,11 +184,17 @@ func cmdProofs(args []string, stdout, stderr io.Writer) int {
 	fs := newFlags("proofs touched", stderr)
 	base := fs.String("base", "", "the ref the branch is compared with")
 	root := fs.String("root", ".", "the checkout")
-	if fs.Parse(args[1:]) != nil || fs.NArg() > 0 || *base == "" {
+	iosDir := fs.String("ios-dir", "", "the iOS app directory under the root; a change under it runs xcodebuild")
+	workspace := fs.String("xcode-workspace", "", "the .xcworkspace, relative to --ios-dir")
+	project := fs.String("xcode-project", "", "the .xcodeproj, relative to --ios-dir")
+	scheme := fs.String("xcode-scheme", "", "the scheme to build")
+	if fs.Parse(args[1:]) != nil || fs.NArg() > 0 || *base == "" || (*workspace != "" && *project != "") {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}
-	return hm.TouchedRun{Root: *root, Base: *base, Out: stdout, Exec: func(dir string, argv []string) (int, error) {
+	run := hm.TouchedRun{Root: *root, Base: *base, Out: stdout, IOSDir: *iosDir, Workspace: *workspace, Project: *project,
+		Scheme: *scheme}
+	run.Exec = func(dir string, argv []string) (int, error) {
 		cmd := exec.Command(argv[0], argv[1:]...)
 		cmd.Dir, cmd.Stdout, cmd.Stderr = dir, stderr, stderr
 		err := cmd.Run()
@@ -195,7 +203,8 @@ func cmdProofs(args []string, stdout, stderr io.Writer) int {
 			return ee.ExitCode(), nil
 		}
 		return 0, err
-	}}.Run()
+	}
+	return run.Run()
 }
 
 // cmdPR is `hivemill pr create --title TITLE --body - | pr ready` for a task session.
