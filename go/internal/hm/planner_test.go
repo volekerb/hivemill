@@ -208,7 +208,7 @@ func TestPlannerPassRestartsADeadPlannerThenAlerts(t *testing.T) {
 		t.Fatalf("restarts: %d, want 3", n)
 	}
 	for _, c := range f.calls {
-		if c[0] == "run" && !strings.Contains(strings.Join(c, " "), "--name planner --cwd "+filepath.Join(r.Env.StateDir(), "planner")+" --on core-a sh ") {
+		if j := strings.Join(c, " "); c[0] == "run" && (!strings.Contains(j, "--name planner --cwd "+filepath.Join(r.Env.StateDir(), "planner")+" ") || !strings.Contains(j, " --on core-a sh ")) {
 			t.Errorf("not pinned to the local core: %v", c)
 		}
 	}

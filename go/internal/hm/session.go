@@ -176,13 +176,17 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	// Pin the terminal to this machine: an hc wrapper may place worker-named terminals elsewhere, where the hook
 	// binary and the factory DB are not local.
 	runArgs := []string{"run", "--bg", "--no-parent", "--name", l.Name, "--cwd", l.Cwd}
-	if l.Machine != "" {
-		runArgs = append(runArgs, "--on", l.Machine) // a placed session: its hivemill forwards to this coordinator
-		if err := r.trustOn(l.Machine, l.Cwd); err != nil {
-			fmt.Fprintf(os.Stderr, "hivemill: trust %s on %s: %v (the trust dialog may show)\n", l.Cwd, l.Machine, err)
+	on := l.Machine // a placed session: its hivemill forwards to this coordinator
+	if on != "" {
+		if err := r.trustOn(on, l.Cwd); err != nil {
+			fmt.Fprintf(os.Stderr, "hivemill: trust %s on %s: %v (the trust dialog may show)\n", l.Cwd, on, err)
 		}
-	} else if core := r.coreName(); core != "" {
-		runArgs = append(runArgs, "--on", core)
+	} else {
+		on = r.coreName()
+	}
+	runArgs = append(runArgs, r.herdrLabels(l, task, on)...)
+	if on != "" {
+		runArgs = append(runArgs, "--on", on)
 	}
 	if list, ok := Terminals(r.Tools); ok && alive(list, true, l.Name) {
 		// idempotent: a terminal of this name already runs (a pass that crashed after starting it): adopt it

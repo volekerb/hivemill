@@ -73,6 +73,24 @@ func cmdPlanner(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// cmdHerdr prints the space and tab names the Herdr app should show.
+func cmdHerdr(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 || args[0] != "names" {
+		fmt.Fprintln(stderr, "usage: hivemill herdr names")
+		return 2
+	}
+	spaces, err := r.HerdrNames()
+	if err != nil {
+		return fail(stderr, err)
+	}
+	b, err := json.MarshalIndent(map[string]any{"spaces": spaces}, "", " ")
+	if err != nil {
+		return fail(stderr, err)
+	}
+	fmt.Fprintf(stdout, "%s\n", b)
+	return 0
+}
+
 func cmdAsk(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 	usage := "usage: hivemill ask add [--task T-1234|--goal G-001|--project ID] TEXT | ask list [--all] | ask answer N TEXT | ask withdraw N [WHY]"
 	s := sqliteOf(r, stderr)

@@ -203,6 +203,8 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	}
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
+	// an enabled planner's terminal exists before the first pass starts any session; wakes wait for that pass
+	started := r.plannerKeep(time.Now(), true, false)
 	for {
 		if err := r.refreshDaemonLock(host, time.Now()); errors.Is(err, ErrRefused) { // another host took over
 			sdNotify("STOPPING=1")
@@ -219,8 +221,11 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		if errors.Is(r.refreshDaemonLock(host, time.Now()), ErrRefused) {
 			continue
 		}
-		r.PlannerPass(time.Now()) // held runs to the owner queue; keep the planner alive and wake it on events
-		r.OtelTail(time.Now())    // otel_endpoint set: finished tasks go out as traces (never fails the pass)
+		r.syncHeldAsks() // held runs to the owner queue
+		// keep the planner alive and wake it on events; a restart just tried is not retried at once (resume_max)
+		r.plannerKeep(time.Now(), !started, true)
+		started = false
+		r.OtelTail(time.Now()) // otel_endpoint set: finished tasks go out as traces (never fails the pass)
 		if r.BackupDue(time.Now()) {
 			if _, err := r.Backup(time.Now()); err != nil {
 				r.printf("backup: %v\n", err)

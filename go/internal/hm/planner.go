@@ -124,6 +124,12 @@ func (r *Runner) plannerKickoff() string {
 // when something changed (DecideWake). It is a no-op for the session while the planner is off.
 func (r *Runner) PlannerPass(now time.Time) {
 	r.syncHeldAsks()
+	r.plannerKeep(now, true, true)
+}
+
+// plannerKeep restarts a dead planner (revive) and wakes a live one (wake). It reports whether it found the planner
+// dead and went to restart it.
+func (r *Runner) plannerKeep(now time.Time, revive, wake bool) (revived bool) {
 	if r.Store.Meta("planner") != "on" {
 		return
 	}
@@ -142,11 +148,14 @@ func (r *Runner) PlannerPass(now time.Time) {
 			t = &list[i]
 		}
 	}
-	if t == nil {
+	switch {
+	case t == nil && revive:
 		r.plannerRevive(now)
-		return
+		return true
+	case t != nil && wake:
+		r.plannerWake(now, t.Status == "idle" || t.Status == "done", false, "")
 	}
-	r.plannerWake(now, t.Status == "idle" || t.Status == "done", false, "")
+	return
 }
 
 // plannerRevive restarts a dead planner with `claude --resume` of its last session, at most resume_max times in 24 h;
