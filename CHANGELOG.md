@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
+
 - **The runner reports todo tasks that cannot start.** `hivemill task list --startable` and `--blocked` (with the reason: lint, deps or a run) show what a pass starts and skips. A todo task failing the spec gate logs one `task.unstartable` event and gives the planner one wake reason; when a run slot is free and nothing is startable, the wake says how many tasks deps and lint block. The idle alert counts startable tasks (T-2048).
 
 - **A task session that stops on a worker-guard block fails at once.** The Stop hook fails the run with `guard block: ` and the guard message instead of leaving it idle until it fails as stalled (T-2012).

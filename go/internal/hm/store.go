@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS hm_asks (id INTEGER PRIMARY KEY AUTOINCREMENT, ref TE
   goal TEXT NOT NULL DEFAULT '', task TEXT NOT NULL DEFAULT '', question TEXT NOT NULL, asked_by TEXT NOT NULL, asked TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open', answer TEXT NOT NULL DEFAULT '', answered_by TEXT NOT NULL DEFAULT '', answered TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS hm_asks_status ON hm_asks(status);
+CREATE TABLE IF NOT EXISTS hm_refile (task TEXT PRIMARY KEY, refile_of TEXT NOT NULL);
 `
 
 // OpenSQLite opens an existing factory DB read-write (never creates one) and makes sure the hm_* tables exist.

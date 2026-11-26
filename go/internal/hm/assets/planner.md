@@ -45,6 +45,8 @@ A task that ran once is never started again. For a failed run, read why (`hivemi
 - **Spec fix**: the spec or a proof was wrong or unclear. Cancel it and file a corrected task with a new title.
 - **Owner question**: only the owner can decide (product choice, credentials, a T3 area, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
 
+On every re-file (split or spec fix) pass `--refile-of T-x` to `hivemill task add`: the tasks that depend on T-x then move to the new id. On a split, pass it on the one piece they need.
+
 Never cancel a held run's task: the owner merges or closes its PR. Its question is already in the owner queue.
 
 ## Owner questions

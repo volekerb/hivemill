@@ -256,3 +256,22 @@ func TestGuardExportCommand(t *testing.T) {
 		t.Errorf("extra argument: exit %d %q", code, errs)
 	}
 }
+
+func TestTaskAddRefileOf(t *testing.T) {
+	c, _ := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "zz-test goal")
+	add := []string{"task", "add", "--goal", "G-001", "--title", "t", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0"}
+	c.ok(add...)
+	c.ok(append(add, "--depends", "T-0001")...)
+	for _, bad := range []string{"nope", "T-0099"} {
+		if code, _, errs := c.run("", append(add, "--refile-of", bad)...); code == 0 || !strings.Contains(errs, "--refile-of") {
+			t.Errorf("--refile-of %s: exit %d %q", bad, code, errs)
+		}
+	}
+	c.ok(append(add, "--refile-of", "t-0001")...) // T-0003
+	c.ok("task", "cancel", "T-0001")
+	if out := c.ok("task", "show", "T-0002"); !strings.Contains(out, `depends ["T-0003"]`) {
+		t.Errorf("after cancel: %q", out)
+	}
+}
