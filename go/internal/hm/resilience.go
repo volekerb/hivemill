@@ -186,6 +186,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		return fmt.Errorf("%w: another hivemill daemon holds the lock", ErrRefused)
 	}
 	defer l.Close()
+	r.inDaemon = true
 	if err := r.WriteGuardExport(time.Now()); err != nil { // at start, even when another process holds the pass lock
 		r.printf("guard export: %v\n", err)
 	}
