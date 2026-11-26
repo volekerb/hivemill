@@ -43,24 +43,26 @@ def default_signals():
     signal.pthread_sigmask(signal.SIG_UNBLOCK, _RESET_SIGNALS)
 
 
-_saved_signals = {}
+_saved_term = []
 
 
 def setUpModule():
-    # Every gate this module starts must be able to TERM its own steps, so the runner itself drops an inherited
-    # ignore or block of TERM/HUP/INT for the module's duration (SIGINT goes back to Python's KeyboardInterrupt).
-    for s in _RESET_SIGNALS:
-        _saved_signals[s] = signal.getsignal(s)
-        if _saved_signals[s] == signal.SIG_IGN:
-            signal.signal(s, signal.default_int_handler if s == signal.SIGINT else signal.SIG_DFL)
-    _saved_signals["mask"] = signal.pthread_sigmask(signal.SIG_UNBLOCK, _RESET_SIGNALS)
+    # Every gate this module starts must be able to TERM its own steps, so a runner that inherited an ignored or
+    # blocked TERM drops that for the module's duration; tearDownModule puts back only what this changed.
+    if signal.getsignal(signal.SIGTERM) == signal.SIG_IGN:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        _saved_term.append(("handler", signal.SIG_IGN))
+    if signal.SIGTERM in signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGTERM]):
+        _saved_term.append(("mask", None))
 
 
 def tearDownModule():
-    signal.pthread_sigmask(signal.SIG_SETMASK, _saved_signals.pop("mask"))
-    for s, h in _saved_signals.items():
-        signal.signal(s, h)
-    _saved_signals.clear()
+    for what, h in _saved_term:
+        if what == "mask":
+            signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGTERM])
+        else:
+            signal.signal(signal.SIGTERM, h)
+    _saved_term.clear()
 
 
 def run(tree, shards, report=None):
@@ -117,8 +119,14 @@ cd "$FAKE_REMOTE_HOME"
 # Like a real client: the "remote" command is not our pid, and a TERM ends the client (the remote side sees the
 # connection drop) without waiting for the remote command.
 trap 'exit 143' TERM
-HOME="$FAKE_REMOTE_HOME" bash -c "$*" <&0 &
+HOME="$FAKE_REMOTE_HOME" "$(dirname "$0")/sshd-stub" "$*" <&0 &
 wait "$!"
+"""
+# Stands in for the remote sshd: the driver watches its nearest sshd* ancestor and ends the run when it exits. Without
+# it a real sshd above the test runner (a run over an ssh login) is the one watched, so a TERMed run never ends. No
+# exec: this process must stay as the driver's ancestor, and a group TERM ends it like a dropped connection.
+SSHD_STUB = """#!/bin/bash
+bash -c "$1"
 """
 # The probe is the fake tree's ci/shard.py: the driver's unittest step runs it (tests/gate_shards.py calls the tree's
 # ci/shard.py once per shard, then `verify`). Only shard 1 records, and atomically, so parallel shards cannot clash.
@@ -151,6 +159,8 @@ class RemoteGate(unittest.TestCase):
             d.mkdir()
         (stub / "ssh").write_text(SSH_STUB)
         (stub / "ssh").chmod(0o755)
+        (stub / "sshd-stub").write_text(SSHD_STUB)
+        (stub / "sshd-stub").chmod(0o755)
         self.log, self.mark = self.tmp / "ssh.log", self.tmp / "remote-env.json"
         self.env = {**os.environ, "PATH": f"{stub}:{os.environ['PATH']}", "STUB_LOG": str(self.log),
                     "FAKE_REMOTE_HOME": str(self.remote), "GH_TOKEN": "gh-secret-test", "GITHUB_TOKEN": "gh-secret-test",

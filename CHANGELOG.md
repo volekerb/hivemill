@@ -11,7 +11,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Removed
 
-- **CI and the remote gate no longer compile or run the old Python CLI.** The two `bin/factory` steps of the unittest-shard job in `tests.yml` and the `py-compile` and `factory-help` steps of `ci/remote_gate_driver.sh` are gone; the remote gate tests now probe the run through the fake tree's `ci/shard.py`, which the `unittest` step runs (T-1928).
+- **CI and the remote gate drop their separate `bin/factory` compile and `--help` steps.** The two `bin/factory` steps of the unittest-shard job in `tests.yml` and the `py-compile` and `factory-help` steps of `ci/remote_gate_driver.sh` are gone; the remote gate tests now probe the run through the fake tree's `ci/shard.py`, which the `unittest` step runs (T-1928, T-1966). The remote gate tests also no longer hang when run over an ssh login or under a runner that ignores TERM: the ssh stub supplies its own sshd stand-in for the driver to watch.
 
 - **The release check drops its `cursor-runtime` check.** `ci/release_check.py` and the Go gate no longer require the `scout/` runtime files or the cursor adapter by name; the other checks are unchanged (T-1934).
 
