@@ -80,6 +80,19 @@ func TestPrBodyParity(t *testing.T) {
 	}
 }
 
+// TestEvidenceRunnerByPath: a runner given by path counts by its base name (T-1940).
+func TestEvidenceRunnerByPath(t *testing.T) {
+	for cmd, want := range map[string]bool{
+		"cd go && GOTOOLCHAIN=local ~/.local/go/bin/go test ./...": true,
+		"/usr/bin/python3 -m unittest x":                           true,
+		"~/notes/readme.md here":                                   false,
+	} {
+		if got := evidenceIsCommand(cmd); got != want {
+			t.Errorf("evidenceIsCommand(%q) = %v, want %v", cmd, got, want)
+		}
+	}
+}
+
 // TestPrBodyUnicode: NBSP (U+00A0) and \v are whitespace to Python (str.split, \s, strip) and are handled here with the
 // same result; a non-ASCII digit (U+0663) or letter is a \d / \w character to Python and not to Go, so such a body is
 // handed to Python. The expectations for the first two were printed by Python 3 on the same bodies:

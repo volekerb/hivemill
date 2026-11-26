@@ -13993,7 +13993,7 @@ def _evidence_is_command(text):
         toks = seg.split()
         while toks and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=\S*$", toks[0]):
             toks.pop(0)
-        if len(toks) >= 2 and (toks[0] in _EVIDENCE_RUNNERS or toks[0].startswith(("ci/", "./"))):
+        if len(toks) >= 2 and (toks[0].rsplit("/", 1)[-1] in _EVIDENCE_RUNNERS or toks[0].startswith(("ci/", "./"))):
             return True
     return False
 
