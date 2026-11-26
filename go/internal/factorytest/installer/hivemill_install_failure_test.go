@@ -160,7 +160,7 @@ func TestHivemillInstallOSErrorDuringAWriteEndsWithResultFail(t *testing.T) {
 	for _, c := range []struct {
 		what, step string
 		tools      []string
-	}{{"mkdirs", "tools", []string{"git"}}, {"symlink", "link", []string{"git", "herdr", "gh", "claude"}}} {
+	}{{"mkdirs", "tools", []string{"git", "go"}}, {"symlink", "link", []string{"git", "herdr", "gh", "claude", "go"}}} {
 		h := hiNew(t, hiHome(t), hiTools(c.tools...))
 		if c.what == "mkdirs" {
 			h.mkdirsErr = perm

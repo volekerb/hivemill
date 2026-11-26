@@ -620,6 +620,8 @@ func barChart(bars []chartBar, series []string, yLabel string, fmtY func(float64
 	top = niceMax(top)
 	pw, ph := w-ml-mr, h-mt-mb
 	var sb strings.Builder
+	// The box scrolls instead of letting the SVG scale below its viewBox, so chart text stays at 12px.
+	fmt.Fprintf(&sb, `<div class="chartbox" tabindex="0" role="region" aria-label="%s chart">`, template.HTMLEscapeString(yLabel))
 	fmt.Fprintf(&sb, `<svg class="chart" viewBox="0 0 %.0f %.0f" role="img" aria-label="%s">`, w, h, template.HTMLEscapeString(yLabel))
 	// legend
 	for i, s := range series {
@@ -671,9 +673,15 @@ func barChart(bars []chartBar, series []string, yLabel string, fmtY func(float64
 	}
 	fmt.Fprintf(&sb, `<line class="axis" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/><line class="axis" x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>`,
 		ml, mt, ml, mt+ph, ml, mt+ph, w-mr, mt+ph)
-	sb.WriteString(`</svg>`)
+	sb.WriteString(`</svg></div>`)
 	return template.HTML(sb.String())
 }
+
+// Top reports whether the page is a top section (now, spend, flow, machines) rather than a drill-down or a not-found page.
+func (p *obsPage) Top() bool { return p.Kind == p.Section }
+
+// Current reports whether the sidebar entry for section s is the page being shown; only top sections have one.
+func (p *obsPage) Current(s string) bool { return p.Top() && p.Section == s }
 
 // dur is a seconds count as "1h 05m", "12m" or "40s".
 func dur(sec int64) string {
