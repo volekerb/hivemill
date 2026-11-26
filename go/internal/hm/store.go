@@ -82,6 +82,7 @@ type Store interface {
 	DoneTasks() (map[string]bool, error)
 	FactoryCfg(key string) string
 	Cfg(key string) string
+	CfgErr(key string) (string, error)
 	SetCfg(key, value string) error
 	Meta(key string) string
 	SetMeta(key, value string) error
@@ -290,6 +291,18 @@ func (s *SQLite) Cfg(key string) string {
 		return v
 	}
 	return Defaults[key]
+}
+
+// CfgErr is Cfg for a gate that must fail closed: only a missing row falls back to Defaults, a read error is returned.
+func (s *SQLite) CfgErr(key string) (string, error) {
+	var v string
+	switch err := s.db.QueryRow(`SELECT value FROM hm_config WHERE key=?`, key).Scan(&v); {
+	case errors.Is(err, sql.ErrNoRows):
+		return Defaults[key], nil
+	case err != nil:
+		return "", err
+	}
+	return v, nil
 }
 
 func (s *SQLite) SetCfg(key, value string) error {

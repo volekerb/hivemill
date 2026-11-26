@@ -364,7 +364,7 @@ func checkGate(f DiffFile, add addLimit) {
 		add("f", f.Path, "changes the merge guard")
 	case "go/internal/hm/merge.go":
 		add("f", f.Path, "changes the merge step")
-	case "go/internal/hm/tierrules.go", "go/internal/hm/assets/tier_rules.json", "ci/risk_tier.py":
+	case "go/internal/hm/tierrules.go", "go/internal/hm/assets/tier_rules.json", "ci/risk_tier.py", "ci/tier_rules.json":
 		add("f", f.Path, "changes the tier classification")
 	case configGo:
 		value := func(s string) []string { return t3DefaultRe.FindAllString(strings.Join(codeLines(s), "\n"), -1) }
