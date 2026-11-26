@@ -558,14 +558,19 @@ func (r *Runner) behindOK(repo, wt, base, head string) bool {
 	return behindSafe(strings.Fields(mainFiles), strings.Fields(prFiles))
 }
 
-// behindSafe: no workflow file changed on main and no file changed on both sides.
+// sharedOK names files that most PRs and most merges both edit, where a clean git merge (MergeClean, checked before
+// behindOK) is all the safety needed: CHANGELOG.md entries never change behaviour. Counting them as overlap made every
+// merge to main refresh every waiting PR and restart its CI (175 refreshes on 2026-11-26, one PR refreshed 17 times).
+var sharedOK = map[string]bool{"CHANGELOG.md": true}
+
+// behindSafe: no workflow file changed on main and no file other than sharedOK changed on both sides.
 func behindSafe(mainFiles, prFiles []string) bool {
 	pr := map[string]bool{}
 	for _, f := range prFiles {
 		pr[f] = true
 	}
 	for _, f := range mainFiles {
-		if strings.HasPrefix(f, ".github/workflows/") || pr[f] {
+		if strings.HasPrefix(f, ".github/workflows/") || (pr[f] && !sharedOK[f]) {
 			return false
 		}
 	}
