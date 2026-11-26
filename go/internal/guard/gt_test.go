@@ -185,8 +185,25 @@ func TestGTGuardDiffCorpusMustBlock(t *testing.T) {
 
 func TestGTGuardDiffCorpusMustAllow(t *testing.T) {
 	t.Setenv("FACTORY_HOME", t.TempDir())
-	_, allow := gtLoadCorpus(t)
-	if n := gtCorpusCheck(t, allow, false, []string{"worker", "hq"}); n < 500 {
+	_, all := gtLoadCorpus(t)
+	var allow, lb []gtCorpusEntry
+	for _, e := range all {
+		if e.Cmd == g2LbRun {
+			lb = append(lb, e)
+		} else {
+			allow = append(allow, e)
+		}
+	}
+	if len(lb) == 0 {
+		t.Fatalf("the corpus has no %q must_allow entry", g2LbRun)
+	}
+	n := gtCorpusCheck(t, allow, false, []string{"worker", "hq"})
+	// g2LbRun makes the guard read ~/.local/bin/factory: run it against a temp passwd home holding a Python factory,
+	// so the answer does not depend on the machine's ~/.local/bin (as lbRunIn does, T-2041)
+	pw := g2TempPw(t, map[string]string{"factory": g2LbPyFactory})
+	t.Setenv("HOME", pw)
+	g2InstallHost(t, pw)
+	if n += gtCorpusCheck(t, lb, false, []string{"worker", "hq"}); n < 500 {
 		t.Fatalf("only %d must_allow entries checked; the corpus or the filter is broken", n)
 	}
 }
