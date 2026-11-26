@@ -39,6 +39,8 @@ jobs:
           bin=${line##* }
           test -x "$bin"
           echo "path=$bin" >> "$GITHUB_OUTPUT"
+          # Ubuntu 24.04 restricts unprivileged user namespaces, so Chrome's sandbox cannot start ("No usable sandbox").
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Take the screenshots
         env:
           CHROME: ${{ steps.chrome.outputs.path }}
