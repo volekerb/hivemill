@@ -22,8 +22,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
+      - name: Build ci-changelog
+        run: (cd go && go build -o "$RUNNER_TEMP/ci-changelog" ./cmd/ci-changelog)
       - name: Check the tag matches VERSION, the release notes and the changelog
-        run: python3 ci/changelog.py --check-version "${GITHUB_REF_NAME#v}"
+        run: |
+          "$RUNNER_TEMP/ci-changelog" --check-version "${GITHUB_REF_NAME#v}"
       - name: Build hivemill-install and check it against the shim pins
         run: |
           mkdir -p dist
@@ -48,9 +51,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
-          python3 ci/changelog.py --release-notes "$version" > "$RUNNER_TEMP/notes.md"
+          "$RUNNER_TEMP/ci-changelog" --release-notes "$version" > "$RUNNER_TEMP/notes.md"
           flags=()
-          if [ "$(python3 ci/changelog.py --prerelease "$version")" = "true" ]; then
+          if [ "$("$RUNNER_TEMP/ci-changelog" --prerelease "$version")" = "true" ]; then
             flags+=(--prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" --title "Hivemill $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}" dist/hivemill-install-*
