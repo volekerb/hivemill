@@ -51,6 +51,7 @@ type Runner struct {
 	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
+	inDaemon   bool                   // this process runs the daemon's passes
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 
@@ -211,6 +212,14 @@ func (r *Runner) Start(id string) error {
 	if probs := LintProblems(t.Acceptance); len(probs) > 0 {
 		return fmt.Errorf("%w: %s fails the spec gate (`hivemill task lint %s`):\n  - %s", ErrRefused, id, id, strings.Join(probs, "\n  - "))
 	}
+	ciNone, err := r.ciMode(t.Project)
+	if err != nil {
+		return err
+	}
+	if cmd, _ := r.projectGate(t.Project); ciNone && strings.TrimSpace(cmd) == "" {
+		return fmt.Errorf("%w: %s: project %s has ci_gate none and no gate_cmd, so nothing would test it; set a gate_cmd or ci_gate pr",
+			ErrRefused, id, t.Project)
+	}
 	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
@@ -304,7 +313,7 @@ func (r *Runner) Start(id string) error {
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
-		Criteria: len(Criteria(t.Acceptance)), Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
+		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
@@ -346,6 +355,15 @@ func (r *Runner) launchTask(run *Run, kickoff string) error {
 	return nil
 }
 
+// kickoffEnd is the last line of a kickoff; without PR checks there is no green CI to stop on.
+func kickoffEnd(run *Run) string {
+	until := "the PR is open and CI is green"
+	if run.CINone {
+		until = "the PR is open"
+	}
+	return fmt.Sprintf("\nBranch %s, base %s. Follow your role steps; stop when %s.", run.Branch, run.Base, until)
+}
+
 // Kickoff is the first message of a task session: the task itself, so the session needs no lookup.
 func Kickoff(run *Run, t *Task) string {
 	var b strings.Builder
@@ -359,7 +377,11 @@ func Kickoff(run *Run, t *Task) string {
 	if run.WorkflowAgents > 0 {
 		fmt.Fprintf(&b, "\n%s\n", workflowRequest(run.WorkflowAgents))
 	}
-	fmt.Fprintf(&b, "\nBranch %s, base %s. Follow your role steps; stop when the PR is open and CI is green.", run.Branch, run.Base)
+	if run.CINone {
+		b.WriteString("\nThis project has no PR checks (ci_gate none): the factory runs the project's gate command as the CI. " +
+			"Skip the CI wait of your role steps (no `gh pr checks`): push, open the PR and stop.\n")
+	}
+	b.WriteString(kickoffEnd(run))
 	return b.String()
 }
 
@@ -608,6 +630,7 @@ func (r *Runner) gated(run *Run) {
 		r.ciOverdue(run, now) // an unreadable PR is a pending one
 		return
 	}
+	run.MergeHold = "" // set again below by what still holds the run
 	switch {
 	case pr.State == "MERGED" && run.Eval:
 		r.fail(run, "eval PR was merged outside the runner: eval runs are never merged")
@@ -618,31 +641,41 @@ func (r *Runner) gated(run *Run) {
 	case pr.Mergeable == "CONFLICTING":
 		run.History = append(run.History, fmt.Sprintf("round %d: the PR conflicts with %s", run.Round, run.Base))
 		r.resume(run, fmt.Sprintf("Your PR conflicts with %s. Run `git fetch origin && git merge origin/%s`, resolve, re-run the "+
-			"affected tests, push, wait for CI once and stop.", run.Base, run.Base))
+			"affected tests, %s.", run.Base, run.Base, r.pushAndStop(run.Project)))
 	default:
 		run.Head, run.MergeHold = pr.HeadRefOid, ""
 		r.ciPolled(run, now)
-		verdict, failed := CIVerdict(pr.Checks)
-		switch {
-		case verdict != "green":
-			run.CI.Green = 0
-		case run.CI.Green == 0:
-			run.CI.Green = now.Unix()
+		var verdict string
+		var failed []string
+		none, err := r.ciMode(run.Project)
+		if err != nil {
+			run.MergeHold = err.Error()
+			r.ciOverdue(run, now)
+			return
 		}
-		if verdict == "green" && !r.ciSettled(run, pr.Checks, now) {
-			verdict = "pending"
+		if none {
+			if err := r.localCI(run, pr.HeadRefOid); err != nil {
+				run.MergeHold = err.Error()
+				r.ciOverdue(run, now)
+				return
+			}
+			r.postLocalCI(run)
+			verdict, failed = run.LocalCI.verdict(pr.HeadRefOid)
+		} else {
+			verdict, failed = CIVerdict(pr.Checks)
+			switch {
+			case verdict != "green":
+				run.CI.Green = 0
+			case run.CI.Green == 0:
+				run.CI.Green = now.Unix()
+			}
+			if verdict == "green" && !r.ciSettled(run, pr.Checks, now) {
+				verdict = "pending"
+			}
 		}
 		switch verdict {
 		case "red":
-			run.CIRounds++
-			_ = r.Log.Emit("ci.red", run, Event{Data: map[string]any{"failed": failed, "ci_round": run.CIRounds}})
-			if run.CIRounds > cfgInt(r.Store, "ci_rounds_max") {
-				r.fail(run, fmt.Sprintf("CI red %d times: %s", run.CIRounds, strings.Join(failed, ", ")))
-				return
-			}
-			run.History = append(run.History, fmt.Sprintf("round %d: CI red (%s)", run.Round, strings.Join(failed, ", ")))
-			r.resumeAs(run, "ci", "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
-				"fix it, push, wait for CI once with one blocking command, and stop.")
+			r.redCI(run, failed)
 		case "green":
 			if err := r.StartJudge(run); err != nil {
 				r.fail(run, "the judge did not start: "+err.Error())
@@ -678,14 +711,26 @@ func (r *Runner) judged(run *Run) {
 		r.fail(run, fmt.Sprintf("judge REJECT x%d: %s", run.JudgeRounds, reasons))
 		return
 	}
-	r.resumeAs(run, "judge", "The judge rejected the PR. Fix this, push, wait for CI once and stop:\n- "+strings.Join(v.Reasons, "\n- "))
+	r.resumeAs(run, "judge", "The judge rejected the PR. Fix this, "+r.pushAndStop(run.Project)+":\n- "+strings.Join(v.Reasons, "\n- "))
 }
 
 // Stop cancels a run: its terminals close and the task goes back to todo.
 func (r *Runner) Stop(task string) error {
+	// a gate of this task holds the lock and saves the run when it ends: cancel after it, or the cancel is lost
+	l := r.lock(task, false)
+	if l == nil {
+		r.printf("%s: waiting for a running step of the task (a gate) to end\n", task)
+		l = r.lock(task, true)
+	}
+	if l != nil {
+		defer l.Close()
+	}
 	run, err := r.Store.Run(task)
 	if err != nil || run == nil {
 		return fmt.Errorf("no run for %s", task)
+	}
+	if run.State == Merged { // the step waited for has merged it
+		return fmt.Errorf("%w: %s is merged already", ErrRefused, task)
 	}
 	r.closeSessions(run)
 	r.endCIWait(run)
@@ -704,7 +749,7 @@ func (r *Runner) Status() error {
 	}
 	for _, x := range runs {
 		hold := ""
-		if x.State == Merging && x.MergeHold != "" {
+		if (x.State == Merging || x.State == Gated) && x.MergeHold != "" {
 			hold = " hold: " + truncate(x.MergeHold, 100)
 		}
 		r.printf("%s %-9s round %d blocks %d judge %d ci %d on %s %s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
@@ -764,8 +809,12 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 		return
 	}
 	run.IdleNudges++
+	wait := "wait for CI once, then stop"
+	if r.ciNone(run.Project) {
+		wait = "then stop (this project has no PR checks to wait for)"
+	}
 	nudge := "You stopped before your task was finished. Continue your role steps from where you are: finish the " +
-		"review, write the .hivemill files, push, open the PR, wait for CI once, then stop."
+		"review, write the .hivemill files, push, open the PR, " + wait + "."
 	if r.Prompt(run.Agent, nudge) == nil {
 		r.recordPrompt(run, "task", "nudge", nudge)
 	}

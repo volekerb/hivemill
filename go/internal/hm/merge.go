@@ -66,9 +66,9 @@ func Decide(in MergeInput) MergeDecision {
 	case in.Behind:
 		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case in.CI == "red":
-		return MergeDecision{"resume", "CI is red on the head"}
+		return MergeDecision{"resume", ciRed}
 	case in.CI != "green":
-		return MergeDecision{"hold", "CI is pending on the head"}
+		return MergeDecision{"hold", ciPending}
 	case len(in.MissingChecks) > 0:
 		return MergeDecision{"hold", "required checks missing: " + strings.Join(in.MissingChecks, ", ")}
 	case in.Tier == "":
@@ -103,8 +103,16 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 		return in, pr, nil
 	}
 	in.LaneVerdict, _, _ = r.Store.LaneVerdict(run.Task, pr.HeadRefOid)
-	in.CI, _ = CIVerdict(pr.Checks)
-	in.Required, in.MissingChecks = r.missingChecks(run.Task, pr.Checks)
+	none, err := r.ciMode(run.Project)
+	if err != nil {
+		return in, nil, err
+	}
+	if none {
+		in.CI, _ = run.LocalCI.verdict(pr.HeadRefOid) // read only: Merge runs gate_cmd, the dry run never does
+	} else {
+		in.CI, _ = CIVerdict(pr.Checks)
+		in.Required, in.MissingChecks = r.missingChecks(run.Task, pr.Checks) // required checks are PR checks
+	}
 	t, _ := r.Store.Task(run.Task)
 	slug := strings.ToLower(run.Repo)
 	for _, f := range csv(r.Store.FactoryCfg("frozen_repos")) {
@@ -217,6 +225,19 @@ func (r *Runner) Merge(run *Run) {
 	}
 	d := Decide(in)
 	run.MergeHold = d.Action + ": " + d.Why
+	if pr.State == "OPEN" && r.ciNone(run.Project) {
+		if d.Why == ciPending {
+			// a new head (a refresh, a revert): run gate_cmd now and decide on the next pass from fresh PR data
+			if err := r.localCI(run, in.Head); err != nil {
+				run.MergeHold = err.Error()
+				return
+			}
+		}
+		r.postLocalCI(run)
+		if d.Why == ciPending {
+			return
+		}
+	}
 	guarded, limits, wait := r.t3Guard(run, in, d)
 	if wait != "" {
 		run.MergeHold = "hold: " + wait
@@ -242,8 +263,13 @@ func (r *Runner) Merge(run *Run) {
 	case "rejudge":
 		run.Head, run.State = in.Head, Gated
 	case "resume":
+		if d.Why == ciRed && r.ciNone(run.Project) && run.LocalCI != nil {
+			_, failed := run.LocalCI.verdict(in.Head)
+			r.redCI(run, failed)
+			return
+		}
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
-		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), push, wait for CI once and stop.")
+		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
 	case "refresh":
 		r.refresh(run)
 	case "merge":
@@ -317,6 +343,24 @@ func (r *Runner) holdLimits(run *Run, limits []Limit) {
 		r.fileHeldAsk(s, run, truncate(why, 1500))
 	}
 	r.ownerAlert("hivemill-t3-held", fmt.Sprintf("%s is held for you: %s. PR %s", run.Task, truncate(why, 500), run.PRURL))
+}
+
+// MergeTask is `hivemill merge T`: one merge step under the task lock, so no pass or stop works on the run meanwhile.
+func (r *Runner) MergeTask(task string) (*Run, error) {
+	l := r.lock(task, false)
+	if l == nil {
+		return nil, fmt.Errorf("%w: %s: another step of the task is running", ErrRefused, task)
+	}
+	defer l.Close()
+	run, err := r.Store.Run(task)
+	if err != nil || run == nil {
+		return nil, fmt.Errorf("no run for %s", task)
+	}
+	if run.State != Merging {
+		return nil, fmt.Errorf("%w: %s is %s, not merging", ErrRefused, task, run.State)
+	}
+	r.Merge(run)
+	return run, r.Store.PutRun(run)
 }
 
 // OwnerMerges reports whether a merge block only means the owner merges by hand (tier above the mechanical maximum
