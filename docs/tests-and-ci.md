@@ -58,7 +58,7 @@ Any other changed path (web/, ci/*.json, ...) selects the modules that mention i
 
 ### CI tiers: ci/ci_tier.py (T-0658)
 
-On a pull request, job `ci-tier` classifies the diff once with `ci/ci_tier.py classify`. The script and `ci/affected.py` are taken from the **base commit** (`git archive`), so a PR cannot change its own tier. If the base has no `ci/ci_tier.py`, or the classifier errors, the run is full. On a docs pull request, `unittest-shard` and `go` use a step-level skip and report success; guard jobs stay skipped by their job-level `if`. `docs-check` runs, and `unittest` is the fan-in (the required check name stays `unittest`). When the run is not a docs pull request, `unittest-shard` and `go` each classify again from that same base commit. `unittest` does not classify.
+On a pull request, job `ci-tier` classifies the diff once with `ci-tier classify`, the Go port of `ci/ci_tier.py` (same flags and rules). The tool is built from the **base commit** (`git archive` of `go/cmd/ci-tier`, `go/internal/citools/tier`, `go/internal/citools/affected` and `go/go.mod`, then `go build`), so a PR cannot change its own tier (T-1933). If the archive or the build fails, or the classifier errors, the run is full; in `docs-check` a failed build fails the step. On a docs pull request, `unittest-shard` and `go` use a step-level skip and report success; guard jobs stay skipped by their job-level `if`. `docs-check` runs, and `unittest` is the fan-in (the required check name stays `unittest`). When the run is not a docs pull request, `unittest-shard` and `go` each classify again from that same base commit. `unittest` does not classify.
 
 | tier | when | what runs |
 |---|---|---|

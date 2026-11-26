@@ -44,6 +44,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache: false
       - name: Tier (rules from the base commit)
         id: tier
         working-directory: .
@@ -52,17 +56,19 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
         run: |
-          # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
-          # Push to main, workflow_dispatch, or a base without the script: the full suite.
+          # PRs: docs / affected / full by go/cmd/ci-tier built from the BASE commit, so a PR cannot loosen its own tier.
+          # Push to main, workflow_dispatch, or a base without the Go tool (archive or build fails): the full suite.
           full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
           if [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             BASE_SHA="$BEFORE"  # a merge to main: what this push changed (the deep run is the whole suite)
           elif [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
           mkdir -p "$RUNNER_TEMP/base"
-          if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
-            full "base commit has no ci/ci_tier.py"; exit 0
+          if ! git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected go/internal/citools/tier \
+              | tar -x -C "$RUNNER_TEMP/base" \
+            || ! (cd "$RUNNER_TEMP/base/go" && go build -o "$RUNNER_TEMP/ci-tier" ./cmd/ci-tier); then
+            full "base commit has no ci-tier"; exit 0
           fi
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+          "$RUNNER_TEMP/ci-tier" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       - uses: actions/upload-artifact@v7
         if: steps.tier.outputs.mode == 'affected'
@@ -85,17 +91,24 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache: false
       - name: Tier tool from the base commit
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          # A failed archive or build fails this step: the docs lane has no full-suite fallback.
           mkdir -p "$RUNNER_TEMP/base"
-          git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"
+          git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected go/internal/citools/tier \
+            | tar -x -C "$RUNNER_TEMP/base"
+          (cd "$RUNNER_TEMP/base/go" && go build -o "$RUNNER_TEMP/ci-tier" ./cmd/ci-tier)
       - name: Docs check and docs index
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" docs-check --root . --base "$BASE_SHA" --head HEAD
+          "$RUNNER_TEMP/ci-tier" docs-check --root . --base "$BASE_SHA" --head HEAD
           python -m unittest discover -s tests -p test_docs_index.py
           echo '### docs-only PR: docs fast lane (docs check + docs index passed)' >> "$GITHUB_STEP_SUMMARY"
 
@@ -119,6 +132,12 @@ jobs:
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
         with:
           python-version: "3.13"
+      # setup-go builds ci-tier in the next step and ci-shard in Run shard (the step count and docs gates are pinned by tests/test_ci_tier.py).
+      - uses: actions/setup-go@v7
+        if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+        with:
+          go-version-file: go/go.mod
+          cache: false
       - name: Tier (rules from the base commit)
         id: tier
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
@@ -128,24 +147,20 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
         run: |
-          # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
-          # Push to main, workflow_dispatch, or a base without the script: the full suite.
+          # PRs: docs / affected / full by go/cmd/ci-tier built from the BASE commit, so a PR cannot loosen its own tier.
+          # Push to main, workflow_dispatch, or a base without the Go tool (archive or build fails): the full suite.
           full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
           if [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             BASE_SHA="$BEFORE"  # a merge to main: what this push changed (the deep run is the whole suite)
           elif [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
           mkdir -p "$RUNNER_TEMP/base"
-          if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
-            full "base commit has no ci/ci_tier.py"; exit 0
+          if ! git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected go/internal/citools/tier \
+              | tar -x -C "$RUNNER_TEMP/base" \
+            || ! (cd "$RUNNER_TEMP/base/go" && go build -o "$RUNNER_TEMP/ci-tier" ./cmd/ci-tier); then
+            full "base commit has no ci-tier"; exit 0
           fi
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+          "$RUNNER_TEMP/ci-tier" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
-      # setup-go builds ci-shard in the next step (the step count and docs gates are pinned by tests/test_ci_tier.py).
-      - uses: actions/setup-go@v7
-        if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
-        with:
-          go-version-file: go/go.mod
-          cache: false
       - name: Run shard
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
         run: |
@@ -185,6 +200,12 @@ jobs:
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
         with:
           python-version: "3.13"
+      # This setup-go builds ci-tier from the base commit in the tier step; no cache, so a go=false run saves no near-empty cache.
+      - uses: actions/setup-go@v7
+        if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+        with:
+          go-version-file: go/go.mod
+          cache: false
       - name: Tier (rules from the base commit)
         id: tier
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
@@ -194,17 +215,19 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
         run: |
-          # PRs: docs / affected / full by ci/ci_tier.py as it is on the BASE commit, so a PR cannot loosen its own tier.
-          # Push to main, workflow_dispatch, or a base without the script: the full suite.
+          # PRs: docs / affected / full by go/cmd/ci-tier built from the BASE commit, so a PR cannot loosen its own tier.
+          # Push to main, workflow_dispatch, or a base without the Go tool (archive or build fails): the full suite.
           full() { printf 'tier=risky\nmode=full\ngo=true\nmodules=\n' | tee -a "$GITHUB_OUTPUT"; echo "tier: full suite ($1)"; }
           if [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             BASE_SHA="$BEFORE"  # a merge to main: what this push changed (the deep run is the whole suite)
           elif [ "$EVENT" != pull_request ]; then full "$EVENT"; exit 0; fi
           mkdir -p "$RUNNER_TEMP/base"
-          if ! git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py | tar -x -C "$RUNNER_TEMP/base"; then
-            full "base commit has no ci/ci_tier.py"; exit 0
+          if ! git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected go/internal/citools/tier \
+              | tar -x -C "$RUNNER_TEMP/base" \
+            || ! (cd "$RUNNER_TEMP/base/go" && go build -o "$RUNNER_TEMP/ci-tier" ./cmd/ci-tier); then
+            full "base commit has no ci-tier"; exit 0
           fi
-          python "$RUNNER_TEMP/base/ci/ci_tier.py" classify --root . --base "$BASE_SHA" --head HEAD \
+          "$RUNNER_TEMP/ci-tier" classify --root . --base "$BASE_SHA" --head HEAD \
             --only-file "$RUNNER_TEMP/only.txt" --github-output
       # No go/** change (and not a full run): the job reports success without building.
       - uses: actions/setup-go@v7
@@ -285,7 +308,7 @@ jobs:
 
   # ci/guard_diff.py base-vs-PR on the real corpus for guard-path PRs (tool from the BASE commit), its own cap.
   # Steps skip when no guard path changed, so the job is green (not skipped) then.
-  # tests/ changes use ci/ci_tier affected/full modes like other test files. This job is docs-gated: the if below skips it when ci-tier mode is docs.
+  # tests/ changes use ci-tier affected/full modes like other test files. This job is docs-gated: the if below skips it when ci-tier mode is docs.
   guard-diff:
     name: guard-diff
     needs: ci-tier
