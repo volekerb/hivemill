@@ -1,12 +1,15 @@
 package hm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"factory/go/internal/gate"
 )
@@ -206,6 +209,41 @@ func (r *Runner) eligible(m string, floor int) string {
 		return fmt.Sprintf("%s MemAvailable < %d MB", mbText(p.MemMB), floor)
 	}
 	return ""
+}
+
+// readRemoteUsage reads the usage file of machine m, over the transport of the placement probe but with a short
+// timeout: a slow machine must not stall a pass.
+func readRemoteUsage(m string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "hc", "exec", "--on", m, "sh", "-c", `cat "$HOME/.claude/usage-limits.json"`)
+	cmd.WaitDelay = time.Second
+	return cmd.Output()
+}
+
+// remoteUsageFiles is the usage file of every session machine but the local core, read once per pass. A machine whose
+// read fails is skipped.
+func (r *Runner) remoteUsageFiles() [][]byte {
+	if r.RemoteUsage == nil || r.usageRead {
+		return r.usageFiles
+	}
+	r.usageRead = true
+	core, coreRead := "", false
+	for _, m := range csv(r.Store.Cfg("session_machines")) {
+		if m == localMachine || !validMachine(m) {
+			continue
+		}
+		if !coreRead {
+			core, coreRead = r.coreName(), true
+		}
+		if m == core {
+			continue
+		}
+		if b, err := r.RemoteUsage(m); err == nil {
+			r.usageFiles = append(r.usageFiles, b)
+		}
+	}
+	return r.usageFiles
 }
 
 // validMachine refuses a name hc or ssh could read as an option or a path.
