@@ -23,8 +23,8 @@ permissions:
 env:
   # Keep equal to the length of the unittest-shard matrix (tests/test_shard.py checks it).
   SHARDS: 10
-  # ci-shard (go/cmd/ci-shard) scoping: the deep run (workflow_dispatch) runs every module; a PR or push leaves the Python-vs-Go
-  # corpus module to it, and runs the guard hook modules only when the diff from SHARD_BASE touches a guard path.
+  # ci/shard.py scoping (not yet ported to go/cmd/ci-shard, which runs every module): the deep run (workflow_dispatch) runs every
+  # module; a PR or push leaves the Python-vs-Go corpus module to it, and runs the guard hook modules only when the diff from SHARD_BASE touches a guard path.
   SHARD_DEEP: ${{ github.event_name == 'workflow_dispatch' }}
   SHARD_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
 
@@ -153,8 +153,9 @@ jobs:
           sudo apt-get install -y zsh
           (cd go && go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
           # go is on PATH only to build ci-shard: take it off so the shards skip the same Go-needing tests as before.
-          gobin=$(dirname "$(command -v go)")
-          PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF "$gobin" | paste -sd: -)
+          while gobin=$(command -v go) && [ "${gobin#/}" != "$gobin" ]; do
+            PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF "$(dirname "$gobin")" | paste -sd: -)
+          done
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
           "$RUNNER_TEMP/ci-shard" run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
