@@ -36,14 +36,16 @@ python3 ci/guard_port_check.py --map go/internal/guard/testdata/portmap/<batch>.
   --old go/internal/factorytest/guard1/flags_read_test.go [--old PATH ...] [--base origin/main]
 ```
 
-Files are read from git, at the base ref (default `origin/main`) and at `HEAD`; commit before you run it. It exits 0 only when all of these hold, and otherwise prints each failure (prefixed `a:` to `d:`) and exits 1:
+Test files are read from git, at the merge base of the base ref (default `origin/main`) and `HEAD`, and at `HEAD`; commit before you run it. Below, "the base" means that merge base, so a batch merged to main after the branch point does not skew the counts. It exits 0 only when all of these hold, and otherwise prints each failure (prefixed `a:` to `d:`) and exits 1:
 
 - a. the old names in the map are exactly the `func Test...` names in the `--old` files at the base: none missing, none extra, none twice;
 - b. each `NewTestName` is a `func Test...` in `go/internal/guard/*_test.go` at `HEAD` and not at the base, and appears once in the map;
-- c. each `ExistingTestName` is a `func Test...` in `go/internal/guard/*_test.go` at the base;
+- c. each `ExistingTestName` is a `func Test...` in `go/internal/guard/*_test.go` at the base and still at `HEAD`;
 - d. the number of `func Test...` in `go/internal/guard/*_test.go` at `HEAD` minus the number at the base equals the number of non-duplicate map lines.
 
-Only files directly in `go/internal/guard/` count, not its subdirectories. `python3 ci/guard_port_check.py --self-test` runs a pass and a fail case for each of a to d in a temporary git repo.
+Only files directly in `go/internal/guard/` count, not its subdirectories. A test is a `func TestXxx(` at the start of a line where `Xxx` does not start with a lowercase letter; `TestMain` is setup, not a case, and is skipped.
+
+The map works per test function. It does not see table rows or subtests inside a function, nor `Fuzz...` targets; the mutation check below covers what a function's cases catch. `python3 ci/guard_port_check.py --self-test` runs a pass and a fail case for each of a to d in a temporary git repo.
 
 ## Mutation check
 

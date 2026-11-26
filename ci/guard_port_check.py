@@ -9,8 +9,9 @@
 
 MAP lines are `OldTestName -> NewTestName` or
 `OldTestName -> duplicate-of ExistingTestName`; blank lines and lines starting
-with # are skipped. Files are read from git (REF and HEAD), never the working
-tree. See docs/guard-port.md. Stdlib only.
+with # are skipped. Test files are read from git, never the working tree: at
+the merge base of REF and HEAD, and at HEAD. The map is read from disk.
+TestMain is not a case. See docs/guard-port.md. Stdlib only.
 """
 import argparse
 import collections
@@ -22,7 +23,8 @@ import sys
 import tempfile
 
 GUARD_DIR = "go/internal/guard"
-TEST_FUNC = re.compile(r"^func\s+(Test\w*)\s*\(", re.M)
+# Go runs TestXxx where Xxx does not start with a lowercase letter; TestMain is setup.
+TEST_FUNC = re.compile(r"^func\s+(Test(?![a-z])\w*)\s*\(", re.M)
 NAME = re.compile(r"^Test\w*$")
 DUP = "duplicate-of"
 
@@ -41,7 +43,8 @@ def git(cwd, *args):
 
 
 def test_names(cwd, ref, path):
-    return TEST_FUNC.findall(git(cwd, "show", "%s:%s" % (ref, path)))
+    names = TEST_FUNC.findall(git(cwd, "show", "%s:%s" % (ref, path)))
+    return [n for n in names if n != "TestMain"]
 
 
 def guard_tests(cwd, ref):
@@ -77,6 +80,7 @@ def check(cwd, map_text, olds, base, head="HEAD"):
     """Return the list of failure strings; empty means the map is good."""
     entries, failures = parse_map(map_text)
     try:
+        base = git(cwd, "merge-base", base, head).strip()
         old_names = collections.Counter()
         for path in olds:
             old_names.update(test_names(cwd, base, path))
@@ -121,6 +125,9 @@ def check(cwd, map_text, olds, base, head="HEAD"):
         if dup and new not in ref_set:
             failures.append("c: line %d: %s is not a test in %s at %s"
                             % (n, new, GUARD_DIR, base))
+        elif dup and new not in head_set:
+            failures.append("c: line %d: %s is gone from %s at %s"
+                            % (n, new, GUARD_DIR, head))
 
     # d. guard test count grows by exactly the non-duplicate lines
     delta = len(head_guard) - len(ref_guard)
@@ -133,7 +140,7 @@ def check(cwd, map_text, olds, base, head="HEAD"):
 
 
 def repo_path(top, path):
-    rel = os.path.relpath(os.path.abspath(path), top)
+    rel = os.path.relpath(os.path.realpath(path), os.path.realpath(top))
     return rel.replace(os.sep, "/")
 
 
@@ -165,7 +172,7 @@ def self_test():
         git(tmp, "init", "-q")
         _write(tmp, GUARD_DIR + "/a_test.go", _go("TestExisting"))
         _write(tmp, GUARD_DIR + "/sub/b_test.go", _go("TestSubdirIgnored"))
-        _write(tmp, old, _go("TestFoo", "TestBar"))
+        _write(tmp, old, _go("TestFoo", "TestBar", "TestMain", "Testhelper"))
         _commit(tmp, "base")
         git(tmp, "tag", "base")
         _write(tmp, GUARD_DIR + "/g1_test.go", _go("TestG1Foo"))
@@ -174,6 +181,14 @@ def self_test():
         _write(tmp, GUARD_DIR + "/extra_test.go", _go("TestG1Extra"))
         _commit(tmp, "extra")
         git(tmp, "tag", "extra")
+        git(tmp, "checkout", "-q", "-b", "rename", "port")
+        _write(tmp, GUARD_DIR + "/a_test.go", _go("TestExisting2"))
+        _commit(tmp, "rename")
+        git(tmp, "tag", "renamed")
+        git(tmp, "checkout", "-q", "-b", "mainmoved", "base")
+        _write(tmp, GUARD_DIR + "/other_test.go", _go("TestG2Other"))
+        _commit(tmp, "other batch")
+        git(tmp, "tag", "mainmoved")
 
         good = "# batch\n\nTestFoo -> TestG1Foo\nTestBar -> duplicate-of TestExisting\n"
         cases = [
@@ -185,23 +200,30 @@ def self_test():
             ("b pass: new test added at HEAD", good, "port", "!b:"),
             ("b fail: new test already at REF",
              "TestFoo -> TestExisting\nTestBar -> duplicate-of TestExisting\n", "port", "b:"),
+            ("b fail: new test not at HEAD",
+             "TestFoo -> TestG1Nope\nTestBar -> duplicate-of TestExisting\n", "port", "b:"),
+            ("b fail: new test mapped twice",
+             "TestFoo -> TestG1Foo\nTestBar -> TestG1Foo\n", "port", "b:"),
             ("c pass: duplicate target at REF", good, "port", "!c:"),
+            ("c fail: duplicate target gone at HEAD", good, "renamed", "c:"),
             ("c fail: duplicate target missing",
              "TestFoo -> TestG1Foo\nTestBar -> duplicate-of TestNope\n", "port", "c:"),
             ("d pass: count matches", good, "port", "!d:"),
             ("d fail: unmapped extra test at HEAD", good, "extra", "d:"),
-            ("malformed line", good + "TestFoo => TestG1Foo\n", "port", "malformed"),
+            ("pass: base moved on after the branch point", good, "port", None),
+            ("malformed line", good + "TestFoo => TestG1Foo\n", "port", "map line"),
         ]
         bad = 0
         for label, text, head, expect in cases:
-            fails = check(tmp, text, [old], "base", head)
+            ref = "mainmoved" if "base moved" in label else "base"
+            fails = check(tmp, text, [old], ref, head)
             joined = "\n".join(fails)
             if expect is None:
                 ok = not fails
             elif expect.startswith("!"):
                 ok = expect[1:] not in joined
             else:
-                ok = any(f.startswith(expect) or expect in f for f in fails)
+                ok = any(f.startswith(expect) for f in fails)
             print("%s  %s" % ("ok  " if ok else "FAIL", label))
             if not ok:
                 bad += 1
@@ -229,8 +251,12 @@ def main(argv=None):
     except GitError as e:
         print("guard_port_check: %s" % e, file=sys.stderr)
         return 1
-    with open(args.map) as f:
-        text = f.read()
+    try:
+        with open(args.map) as f:
+            text = f.read()
+    except OSError as e:
+        print("guard_port_check: cannot read map: %s" % e)
+        return 1
     olds = [repo_path(top, p) for p in args.old]
     failures = check(top, text, olds, args.base)
     for f in failures:
