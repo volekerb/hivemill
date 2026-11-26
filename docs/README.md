@@ -147,6 +147,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [planning-rules.md](planning-rules.md): planning and retry rules carried by per-role skills.
 - [test-first-pilot.md](test-first-pilot.md): the pilot where QA writes the failing test first.
 - [guard-diff.md](guard-diff.md): compare the worker-guard hook against main before changing it.
+- [guard-port.md](guard-port.md): the case map each guard port PR carries, its format and new-name convention, and the `ci/guard_port_check.py` map check.
 - [guard-unittest-shard.md](guard-unittest-shard.md): how guard unittest ids are sharded in CI and when a shard step fails the list check.
 - [size-classes.md](size-classes.md): the ci-size-class selector: small, medium and large classes, budgets and checks.
 - [worker-guard-go.md](worker-guard-go.md): the Go port of the worker-guard hook (opt-in through `guard_impl`, Python stays the default; section status, golden data, lookaround map).
