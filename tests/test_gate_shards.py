@@ -43,6 +43,26 @@ def default_signals():
     signal.pthread_sigmask(signal.SIG_UNBLOCK, _RESET_SIGNALS)
 
 
+_saved_signals = {}
+
+
+def setUpModule():
+    # Every gate this module starts must be able to TERM its own steps, so the runner itself drops an inherited
+    # ignore or block of TERM/HUP/INT for the module's duration (SIGINT goes back to Python's KeyboardInterrupt).
+    for s in _RESET_SIGNALS:
+        _saved_signals[s] = signal.getsignal(s)
+        if _saved_signals[s] == signal.SIG_IGN:
+            signal.signal(s, signal.default_int_handler if s == signal.SIGINT else signal.SIG_DFL)
+    _saved_signals["mask"] = signal.pthread_sigmask(signal.SIG_UNBLOCK, _RESET_SIGNALS)
+
+
+def tearDownModule():
+    signal.pthread_sigmask(signal.SIG_SETMASK, _saved_signals.pop("mask"))
+    for s, h in _saved_signals.items():
+        signal.signal(s, h)
+    _saved_signals.clear()
+
+
 def run(tree, shards, report=None):
     env = {**os.environ, "FACTORY_TEST_SLOT_HELD": "1", "GATE_SHARDS": str(shards), "GATE_REPORT_DIR": str(report)}
     return subprocess.run([sys.executable, str(HELPER)], cwd=tree, env=env, capture_output=True, text=True, timeout=120)
