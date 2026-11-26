@@ -263,7 +263,7 @@ func TestPlannerLevelsUseTheDispatchRule(t *testing.T) {
 	if _, err := s.AddTask("G-001", "zz-test unlinted", "spec", "1. works", "todo", "", 1); err != nil {
 		t.Fatal(err)
 	}
-	if lv, _ := r.PlannerLevels(); strings.Join(lv, " ") != "queue_low:www=2/3" {
+	if lv, _ := r.PlannerLevels(); strings.Join(lv, " ") != "queue_low:www=2/3 unstartable:T-0004" {
 		t.Fatalf("levels: %v", lv)
 	}
 	for _, id := range []string{"T-0001", "T-0002", "T-0003"} {
@@ -301,7 +301,7 @@ func TestStarvationAlert(t *testing.T) {
 	}
 	// the goal's project is configured but has nothing ready
 	_ = s.SetCfg("projects", "www")
-	if c := r.OwnerChecks(now); len(c) != 1 || !strings.Contains(c[0].Text, "0 lint-passing ready tasks") {
+	if c := r.OwnerChecks(now); len(c) != 1 || !strings.Contains(c[0].Text, "0 startable tasks") {
 		t.Fatalf("no ready tasks: %+v", c)
 	}
 	// a recent dispatch: not idle, and the open alert is closed

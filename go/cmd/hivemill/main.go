@@ -22,6 +22,7 @@
 //	hivemill guard export          write run/guard-export.json now (the daemon writes it every minute)
 //	hivemill check public-text --home DIR REMOTE URL   the pre-push hook of a task clone (ci/pre_push_public_text.py in Go)
 //	hivemill affected --base REF [--run] [--quick]     ci/affected.py in Go
+//	hivemill proofs touched --base REF [--root DIR]    test the JS packages changed since REF (a project's gate proof)
 //	hivemill daemon                the pass loop in-process (systemd Type=notify, launchd KeepAlive)
 //	hivemill health [--alert]      exit 0 when the last good pass is recent; --alert raises the rate-limited dead-man alert
 //	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
@@ -69,6 +70,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake|done ID... [--note TEXT] | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
+		"proofs touched --base REF [--root DIR] | " +
 		"obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
 		"otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]"
 	if len(args) > 0 && args[0] == "guard" && !isGuardExport(args) { // a hook: its arguments and stdin are the guard's, never a help request
@@ -98,6 +100,8 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return cmdCheck(args[1:], stdin, stdout, stderr)
 	case "affected": // the gate and the sessions: no runner, any actor
 		return cmdAffected(args[1:], stdout, stderr)
+	case "proofs": // a project's gate command: no runner, any actor
+		return cmdProofs(args[1:], stdout, stderr)
 	}
 	env := hm.LoadEnv()
 	hook := len(args) >= 2 && (args[1] == "hook" || args[1] == "hook-session")
