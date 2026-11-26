@@ -9,7 +9,7 @@ At its start a pass reads every open runner PR with one batched GraphQL query (`
 - per PR: state, draft, mergeable, head SHA, title, body, merge commit, and the check runs with status, timestamps and job link;
 - per repo and base branch: the base protection (strict or not) and the GitHub Actions checks of the last 30 base commits (main's push runs, and which job names passed in the last 24 h).
 
-The pass makes no other `gh` status call. A PR the query could not read counts as pending until the next pass. The only other `gh` calls are the actions below (re-run, cancel, failed-job logs, merge and its confirmation, revert). A pass with no open runner PR makes no call, except to read the base of a red main whose merge train still has to be blamed. Commands run by hand (`hivemill merge T`) read their one PR directly.
+The pass makes no other `gh` status call. A PR the query could not read counts as pending until the next pass, and so does a new head that was pushed and gated after the query went out. The only other `gh` calls are the actions below (re-run, cancel, failed-job logs, merge and its confirmation, revert). A pass with no open runner PR makes no call, except to read the base of a red main whose merge train still has to be blamed. Commands run by hand (`hivemill merge T`) read their one PR directly.
 
 ## 2. Flow states and budgets
 
@@ -25,14 +25,14 @@ Each run with a PR has a flow state, set from the run state and the poll. The st
 | `refresh` | behind main and has to merge it first | `stale_pr_min` |
 | `held_owner` | held for the owner | `ask_alert_h` |
 
-A new state, or a new head in a CI state, is a new entry. `ci_running` does not fall back to `ci_queued` while the head stays the same. Each entry is recorded as a `pr.flow` event. A run that is working again (red CI, conflict, judge REJECT) has no flow state.
+A new state, or a new head in a CI state, is a new entry. A budget that only moves keeps the entry, and its stale mark. `ci_running` does not fall back to `ci_queued` while the head stays the same. Each entry is recorded as a `pr.flow` event. A run that is working again (red CI, conflict, judge REJECT) has no flow state.
 
 ## 3. Actions when a budget runs out
 
 Each happens at most once per state entry.
 
-- `ci_queued`: nothing on GitHub (the queue cannot be hurried). Record `ci.queue_slow`. While any PR is queued over budget (an Actions job of its head is still queued), no PR is refreshed, because a refresh adds CI runs to the same queue.
-- `ci_running`: cancel the unfinished Actions runs and re-run them (`gh run rerun`, on the first pass that sees them stopped). A second overrun on the same head fails the run: `CI timed out`. Waiting for a runner is not charged: the action waits until a job has been running for a whole budget, and until then the budget moves on. Jobs that stay queued raise the CI wait alert (a merging run: once per entry, also when `ci_queued` runs out). Commit statuses alone count as running. A run id that `gh run rerun` refuses 5 times is given up; the others still re-run. A project with `ci_gate: none` has nothing to cancel. Checks that are not Actions runs cannot be re-run; they raise one owner alert and the run stays.
+- `ci_queued`: nothing on GitHub (the queue cannot be hurried). Record `ci.queue_slow`. While any PR is queued over budget (an Actions job of its head is still queued; a PR the pass could not read does not count), no PR is refreshed, because a refresh adds CI runs to the same queue.
+- `ci_running`: cancel the unfinished Actions runs and re-run them (`gh run rerun`, on the first pass that sees them stopped). A second overrun on the same head fails the run: `CI timed out`. Waiting for a runner is not charged: the action waits until a job has been running for a whole budget, and until then the budget moves on. Jobs that stay queued raise the CI wait alert (a merging run: once per entry, also when `ci_queued` runs out or a required check never reports; it closes when the state is left, also by a merge by hand). An eval run, which has no flow state, gets the same CI wait alert as any gated run. Commit statuses alone count as running. A run id that `gh run rerun` refuses 5 times is given up; the others still re-run. A project with `ci_gate: none` has nothing to cancel. Checks that are not Actions runs cannot be re-run; they raise one owner alert and the run stays.
 - A red CI where every failed job passed on main in the last 24 h under the same name: re-run the failed jobs once per head (`gh run rerun --failed`, event `ci.rerun`), which starts a new `ci_running` budget. A second red resumes the task session with the log tails.
 - `held_owner`: one owner alert. The delegate path answers held asks. The runner never waits on an LLM to merge a green PR.
 

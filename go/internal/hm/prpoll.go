@@ -15,6 +15,7 @@ import (
 // commits in one GraphQL query, cached until the pass ends.
 
 type prPoll struct {
+	at    string               // when the query was sent
 	prs   map[string]*PR       // by PR URL
 	errs  map[string]error     // by PR URL: why it could not be read
 	bases map[string]*basePoll // by baseKey
@@ -125,7 +126,7 @@ func pollRuns(runs []Run) []Run {
 // pollPRs reads every PR of runs with one GraphQL query, plus the base of a red main whose merge train still has to be
 // blamed (culprit); nothing to read, no call.
 func (r *Runner) pollPRs(runs []Run) *prPoll {
-	p := &prPoll{prs: map[string]*PR{}, errs: map[string]error{}, bases: map[string]*basePoll{}}
+	p := &prPoll{at: nowISO(), prs: map[string]*PR{}, errs: map[string]error{}, bases: map[string]*basePoll{}}
 	type ref struct {
 		owner, name string
 		urls        map[string]string // PR number -> run's PR URL
@@ -241,7 +242,11 @@ func (r *Runner) pollPRs(runs []Run) *prPoll {
 // prView is the run's PR: from the pass's poll inside a pass, else read directly (commands run by hand).
 func (r *Runner) prView(run *Run) (*PR, error) {
 	if r.poll == nil {
-		return PRView(r.Tools, run.PRURL)
+		pr, err := PRView(r.Tools, run.PRURL)
+		if err == nil {
+			pr.Checks = maskRows(run.Rerun, pr)
+		}
+		return pr, err
 	}
 	p := r.poll.prs[run.PRURL]
 	if p == nil {

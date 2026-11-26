@@ -58,7 +58,10 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 	for _, e := range evs {
 		switch e.Event {
 		case "pr.flow":
-			pr, stale = e, ""
+			pr = e
+			if e.Data["since"] == nil { // a new entry; a moved budget keeps the stale mark
+				stale = ""
+			}
 		case "pr.stale":
 			stale = fmt.Sprint(e.Data["reason"])
 		case "task.dispatched":

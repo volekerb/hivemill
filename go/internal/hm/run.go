@@ -637,6 +637,9 @@ func (r *Runner) gated(run *Run) {
 		r.ciOverdue(run, now) // an unreadable PR is a pending one
 		return
 	}
+	if r.poll != nil && pr.HeadRefOid != run.Head && run.Gated >= r.poll.at {
+		return // pushed and gated after the poll: the next pass reads the new head
+	}
 	run.MergeHold = "" // set again below by what still holds the run
 	switch {
 	case pr.State == "MERGED" && run.Eval:
@@ -703,7 +706,7 @@ func (r *Runner) gated(run *Run) {
 			}
 		default:
 			// in a pass, running Actions checks over budget are re-run (trackFlow); the rest alert the owner
-			if rows, actions := unfinishedActions(pr.Checks); r.poll == nil || none || !actions || !slices.ContainsFunc(rows, onRunner) {
+			if rows, actions := unfinishedActions(pr.Checks); r.poll == nil || run.Eval || none || !actions || !slices.ContainsFunc(rows, onRunner) {
 				r.ciOverdue(run, now)
 			}
 		}

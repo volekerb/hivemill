@@ -320,6 +320,9 @@ func (r *Runner) MergeTask(task string) (*Run, error) {
 		return nil, fmt.Errorf("%w: %s is %s, not merging", ErrRefused, task, run.State)
 	}
 	r.Merge(run)
+	if run.State != Merging && run.Flow != nil {
+		r.enterFlow(run, "", "") // merged or held by hand: close what the flow opened
+	}
 	return run, r.Store.PutRun(run)
 }
 

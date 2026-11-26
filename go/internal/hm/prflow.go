@@ -169,12 +169,13 @@ func (r *Runner) flowBudget(state string) int64 {
 
 // enterFlow starts a new entry of a flow state; "" leaves the flow.
 func (r *Runner) enterFlow(run *Run, state, head string) {
-	if f := run.Flow; f != nil && (f.Acted || f.Alerted) {
-		kind := map[string]string{FlowHeldOwner: "hivemill-held", FlowCIRunning: "hivemill-ci"}[f.State]
-		if kind != "" {
-			if err := r.Store.CloseAlert(kind, run.Task); err != nil {
-				r.printf("%s: alert feed: %v\n", run.Task, err)
-			}
+	if f := run.Flow; f != nil && (f.Alerted || (f.Acted && f.State == FlowHeldOwner)) {
+		kind := "hivemill-ci"
+		if f.State == FlowHeldOwner {
+			kind = "hivemill-held"
+		}
+		if err := r.Store.CloseAlert(kind, run.Task); err != nil {
+			r.printf("%s: alert feed: %v\n", run.Task, err)
 		}
 	}
 	var budget int64
@@ -263,9 +264,7 @@ func (r *Runner) ciTimedOut(run *Run) {
 	}
 	if !actions {
 		run.Flow.Acted = true
-		if len(rows) > 0 {
-			r.alertMergingCI(run, "checks that cannot be re-run are over their budget")
-		}
+		r.alertMergingCI(run, "checks that are missing or cannot be re-run are over their budget")
 		return
 	}
 	if rr := run.Rerun; rr != nil && rr.Head == pr.HeadRefOid && rr.Overruns > 0 {
@@ -275,6 +274,9 @@ func (r *Runner) ciTimedOut(run *Run) {
 	}
 	rr := r.rerunState(run, pr.HeadRefOid)
 	rr.Overruns++
+	if run.CI != nil && !run.CI.Alerted {
+		run.CI.Since = time.Now().Unix() // the second attempt is not an unsettled CI yet
+	}
 	for _, c := range rows {
 		if id := actionsRun(c); !slices.Contains(rr.Pending, id) {
 			rr.Pending = append(rr.Pending, id)
@@ -429,7 +431,7 @@ func (r *Runner) queuedTooLong(runs []Run) bool {
 		}
 		pr, err := r.prView(&x)
 		if err != nil {
-			return true // unreadable: keep holding
+			continue // unreadable: no evidence of a queue, and it must not hold every repo
 		}
 		if slices.ContainsFunc(pr.Checks, func(c map[string]any) bool { return actionsRun(c) != "" && unfinished(c) }) {
 			return true
