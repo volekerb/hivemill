@@ -32,6 +32,32 @@ func TestSessionEnvNotUnderTmp(t *testing.T) {
 	}
 }
 
+func TestSessionEnvPlacedAndLocal(t *testing.T) {
+	for _, machine := range []string{"w1", ""} {
+		r, _, _ := placementRunner(t, map[string]fakeWorker{"w1": {memMB: 9000, shared: true, coord: "c"}})
+		setupRoles(t, r)
+		run := &Run{Task: "T-0001", Goal: "G-001", Agent: "claude-coder-t-0001-a7", State: Working, Round: 1, Worktree: t.TempDir(),
+			Base: "main", Model: "claude-sonnet-5-5", Effort: "medium", Machine: machine}
+		if err := r.launchTask(run, "go"); err != nil {
+			t.Fatal(err)
+		}
+		script, err := os.ReadFile(filepath.Join(r.Env.StateDir(), "spawn", run.Agent+".sh"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		local := machine == ""
+		for _, k := range []string{" TMPDIR=", " CLAUDE_CODE_TMPDIR=", " GOTMPDIR=", " GOCACHE="} {
+			if strings.Contains(string(script), k) != local {
+				t.Errorf("machine %q: %s set = %v, want %v", machine, k, !local, local)
+			}
+		}
+		_, err = os.Stat(filepath.Join(r.Env.UserHome, ".cache", "hivemill", "tmp", run.Agent))
+		if (err == nil) != local {
+			t.Errorf("machine %q: session tmp dir on the coordinator: %v", machine, err)
+		}
+	}
+}
+
 func mkdirs(t *testing.T, dirs ...string) {
 	t.Helper()
 	for _, d := range dirs {

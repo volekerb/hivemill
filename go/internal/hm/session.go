@@ -142,7 +142,7 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	}
 	env := sessionEnv(r.Env.UserHome, l.Name)
 	env["FACTORY_ROLE"], env["FACTORY_HOME"] = l.Role, r.Env.Home
-	if err := makeSessionDirs(env); err != nil { // before the l.Env overrides: only our own dirs are created
+	if err := prepareSessionDirs(env, l.Machine); err != nil { // before the l.Env overrides: they still apply
 		return "", err
 	}
 	for k, v := range l.Env {

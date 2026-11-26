@@ -22,8 +22,16 @@ func sessionEnv(userHome, name string) map[string]string {
 		"GOTMPDIR": filepath.Join(godir, "tmp"), "GOCACHE": filepath.Join(godir, "build")}
 }
 
-// makeSessionDirs creates the dirs sessionEnv names: go and Claude Code expect them to exist.
-func makeSessionDirs(env map[string]string) error {
+// prepareSessionDirs creates the dirs sessionEnv names: go and Claude Code expect them to exist. For a session placed
+// on another machine (machine != "") it drops those variables instead: dirs made here do not exist there, and its home
+// may differ.
+func prepareSessionDirs(env map[string]string, machine string) error {
+	if machine != "" {
+		for _, k := range []string{"TMPDIR", "CLAUDE_CODE_TMPDIR", "GOTMPDIR", "GOCACHE"} {
+			delete(env, k)
+		}
+		return nil
+	}
 	for _, k := range []string{"TMPDIR", "GOTMPDIR", "GOCACHE"} {
 		if err := os.MkdirAll(env[k], 0o700); err != nil {
 			return err
