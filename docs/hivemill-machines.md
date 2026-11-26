@@ -42,8 +42,12 @@ session would run there. A busy coordinator then does not hold dispatch while a 
 The gate re-runs the `test:` and `cmd:` proofs on the run's machine (the eval re-run and the goal's checks too), in the
 same clone path over the shared home, so they use that machine's CPU and toolchain. A worker is reached with
 `hc exec --on <machine>`, under `env -i` with `PATH`, `HOME`, `LANG` and `FACTORY_HOME` only. No other variable of the
-coordinator reaches a proof there. The 15-minute limit and the exit code rules are the
-same as on the coordinator, and the worker applies the limit too (`timeout`, where it has one).
+coordinator reaches a proof there. The exit code rules are the same as on the coordinator.
+
+A proof on a worker has 10 minutes: `hc exec --timeout 600`, the most hc allows (its default is 60 s). A proof that
+limit cuts runs again on the local core with the coordinator's 15 minutes, and that result counts. Both runs write
+`gate.proof_run`, and the move writes `gate.proof_fallback`. The next proof goes to the worker again. The gate note of
+an exit 124 names the limit of the run that counted (`timed out after 10m` or `15m`).
 
 If the run's machine cannot be reached or cannot read the clone, the proofs go to the least loaded (1-minute load per
 CPU) other machine in `session_machines` that qualifies, else to the local core. A connection that drops under a proof
