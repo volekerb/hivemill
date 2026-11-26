@@ -1,4 +1,4 @@
-"""VERSION file, `factory --version` and `ci/changelog.py --check-version` (T-0792)."""
+"""VERSION file, `factory --version`, `ci/changelog.py --check-version` (T-0792) and the release workflow's Go ci-changelog steps."""
 import os
 import re
 import shutil
@@ -151,7 +151,7 @@ class TestReleaseWorkflow(unittest.TestCase):
 
     def test_go_tool_is_built_before_use(self):
         lines = (ROOT / ".github" / "workflows" / "release.yml").read_text().splitlines()
-        build = [i for i, l in enumerate(lines) if 'go build -o "$RUNNER_TEMP/ci-changelog" ./cmd/ci-changelog' in l]
+        build = [i for i, l in enumerate(lines) if '-o "$RUNNER_TEMP/ci-changelog" ./cmd/ci-changelog' in l]
         uses = [i for i, l in enumerate(lines) if '"$RUNNER_TEMP/ci-changelog" --' in l]
         self.assertEqual(len(build), 1)
         self.assertEqual(len(uses), 3)
