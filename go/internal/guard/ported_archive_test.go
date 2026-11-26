@@ -112,7 +112,9 @@ func TestPortedArchiveMembers(t *testing.T) {
 	put("git.tgz", gzBytes(t, tarBytes(t, tarEnt{name: ".git/hooks/post-checkout"})))
 	// a second gzip member: gzip -d extracts it, Python lists the first alone, so Go refuses
 	put("multi.tgz", append(gzBytes(t, clean), gzBytes(t, tarBytes(t, tarEnt{name: ".git/config"}))...))
-	put("tail.tgz", append(gzBytes(t, clean), []byte("trailing bytes")...))
+	put("old.tgz", append(gzBytes(t, clean), 0x1f, 0x9e, 0, 0)) // an old-format member gzip -d also decodes
+	put("pad.tgz", append(gzBytes(t, clean), make([]byte, 64)...))
+	put("short.tgz", gzBytes(t, clean)[:len(gzBytes(t, clean))-3])
 	put("junk.tar", bytes.Repeat([]byte("junk"), 300))
 	put("empty.tar", nil)
 	put("zeros.tar", make([]byte, 10240))
@@ -156,7 +158,9 @@ func TestPortedArchiveMembers(t *testing.T) {
 		{"unzip git -d " + o, "has a member '.git/config' under a .git path"},
 		{"tar -xzf git.tgz -C " + o, "under a .git path"},
 		{"tar -xzf multi.tgz -C " + o, "cannot be listed (ReadError)"},
-		{"tar -xzf tail.tgz -C " + o, ""},
+		{"tar -xzf old.tgz -C " + o, "cannot be listed (ReadError)"},
+		{"tar -xzf pad.tgz -C " + o, ""},
+		{"tar -xzf short.tgz -C " + o, "cannot be listed (ReadError)"},
 		{x("catgit.tar"), "has a member 'docs/.git/config'"},
 		{x("junk.tar"), "cannot be listed (ValueError)"},
 		{x("empty.tar"), "cannot be listed (ReadError)"},

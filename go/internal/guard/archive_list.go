@@ -236,8 +236,8 @@ func bz2SecondStream(f *os.File) (bool, error) {
 }
 
 // gzMemberEnd reads the first gzip member's deflate data. At its end it skips the 8-byte CRC/ISIZE trailer and
-// refuses when a second gzip member follows: Python reads only the first member, but gzip -d (and so tar -xzf)
-// extracts them all, so listing the first alone could miss members.
+// refuses when any non-zero byte follows: Python reads only the first member, but gzip -d (and so tar -xzf) also
+// decodes later members (1f 8b, and the old 1f 9e/9d/1e/a0 formats), so listing the first alone could miss members.
 type gzMemberEnd struct {
 	r   io.Reader
 	raw *bufio.Reader
@@ -254,12 +254,19 @@ func (g *gzMemberEnd) Read(p []byte) (int, error) {
 	}
 	g.end = err
 	if _, derr := g.raw.Discard(8); derr != nil {
-		return n, err
+		g.end = &pyErr{"ReadError", "truncated gzip trailer"}
+		return n, g.end
 	}
-	if next, _ := g.raw.Peek(2); bytes.Equal(next, []byte{0x1f, 0x8b}) {
-		g.end = &pyErr{"ReadError", "gzip multi-member stream"}
+	for {
+		c, rerr := g.raw.ReadByte()
+		if rerr != nil {
+			return n, g.end // only zero padding, which gzip -d ignores
+		}
+		if c != 0 {
+			g.end = &pyErr{"ReadError", "data after the first gzip member"}
+			return n, g.end
+		}
 	}
-	return n, g.end
 }
 
 // openTarStream is _Stream(name, "r", "*"): _StreamProxy reads the first block to pick the compression.
