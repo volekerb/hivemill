@@ -193,6 +193,7 @@ and drop `factory` from `gate_fast_projects` (fast mode never runs `gate_cmd`).
   (`GATE_TIMEOUT_S`, set by the gate runners from the project's `gate_timeout_s`; default 3600). A waiting run takes the
   lock over, and logs `taking over`, when that process is dead or has held it longer than that limit; it first stops
   what is left of the holder's process group. A lock file with no record is only waited on.
+  Set `GATE_TIMEOUT_S` yourself for a run by hand that may take more than an hour.
 - **Run dir** (T-1679): each run has its own `<root>/fg-XXXXXX` (`mktemp -d`) on the gate host, with `HOME`, `TMPDIR`,
   `GOTMPDIR` (go test's build temp) and `FACTORY_HOME` inside it. `<root>` is the first of `/var/tmp`, `/tmp` that is
   on disk, not tmpfs (`remote_gate_driver.sh --pick-root`): a run writes about 1 GB, and on a host whose `/tmp` is a

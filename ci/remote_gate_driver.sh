@@ -139,6 +139,7 @@ if [ "${REMOTE_GATE_LEADER-}" != 1 ]; then
     case "$(cat "/proc/$w/comm")" in sshd*) break ;; esac
     read -r _ w _ < <(proc_stat "$w") || w=0
   done
+  case "$(cat "/proc/$w/comm" 2>/dev/null)" in sshd*) ;; *) w=0 ;; esac   # an unreadable ancestor is not "gone"
   watch=
   for p in "$PPID" "$w" "${REMOTE_GATE_SCRIPT_PID-}"; do
     case "$p" in ''|0|1|*[!0-9]*) continue ;; esac
