@@ -47,6 +47,30 @@ func (r *Runner) cloneMode(machine string) bool {
 // cloned reports whether the run's worktree is on a clone-mode machine.
 func (run *Run) cloned() bool { return run != nil && run.Mirror != "" }
 
+// coordWT is the run's clone on the coordinator.
+func (run *Run) coordWT() string {
+	if run.cloned() {
+		return run.Mirror
+	}
+	return run.Worktree
+}
+
+// syncMirror brings the coordinator's clone of a clone-mode run to head, which the session must have pushed.
+func (r *Runner) syncMirror(run *Run, head string) error {
+	g := r.Tools.Git
+	if rc, _, errs := g(run.Mirror, "fetch", "-q", "origin", run.Base, run.Branch); rc != 0 {
+		return fmt.Errorf("git fetch in %s: %s", run.Mirror, firstLine(errs))
+	}
+	rc, pushed, _ := g(run.Mirror, "rev-parse", "refs/remotes/origin/"+run.Branch)
+	if rc != 0 || strings.TrimSpace(pushed) != head {
+		return fmt.Errorf("origin/%s is not at the worktree's HEAD %.12s: push the branch", run.Branch, head)
+	}
+	if rc, _, errs := g(run.Mirror, "checkout", "-q", "-f", "--detach", head); rc != 0 {
+		return fmt.Errorf("git checkout in %s: %s", run.Mirror, firstLine(errs))
+	}
+	return nil
+}
+
 // remoteBase is the factory home of a clone-mode machine.
 func remoteBase(remoteHome string) string { return path.Join(remoteHome, "hivemill") }
 
@@ -139,12 +163,16 @@ func (p place) git(dir string, args ...string) (int, string, string) {
 	return rc, strings.TrimSpace(out), strings.TrimSpace(errs)
 }
 
-// sh runs argv in dir and returns its combined output. env applies here only: the other machine has its own.
+// remoteCleanEnv is cleanEnv() for the other machine's own environment.
+const remoteCleanEnv = `unset GH_TOKEN GITHUB_TOKEN $(env | sed -n 's/^\(CLAUDE[A-Za-z0-9_]*\)=.*/\1/p'); `
+
+// sh runs argv in dir and returns its combined output. env applies here only: the other machine has its own, from
+// which the same variables are removed.
 func (p place) sh(dir string, timeout time.Duration, env []string, argv ...string) (int, string) {
 	if p.machine == "" {
 		return p.r.Tools.Sh(dir, timeout, env, argv...)
 	}
-	rc, out, errs := p.rsh("", timeout, "unset GH_TOKEN GITHUB_TOKEN; cd "+shlex.Quote(dir)+" || exit 127; exec "+quoteAll(argv)+" 2>&1")
+	rc, out, errs := p.rsh("", timeout, remoteCleanEnv+"cd "+shlex.Quote(dir)+" || exit 127; exec "+quoteAll(argv)+" 2>&1")
 	return rc, out + errs
 }
 
