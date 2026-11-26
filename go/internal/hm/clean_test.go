@@ -198,6 +198,28 @@ func TestCleanKeepsUnsavedCommits(t *testing.T) {
 	f.wantKept(t, "stash")
 }
 
+func TestCleanKeepsATaggedUnpushedCommit(t *testing.T) {
+	f := newCleanFix(t)
+	zzGit(t, f.wt, "commit", "-q", "--allow-empty", "-m", "experiment")
+	zzGit(t, f.wt, "tag", "experiment")
+	zzGit(t, f.wt, "reset", "-q", "--hard", f.head)
+	f.wantKept(t, "refs/tags/experiment has commits that are not on origin")
+	zzGit(t, f.wt, "tag", "-d", "experiment")
+	zzGit(t, f.wt, "tag", "-a", "-m", "pushed", "pushed", f.head) // a tag of a pushed commit does not keep
+	f.clean(t, false)
+	if exists(f.wt) {
+		t.Fatal("worktree with only a tag of a pushed commit stays")
+	}
+}
+
+func TestCleanKeepsACloneWithLinkedWorktrees(t *testing.T) {
+	f := newCleanFix(t)
+	other := filepath.Join(t.TempDir(), "other")
+	zzGit(t, f.wt, "worktree", "add", "-q", "--detach", other)
+	zzGit(t, other, "commit", "-q", "--allow-empty", "-m", "detached")
+	f.wantKept(t, "linked worktrees")
+}
+
 func TestCleanClosedPRRemoves(t *testing.T) {
 	f := newCleanFix(t)
 	zzGit(t, f.wt, "push", "-q", "origin", "--delete", "factory/t-0001")

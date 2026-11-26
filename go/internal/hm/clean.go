@@ -340,7 +340,8 @@ func (r *Runner) contains(dir, head, tip string) bool {
 }
 
 // worktreeSaved says why removing wt would lose work ("" = it would not): HEAD must be merged, part of a closed PR
-// or on origin, and a clone must hold no stash and no other local commit. mergedHead is the head of the merged PR
+// or on origin, and a clone must hold no stash, no linked worktree and no other local commit under any ref outside
+// refs/remotes (branches, tags, notes, ...). mergedHead is the head of the merged PR
 // ("" = no merged PR is known). The local record and git are asked first; the GitHub API only when they do not answer.
 // Remote-tracking refs other than the base are not trusted: the branch may be gone on origin, so origin is asked.
 func (r *Runner) worktreeSaved(wt string, t *Task, run *Run, linked bool) (mergedHead, why string) {
@@ -392,26 +393,34 @@ func (r *Runner) worktreeSaved(wt string, t *Task, run *Run, linked bool) (merge
 	if linked { // the branches and stashes of a linked worktree stay in the repository
 		return mergedHead, ""
 	}
+	// a linked worktree of the clone keeps its HEAD (maybe detached) inside the clone
+	rc, trees, errs := r.Tools.Git(wt, "worktree", "list", "--porcelain")
+	if rc != 0 {
+		return "", "cannot list worktrees: " + firstLine(errs)
+	}
+	if strings.Count("\n"+trees, "\nworktree ") != 1 {
+		return "", "the clone has other linked worktrees"
+	}
 	if rc, _, _ := r.Tools.Git(wt, "rev-parse", "--verify", "-q", "refs/stash"); rc == 0 {
 		return "", "the clone holds a stash"
 	}
-	rc, out, errs := r.Tools.Git(wt, "for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads")
+	rc, out, errs := r.Tools.Git(wt, "for-each-ref", "--format=%(refname) %(objectname)")
 	if rc != 0 {
-		return "", "cannot list branches: " + firstLine(errs)
+		return "", "cannot list refs: " + firstLine(errs)
 	}
 	var onOrigin []string // the heads origin has now, asked once and only when needed
 	asked := false
 	for _, line := range strings.Split(out, "\n") {
 		name, tip, ok := strings.Cut(strings.TrimSpace(line), " ")
-		if !ok || tip == head || r.contains(wt, mergedHead, tip) || r.contains(wt, closedHead, tip) ||
+		if !ok || strings.HasPrefix(name, "refs/remotes/") || tip == head || r.contains(wt, mergedHead, tip) || r.contains(wt, closedHead, tip) ||
 			r.contains(wt, "refs/remotes/origin/"+t.Base, tip) {
 			continue
 		}
 		if !asked {
 			asked = true
-			rc, heads, errs := r.Tools.Git(wt, "ls-remote", "--heads", "origin")
+			rc, heads, errs := r.Tools.Git(wt, "ls-remote", "--heads", "--tags", "origin")
 			if rc != 0 {
-				return "", "cannot list the branches of origin: " + firstLine(errs)
+				return "", "cannot list the branches and tags of origin: " + firstLine(errs)
 			}
 			for _, h := range strings.Split(heads, "\n") {
 				if f := strings.Fields(h); len(f) > 0 {
@@ -420,7 +429,10 @@ func (r *Runner) worktreeSaved(wt string, t *Task, run *Run, linked bool) (merge
 			}
 		}
 		if !slices.ContainsFunc(onOrigin, func(h string) bool { return r.contains(wt, h, tip) }) {
-			return "", "branch " + name + " has commits that are not on origin"
+			if b, ok := strings.CutPrefix(name, "refs/heads/"); ok {
+				name = "branch " + b
+			}
+			return "", name + " has commits that are not on origin"
 		}
 	}
 	return mergedHead, ""
