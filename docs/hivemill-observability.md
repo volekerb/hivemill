@@ -31,7 +31,7 @@ Every line has `ts`, `event`, `harness` and `machine`. Where they apply, it also
 | session | `session_id` | role, model, effort, harness, machine, start and end, $, tokens, and its events |
 
 - **Task key.** Task ids are numbered by each factory DB, so two machines can both have a `T-0042`. A task is therefore keyed by the machine that wrote its log and the task id. Projects and goals are grouped by name across machines.
-- **Placed runs.** A run placed on another machine (`session_machines`) is logged by the coordinator. The views, the `machine` filter and the traces show such a task's events and sessions on the placement machine (the `data.machine` of its `task.dispatched`; `local` means the coordinator). The key keeps the coordinator's name.
+- **Placed runs.** A run placed on another machine (`session_machines`) is logged by the coordinator. The views, the `machine` filter and the traces show such a task's events and sessions on the placement machine (the `data.machine` of its `task.dispatched`; `local` means the coordinator). A session whose `session.started` names its own machine, such as the judge, shows there. A machine's newest event is the latest line about its work, including lines the coordinator wrote. The key keeps the coordinator's name.
 - **Which machines are listed.** Every machine in the logs, every placement, every `session_machines` entry and every pulled copy, including those with no run.
 - **Spend columns.** These sum the sessions *started* in the window. A session's whole cost counts on its start day, as in the digest.
 - **Outcome columns.** These are `hivemill report`'s rules (`Summarise`), applied to the tasks with an event in the last `days` days (30 by default):

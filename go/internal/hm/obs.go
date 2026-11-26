@@ -154,7 +154,8 @@ func loadObs(srcs []ObsSource) ([]Event, []string, error) {
 
 // placements is the machine each event's work ran on. The log's writer (the coordinator) stamps every line with its own
 // name, so a task's lines take the machine its run was placed on: the data.machine of the task.dispatched in force (the
-// first one, for lines before it). "local" or none is the writer. A session keeps the machine of its first line, so the
+// first one, for lines before it). "local" or none is the writer. A session's lines take the data.machine of its
+// session.started (the judge of a placed task runs locally), else the machine of its first line, so the
 // session.ended written after a re-dispatch stays with the run it belongs to. run is the machine of the task's run in
 // force at that line, whatever session the line is about. evs are in time order.
 func placements(evs []Event) (out, run []string) {
@@ -187,6 +188,9 @@ func placements(evs []Event) (out, run []string) {
 		if e.Session != "" {
 			s := e.Machine + "/" + e.Session
 			out[i] = or(sessions[s], out[i])
+			if m, _ := e.Data["machine"].(string); e.Event == "session.started" && m != "" {
+				out[i] = of(e)
+			}
 			sessions[s] = out[i]
 		}
 	}
@@ -352,6 +356,9 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 			}
 			t.Goal, t.Project = or(e.GoalID, t.Goal), or(e.Project, t.Project)
 			t.Last, t.Machine = e.TS, run[i]
+			if f.Machine != "" {
+				t.Machine = e.Machine // the row of one machine's lines names that machine
+			}
 			t.Events = append(t.Events, e)
 			t.Row.apply(e)
 			if terminalEvents[e.Event] {

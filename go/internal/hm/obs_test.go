@@ -1062,6 +1062,8 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 		ev(ts("02:01"), "pr.merged", "T-1", "G-1", "www", "", "", nil),
 		ev(ts("03:00"), "task.dispatched", "T-2", "G-1", "www", "", "", placed("local")),
 		ev(ts("03:01"), "session.started", "T-2", "G-1", "www", "s-near", "task", placed("local")),
+		// the judge of a placed task runs on this machine
+		ev(ts("02:02"), "session.started", "T-1", "G-1", "www", "s-judge", "judge", placed("local")),
 		// dispatched again, to the other machine: the first run stays where it ran
 		ev(ts("04:00"), "task.dispatched", "T-2", "G-1", "www", "", "", placed("box-c")),
 		ev(ts("04:01"), "session.started", "T-2", "G-1", "www", "s-again", "task", placed("box-c")),
@@ -1087,11 +1089,11 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 		t.Fatalf("T-1: %+v", t1)
 	}
 	for _, e := range t1.Events {
-		if e.Machine != "box-c" {
+		if e.Session != "s-judge" && e.Machine != "box-c" {
 			t.Fatalf("event %s on %s", e.Event, e.Machine)
 		}
 	}
-	for id, want := range map[string]string{"s-far": "box-c", "s-near": "box-a", "s-again": "box-c"} {
+	for id, want := range map[string]string{"s-far": "box-c", "s-near": "box-a", "s-again": "box-c", "s-judge": "box-a"} {
 		if s := o.Sessions[id]; s.Machine != want {
 			t.Fatalf("session %s on %s, want %s", id, s.Machine, want)
 		}
@@ -1100,7 +1102,7 @@ func TestObsShowsThePlacementMachine(t *testing.T) {
 		t.Fatalf("T-2 %+v asks %v seen %v", o.Tasks["box-a/T-2"], o.EventAsks, o.LastSeen)
 	}
 	near, err := r.LoadObs(ObsFilter{Machine: "box-a"}, true, time.Now())
-	if err != nil || near.Sessions["s-near"] == nil || !near.Sessions["s-near"].CostKnown {
+	if err != nil || near.Sessions["s-near"] == nil || !near.Sessions["s-near"].CostKnown || near.Sessions["s-judge"] == nil || near.Tasks["box-a/T-2"].Machine != "box-a" {
 		t.Fatalf("the first run's session.ended: %v %v", err, near.Sessions)
 	}
 	far, err := r.LoadObs(ObsFilter{Machine: "box-c"}, true, time.Now())
