@@ -39,7 +39,7 @@ Each happens at most once per state entry.
 ## 4. Merging
 
 - Runs ready to merge go in FIFO order by the time the judge gave its verdict.
-- **Merge train.** While main's push run for the previous runner merge is pending, up to `merge_train` (3) more merges may go out, as long as no two merges of the train change the same file. The train empties when the push run of main's head is green. A pending head that is not a runner merge (someone else pushed) holds as before.
+- **Merge train.** While main's push run for the previous runner merge is pending, up to `merge_train` (3) more merges may go out, as long as no two merges of the train change the same file. Nothing rides behind a merge whose file list could not be read, or on a main head whose push run was cancelled. The train empties when the push run of main's head is green. A pending head that is not a runner merge (someone else pushed) holds as before.
 - A red push run of any commit of the train stops it. With `auto_revert=on` the culprit is reverted; merges that rode the train after it do not block that revert, since they share no file with it. When an earlier merge's push run was cancelled and no green run follows it before the red one, nobody is auto-reverted: the red-main bisect task finds the culprit. A base commit with more workflow runs than the poll reads counts as pending when `tests.yml` is not among them. A merge confirmed by a later pass joins the train then.
 
 ## 5. Stale PRs

@@ -270,6 +270,28 @@ func TestPRFlowCIRunningTimeoutReruns(t *testing.T) {
 	}
 }
 
+func TestPRFlowTrainRefusesUnknownRiders(t *testing.T) {
+	f := flowRunner(t)
+	b := &basePoll{}
+	f.r.poll = &prPoll{bases: map[string]*basePoll{baseKey("zz-test/www", "main"): b}}
+	rides := func(car []string) bool {
+		f.r.setTrain("zz-test/www", "main", train{Cars: []trainCar{{SHA: "sha1", Files: car}}})
+		_, ride := f.r.trainState("zz-test/www", "main", "sha1", "pending", []string{"b"})
+		return ride
+	}
+	if !rides([]string{"a"}) {
+		t.Fatal("a disjoint PR does not ride")
+	}
+	if rides(nil) {
+		t.Error("rode behind a merge with no file list")
+	}
+	b.Commits = []baseCommit{{Oid: "sha1", Suites: []baseSuite{{Status: "COMPLETED", Conclusion: "CANCELLED", Event: "push",
+		Path: "/zz-test/www/actions/workflows/tests.yml"}}}}
+	if got := b.pushState("sha1"); got != "cancelled" || rides([]string{"a"}) {
+		t.Errorf("rode on a cancelled head (%q)", got)
+	}
+}
+
 func TestPRFlowRefusedCancelStillEscalates(t *testing.T) {
 	f := flowRunner(t)
 	f.r.Tools.GH = func(dir string, args ...string) (int, string, string) {

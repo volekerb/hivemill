@@ -515,18 +515,21 @@ func (r *Runner) trainState(repo, base, head, main string, files []string) (stri
 		r.setTrain(repo, base, train{})
 		return main, false
 	}
+	cancelled := false // main's head will never report: nothing rides on it
 	if b := r.poll.bases[baseKey(repo, base)]; b != nil {
 		for _, c := range t.Cars {
 			if b.pushState(c.SHA) == "red" {
 				return "red", false
 			}
 		}
+		cancelled = b.pushState(head) == "cancelled"
 	}
-	if main != "pending" || t.Cars[len(t.Cars)-1].SHA != head || t.Rode >= cfgInt(r.Store, "merge_train") || len(files) == 0 {
+	if main != "pending" || cancelled || t.Cars[len(t.Cars)-1].SHA != head || t.Rode >= cfgInt(r.Store, "merge_train") || len(files) == 0 {
 		return main, false
 	}
 	for _, c := range t.Cars {
-		if slices.ContainsFunc(files, func(f string) bool { return slices.Contains(c.Files, f) }) {
+		// a car with no file list (its diff failed) may share any file
+		if len(c.Files) == 0 || slices.ContainsFunc(files, func(f string) bool { return slices.Contains(c.Files, f) }) {
 			return main, false
 		}
 	}
