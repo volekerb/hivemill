@@ -180,10 +180,19 @@ func (r *Runner) PickMachine() Placement {
 	return pl
 }
 
-// activeByMachine counts the sessions of runs per machine: every busy run, and every waiting run whose task session is
-// still open. "" is the local core (a run on the core's own name counts there).
+// activeByMachine counts activeRuns per machine.
 func (r *Runner) activeByMachine(core string) map[string]int {
 	load := map[string]int{}
+	for m, tasks := range r.activeRuns(core) {
+		load[m] = len(tasks)
+	}
+	return load
+}
+
+// activeRuns is the tasks whose session counts on each machine: every busy run, and every waiting run whose task session
+// is still open. "" is the local core (a run on the core's own name counts there).
+func (r *Runner) activeRuns(core string) map[string][]string {
+	load := map[string][]string{}
 	runs, _ := r.Store.Runs()
 	list, listed := Terminals(r.Tools)
 	for _, x := range runs {
@@ -196,7 +205,7 @@ func (r *Runner) activeByMachine(core string) map[string]int {
 		if m == localMachine || (core != "" && m == core) {
 			m = ""
 		}
-		load[m]++
+		load[m] = append(load[m], x.Task)
 	}
 	return load
 }
