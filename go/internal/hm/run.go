@@ -362,7 +362,10 @@ func (r *Runner) fail(run *Run, reason string) {
 	_ = r.Log.Emit("task.failed", run, Event{Data: map[string]any{"reason": truncate(reason, 900)}})
 	if run.Eval {
 		r.evalFinish(run, Failed, "failed: "+truncate(reason, 300))
+		return
 	}
+	_ = r.Store.PutRun(run) // before the close: an unsaved state would be resumed by the next pass
+	r.closeSessions(run)
 }
 
 // resume sends text to the same warm task session and starts a new round.
@@ -569,10 +572,7 @@ func (r *Runner) Stop(task string) error {
 	if err != nil || run == nil {
 		return fmt.Errorf("no run for %s", task)
 	}
-	r.Close(run.Agent)
-	for _, j := range run.Judges {
-		r.Close(j)
-	}
+	r.closeSessions(run)
 	run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
 	r.endSessions(run)
 	_ = r.Log.Emit("task.cancelled", run, Event{})

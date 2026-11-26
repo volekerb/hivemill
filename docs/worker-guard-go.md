@@ -27,8 +27,9 @@ coder's `git push` (`git_push_pin`), the `scrub_terms_file` row (`terms_paths`) 
 
 ### The guard export (T-0767)
 
-Every tick (`export()` in `bin/factory_cli.py`, also `factory export`) writes `<FACTORY_HOME>/run/guard-export.json`
-(mode 0600, replaced atomically):
+hivemill writes `<FACTORY_HOME>/run/guard-export.json` (mode 0600, replaced atomically): the daemon at start and every
+minute, every runner pass and session start, and `hivemill guard export` on demand
+(`go/internal/hm/guardexport.go`).
 
 ```json
 {"version": 1, "generated_at": "2026-11-02T07:00:00+00:00",
