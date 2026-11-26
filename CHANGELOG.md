@@ -11,6 +11,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **The `hivemill obs` task page shows the task as one timeline.** `/task?k=<machine>/<task>` has a header with title, goal, status and total cost, then one row per step with time, role, cost and its PR or session link; failed, blocked and held steps stand out. The former fields, sessions and events are collapsed at the end (T-2026).
 - **A task session that stops on a worker-guard block fails at once.** The Stop hook fails the run with `guard block: ` and the guard message instead of leaving it idle until it fails as stalled (T-2012).
 - **`hivemill obs` serves a task's timeline as JSON.** `GET /api/obs/task?k=<machine>/<task>` returns its steps in time order with the cost per step, the total, and the PR and session links (T-2025).
 

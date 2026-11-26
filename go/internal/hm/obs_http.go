@@ -146,6 +146,9 @@ func (r *Runner) obsHandler(wide bool) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := addTracePage(t); err != nil {
+		return nil, err
+	}
 	s := &obsServer{r: r, tmpl: t, now: time.Now, wide: wide}
 	return s, nil
 }
@@ -247,6 +250,7 @@ type obsPage struct {
 	Tasks     []*ObsTask
 	Task      *ObsTask
 	TaskTitle string
+	TracePg   *tracePage // the /task page's timeline
 	Sessions  []*ObsSession
 	Session   *ObsSession
 	Events    []Event
@@ -521,11 +525,14 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		t := p.Task
 		p.Title = "Task " + t.Task
-		if t.Origin == s.r.Machine() {
+		goalTitle := ""
+		if t.Origin == s.r.Machine() { // task and goal ids are per factory DB
 			if x, err := s.r.Store.Task(t.Task); err == nil && x != nil {
 				p.TaskTitle = x.Title
 			}
+			goalTitle = s.goalTitle(t.Goal)
 		}
+		p.TracePg = newTracePage(buildTrace(t), goalTitle)
 		p.Sessions, p.Events = o.TaskSessions(t), t.Events
 		p.Crumbs = append(p.Crumbs, crumb{or(t.Project, NoProject), p.Q("/project", "p", or(t.Project, NoProject))},
 			crumb{or(t.Goal, "(no goal)"), p.Q("/goal", "g", t.Goal, "p", or(t.Project, NoProject))}, crumb{t.Task + " @" + t.Machine, ""})

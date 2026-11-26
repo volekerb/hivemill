@@ -1,0 +1,58 @@
+package hm
+
+import (
+	"net/http"
+	"strings"
+	"testing"
+)
+
+func TestObsTracePage(t *testing.T) {
+	h, err := traceRunner(t).ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, body := obsGet(t, h, "/task?k=box-a/T-1")
+	head, raw, collapsed := strings.Cut(body, "<details><summary>Raw task fields, sessions and events</summary>")
+	if code != http.StatusOK || !collapsed {
+		t.Fatalf("%d, no collapsed raw block:\n%s", code, body)
+	}
+	for _, want := range []string{"<dt>goal</dt><dd>G-1", `<dt>status</dt><dd class="ok">merged`, "<dt>total cost</dt><dd>$3.00",
+		`<a href="` + tracePR + `" rel="noreferrer">PR</a>`, `<a href="/session?s=s-task-1">`, "$2.50",
+		`<td class="bad"><strong>blocked</strong>`, `<td class="warn"><strong>held</strong>`} {
+		if !strings.Contains(head, want) {
+			t.Errorf("trace lacks %q:\n%s", want, head)
+		}
+	}
+	steps := traceOf(t, "box-a/T-1").Steps
+	if n := strings.Count(head, "<tr data-step="); n != len(steps) {
+		t.Errorf("%d rows for %d steps", n, len(steps))
+	}
+	if !strings.Contains(raw, "<h2>Sessions</h2>") || !strings.Contains(raw, "<h2>Timeline</h2>") {
+		t.Errorf("the raw lists are not in the collapsed block:\n%s", raw)
+	}
+
+	_, body = obsGet(t, h, "/task?k=box-a/T-2&theme=dark")
+	for _, want := range []string{`data-theme="dark"`, `<dt>status</dt><dd class="bad">FAIL`, "<dt>total cost</dt><dd>$1.25",
+		`<td class="bad"><strong>failed</strong>`, "failed: gate blocked 3 times", `href="/session?s=s-task-2&amp;theme=dark"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("failed task lacks %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "<script") || strings.Contains(body, "style=") {
+		t.Error("no script and no inline style")
+	}
+	if m, class := stepMark(TraceStep{Kind: "judge.verdict", Summary: "judge MERGE: all met"}); m != "" || class != "" {
+		t.Errorf("a merge verdict is marked %q", m)
+	}
+	for summary, want := range map[string]string{"judge REJECT: criterion 2 unmet": "blocked", "judge HOLD: owner": "held"} {
+		if m, _ := stepMark(TraceStep{Kind: "judge.verdict", Summary: summary}); m != want {
+			t.Errorf("%q is marked %q", summary, m)
+		}
+	}
+
+	for _, target := range []string{"/session?s=s-task-1", "/task?k=nope"} {
+		if _, body = obsGet(t, h, target); strings.Contains(body, "<details><summary>Raw task fields") {
+			t.Errorf("%s has the trace page", target)
+		}
+	}
+}
