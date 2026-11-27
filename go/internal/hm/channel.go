@@ -201,6 +201,29 @@ func (r *Runner) waitStable() {
 	r.stableWG.Wait()
 }
 
+// keepAlive pings the watchdog and the heartbeat while waitStable blocks a daemon pass: the stable passes may take
+// longer than both allow, and StablePassLimit bounds them.
+func (r *Runner) keepAlive(every time.Duration) (stop func()) {
+	done, ended := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(ended)
+		t := time.NewTicker(every)
+		defer t.Stop()
+		for {
+			sdNotify("WATCHDOG=1")
+			if r.inDaemon { // a command run by hand must not make a dead daemon look healthy
+				_ = r.Heartbeat(time.Now())
+			}
+			select {
+			case <-done:
+				return
+			case <-t.C:
+			}
+		}
+	}()
+	return func() { close(done); <-ended }
+}
+
 // stableResult counts the failed stable passes in a row of a project; at stableFailAlert it raises one alert.
 func (r *Runner) stableResult(project string, rc int) {
 	key := "stable_fail:" + project
