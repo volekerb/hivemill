@@ -70,7 +70,7 @@ func (r *Runner) ReportRows() ([]Row, error) {
 		return rows[t]
 	}
 	for _, e := range evs {
-		if e.TaskID == "" || e.Event == repointedEvent {
+		if e.TaskID == "" || noTaskRow(e.Event) {
 			continue
 		}
 		get(e.TaskID).apply(e)

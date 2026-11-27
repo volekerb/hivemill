@@ -57,6 +57,9 @@ var Defaults = map[string]string{
 	"standby_from":             "",     // on the standby: HOST or HOST:DIR of the primary's snapshots (docs/standby.md); empty = no check
 	"standby_check_days":       "30",   // daemon `standby check` of standby_from every this many days; 0 = off
 	"alert_cmd":                "",     // owner alerts: run as sh -c "$alert_cmd" hivemill-alert TITLE TEXT; empty = log, plus a notification on macOS
+	// upstream filing (upstream.go): a standalone runner's factory tasks are rows on the factory runner
+	"upstream":      "", // TARGET:/FACTORY_HOME of the factory runner, over ssh; empty = none
+	"upstream_goal": "", // the factory runner's goal `upstream add` files under
 	// planner (planner.go): one long-lived session that keeps the ready queues full and turns failures into a next step
 	"planner_queue_min":  "3",               // lint-passing ready tasks wanted per project with an active goal
 	"planner_model":      "claude-opus-5-5", // the planner session's model (never Fable)

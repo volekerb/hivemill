@@ -56,6 +56,8 @@
       "Bash(hivemill run status)",
       "Bash(hivemill report:*)",
       "Bash(hivemill health)",
+      "Bash(hivemill upstream add:*)",
+      "Bash(hivemill upstream status:*)",
       "Bash(hivemill ask add:*)",
       "Bash(hivemill ask list:*)",
       "Bash(hivemill ask withdraw:*)",

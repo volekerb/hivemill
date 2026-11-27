@@ -484,6 +484,7 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		depends := fs.String("depends", "", "comma-separated task ids that must be done first")
 		refileOf := fs.String("refile-of", "", "the cancelled or failed task this one files again: its dependents move to the new id")
 		draft := fs.Bool("draft", false, "store it as status draft: never dispatched, criteria may still fail the spec gate")
+		from := fs.String("upstream-from", "", "set by `upstream add`: the machine that files this task from another runner")
 		if fs.Parse(args[1:]) != nil || fs.NArg() > 0 || !goalRe.MatchString(*goal) || strings.TrimSpace(*title) == "" {
 			fmt.Fprintln(stderr, taskUsage)
 			return 2
@@ -513,6 +514,15 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		if probs := lintReport(&lint, "new task", a); len(probs) > 0 && !*draft {
 			fmt.Fprint(stderr, lint.String())
 			return fail(stderr, fmt.Errorf("%w: the criteria fail the spec gate; fix them, or file it with --draft", hm.ErrRefused))
+		}
+		if *from != "" { // the filer cannot see this goal: a task in a goal that is not active would never start
+			g, err := s.Goal(strings.ToUpper(*goal))
+			if err != nil {
+				return fail(stderr, fmt.Errorf("%w: %v", hm.ErrRefused, err))
+			}
+			if g.Status != "active" {
+				return fail(stderr, fmt.Errorf("%w: goal %s is %s, not active: update upstream_goal on the filing runner", hm.ErrRefused, strings.ToUpper(*goal), g.Status))
+			}
 		}
 		of := strings.ToUpper(strings.TrimSpace(*refileOf))
 		if of != "" {
@@ -546,6 +556,9 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		}
 		fmt.Fprint(stdout, strings.Replace(lint.String(), "new task", id, 1))
 		fmt.Fprintf(stdout, "%s %s in %s\n", id, status, strings.ToUpper(*goal))
+		if *from != "" {
+			logUpstreamFiled(r, s, id, strings.ToUpper(*goal), *from, stderr)
+		}
 		repoint(r, stderr)
 	case "list":
 		fs := newFlags("task list", stderr)

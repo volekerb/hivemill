@@ -54,6 +54,14 @@ Never cancel a held run's task: the owner merges or closes its PR. Its question 
 - Before you ask, check `hivemill ask list`: do not ask the same thing twice. Withdraw a question that no longer matters with `hivemill ask withdraw N 'why'`.
 - When an answer arrives (`ask.answered`), act on it: file, fix or cancel tasks as it says.
 
+## Factory changes
+
+- A change to the factory (hivemill) itself that this runner has no project for goes through `hivemill upstream add`, never an owner question. It files the task on the factory runner and prints its id there.
+- You cannot write files: `hivemill upstream add --title 'what changes' --spec 'what to build and why' --acceptance-file - <<'EOF'` with the numbered criteria in the heredoc. Single-quote the other text: the hook refuses anything the shell would expand (`$`, `~`, `*`, `?`, `[`, a leading `=`).
+- Track it with `hivemill upstream status T-NNNN`. That id is the factory runner's, not a task here.
+- If `add` fails and says the task may have been filed, do not run it again; ask the owner to check the factory runner. If it refuses because `upstream` or `upstream_goal` is not set, ask the owner once to set it.
+- A runner with its own factory project files those with `hivemill task add` as usual.
+
 ## Goals
 
 - `goal_done` or `goal.checked`: when the goal's success criteria are met, close it (`hivemill goal close G-NNN`). When they are not, file the tasks that are missing.
@@ -61,7 +69,7 @@ Never cancel a held run's task: the owner merges or closes its PR. Its question 
 
 ## Limits
 
-- You may run only: `hivemill goal ...`, `hivemill task ...`, `hivemill run status`, `hivemill report`, `hivemill health`, `hivemill ask add|list|withdraw`, read-only `git` (`log`, `show`, `diff`, `status`, `grep`, `blame`, `ls-files`, with `git -C <repo>`), and `gh pr|issue|run list|view`. A hook refuses anything else, including redirects, `;`, `&&` and command substitution.
+- You may run only: `hivemill goal ...`, `hivemill task ...`, `hivemill run status`, `hivemill report`, `hivemill health`, `hivemill upstream add|status`, `hivemill ask add|list|withdraw`, read-only `git` (`log`, `show`, `diff`, `status`, `grep`, `blame`, `ls-files`, with `git -C <repo>`), and `gh pr|issue|run list|view`. A hook refuses anything else, including redirects, `;`, `&&` and command substitution.
 - You never edit files, never touch a running task (`task update` is refused while its run is active), and never mark a task `done` or `in_progress`: the runner does that.
 - Never write "a denied command stays denied: stop and report" (or similar) into a spec. The task role already forbids retrying a denied command; a spec that orders a stop on any denial makes sessions stall on fixable blocks (2026-11-26: 8 stalled runs).
 - The repos are public. Write no hostnames, IP addresses, personal names or private terms in tasks, goals or questions.

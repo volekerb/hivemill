@@ -13,7 +13,7 @@ import (
 )
 
 // The planner's PreToolUse hook (`hivemill planner hook`) is an allow-list: the planner plans, it never changes code or
-// the machine. Bash may run only `hivemill goal|task|run status|report|health|ask add|list|withdraw`, read-only git and
+// the machine. Bash may run only `hivemill goal|task|run status|report|health|upstream add|status|ask add|list|withdraw`, read-only git and
 // gh reads, optionally piped into a read-only filter; Edit, Write and NotebookEdit are refused; Read, Grep and Glob are
 // refused under hidden directories of the user's home (credentials).
 
@@ -71,6 +71,13 @@ func PlannerBash(cmd string) string {
 	if cmd == "" {
 		return "empty command"
 	}
+	head := cmd
+	if i := unquotedNewline(cmd); i >= 0 {
+		head = cmd[:i]
+	}
+	if continued(head) { // bash joins the lines before it reads them, so every check below would see another command
+		return "no backslash-newline"
+	}
 	// One quoted heredoc (no expansion inside) may feed stdin: `hivemill task add ... --acceptance-file - <<'EOF'`.
 	if i := unquotedNewline(cmd); i >= 0 {
 		first, rest := cmd[:i], cmd[i+1:]
@@ -82,6 +89,11 @@ func PlannerBash(cmd string) string {
 		lines := strings.Split(rest, "\n")
 		if strings.TrimSpace(lines[len(lines)-1]) != tag {
 			return "the heredoc must end with its tag on the last line"
+		}
+		for _, l := range lines[:len(lines)-1] { // the shell ends the heredoc at the first such line and runs the rest
+			if strings.TrimLeft(l, "\t") == tag {
+				return "the heredoc tag may only be on the last line"
+			}
 		}
 		cmd = strings.TrimSpace(first[:m[0]])
 	}
@@ -97,6 +109,13 @@ func PlannerBash(cmd string) string {
 		if i == 0 {
 			if why := plannerCommand(argv); why != "" {
 				return why
+			}
+			// this text leaves the machine: no variable, home or file name may expand into it (the program may be ~/…)
+			if len(argv) > 2 && filepath.Base(argv[0]) == "hivemill" && argv[1] == "upstream" {
+				// scanned from the start, so a quoted program path keeps the quote state right; only its ~/ may expand
+				if expands(strings.TrimPrefix(strings.TrimLeft(seg, " \t"), "~/")) {
+					return "upstream: no $ ~ * ? [ or leading = the shell would expand: single-quote the text (or use the quoted heredoc)"
+				}
 			}
 		} else if why := plannerFilter(argv); why != "" {
 			return why
@@ -130,6 +149,62 @@ func unquotedNewline(s string) int {
 	return -1
 }
 
+// expands reports what the shell would expand: an unescaped $ outside single quotes, or ~ * ? [ and a leading = outside
+// any quotes.
+func expands(s string) bool {
+	var q byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case q == '\'':
+			if c == '\'' {
+				q = 0
+			}
+		case c == '\\':
+			i++
+		case c == '$':
+			return true
+		case q == '"':
+			if c == '"' {
+				q = 0
+			}
+		case c == '\'' || c == '"':
+			q = c
+		case strings.IndexByte("~*?[", c) >= 0:
+			return true
+		case c == '=' && (i == 0 || s[i-1] == ' ' || s[i-1] == '\t'): // zsh turns =name into that program's path
+			return true
+		}
+	}
+	return false
+}
+
+// continued reports a backslash-newline outside single quotes.
+func continued(s string) bool {
+	var q byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case q == '\'':
+			if c == '\'' {
+				q = 0
+			}
+		case c == '\\':
+			if i+1 < len(s) && s[i+1] == '\n' {
+				return true
+			}
+			i++
+		case q == '"':
+			if c == '"' {
+				q = 0
+			}
+		case c == '\'' || c == '"':
+			q = c
+		}
+	}
+	return false
+}
+
 // unquotedMeta refuses shell control outside single quotes: command separators, redirects, substitutions and `||`.
 // A single `|` is allowed (pipes are checked per segment).
 func unquotedMeta(s string) string {
@@ -154,10 +229,16 @@ func unquotedMeta(s string) string {
 			continue
 		case c == '\'' || c == '"':
 			q = c
+		case c == '#' && (i == 0 || s[i-1] == ' ' || s[i-1] == '\t' || s[i-1] == '|'): // it would comment out a heredoc
+			return "no comments"
+		case c == '{': // brace expansion makes words the checks below never see
+			return "no { outside quotes: quote the word, as in 'HEAD@{1}'"
 		case c == ';' || c == '&' || c == '>' || c == '<' || c == '`' || c == '\n' || c == '(' || c == ')':
 			return fmt.Sprintf("one plain command per call: %q is not allowed outside quotes", c)
 		case c == '$' && i+1 < len(s) && s[i+1] == '(':
 			return "no command substitution"
+		case c == '$' && i+1 < len(s) && s[i+1] == '\'': // \' does not close $'...': the quoting would be misread
+			return "no $'...' quoting"
 		case c == '|' && i+1 < len(s) && s[i+1] == '|':
 			return "no ||"
 		}
@@ -201,7 +282,7 @@ var (
 	ghRead = map[string]map[string]bool{"pr": {"list": true, "view": true, "diff": true, "checks": true, "status": true},
 		"issue": {"list": true, "view": true}, "run": {"list": true, "view": true}, "repo": {"view": true}}
 	hmPlanner = map[string]map[string]bool{"goal": nil, "task": nil, "report": nil, "health": nil,
-		"run": {"status": true}, "ask": {"add": true, "list": true, "withdraw": true}}
+		"run": {"status": true}, "ask": {"add": true, "list": true, "withdraw": true}, "upstream": {"add": true, "status": true}}
 )
 
 func plannerCommand(argv []string) string {
@@ -216,7 +297,7 @@ func plannerCommand(argv []string) string {
 		}
 		subs, ok := hmPlanner[argv[1]]
 		if !ok {
-			return fmt.Sprintf("the planner may run hivemill goal, task, run status, report, health and ask add|list|withdraw, not %q", argv[1])
+			return fmt.Sprintf("the planner may run hivemill goal, task, run status, report, health, upstream add|status and ask add|list|withdraw, not %q", argv[1])
 		}
 		if subs != nil && (len(argv) < 3 || !subs[argv[2]]) {
 			return fmt.Sprintf("hivemill %s: the planner may only run %s", argv[1], strings.Join(keys(subs), ", "))
@@ -252,6 +333,7 @@ type filterRule struct {
 	value      map[string]int
 	refused    []string
 	positional int
+	only       *regexp.Regexp // when set, no other flag: GNU takes abbreviations, which a refused list misses
 }
 
 var filters = map[string]filterRule{
@@ -259,12 +341,15 @@ var filters = map[string]filterRule{
 	"tail": {value: map[string]int{"-n": 1, "-c": 1, "--lines": 1, "--bytes": 1}, refused: []string{"-f", "-F", "--follow"}},
 	"wc":   {refused: []string{"--files0-from"}},
 	"cut":  {value: map[string]int{"-d": 1, "-f": 1, "-c": 1, "-b": 1, "--delimiter": 1, "--fields": 1}},
-	"sort": {value: map[string]int{"-k": 1, "-t": 1, "--key": 1}, refused: []string{"-o", "--output", "--files0-from", "-T", "--temporary-directory"}},
+	"sort": {value: map[string]int{"-k": 1, "-t": 1, "--key": 1, "--field-separator": 1}, refused: []string{"-o", "--output", "--files0-from", "-T", "--temporary-directory"},
+		only: regexp.MustCompile(`^(-[bcCdfghiMmnRrsuVz]+|-[bcCdfghiMmnRrsuVz]*[kt].*|--(reverse|unique|stable|numeric-sort|general-numeric-sort|human-numeric-sort|month-sort|random-sort|version-sort|ignore-case|ignore-leading-blanks|ignore-nonprinting|dictionary-order|check)|--(key|field-separator)(=.*)?)$`)},
 	"grep": {value: map[string]int{"-e": 1, "-m": 1, "-A": 1, "-B": 1, "-C": 1, "--regexp": 1, "--max-count": 1}, positional: 1,
 		refused: []string{"-f", "--file", "-r", "-R", "--recursive", "--dereference-recursive", "-d", "--directories", "--exclude-from"}},
 	"jq": {value: map[string]int{"--arg": 2, "--argjson": 2, "--indent": 1}, positional: 1,
 		refused: []string{"-f", "--from-file", "--rawfile", "--slurpfile", "--argfile", "-L", "--jsonargs", "--args"}},
 }
+
+var bundledValueRe = regexp.MustCompile(`^-[bcCdfghiMmnRrsuVz]+[kt]$`)
 
 func plannerFilter(argv []string) string {
 	name := filepath.Base(argv[0])
@@ -281,10 +366,16 @@ func plannerFilter(argv []string) string {
 					return fmt.Sprintf("%s %s reads or writes a file", name, a)
 				}
 			}
+			if rule.only != nil && !rule.only.MatchString(a) {
+				return fmt.Sprintf("%s %s is not an allowed flag", name, a)
+			}
 			if name == "grep" && (a == "-e" || strings.HasPrefix(a, "--regexp")) {
 				pos = rule.positional // the pattern comes with -e: no positional pattern is left
 			}
 			i += rule.value[a]
+			if rule.only != nil && bundledValueRe.MatchString(a) { // -rk 2: the value is the next token
+				i++
+			}
 			continue
 		}
 		pos++
