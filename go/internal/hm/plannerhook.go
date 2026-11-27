@@ -110,9 +110,11 @@ func PlannerBash(cmd string) string {
 			if why := plannerCommand(argv); why != "" {
 				return why
 			}
-			// this text leaves the machine: no variable may expand into it
-			if len(argv) > 2 && filepath.Base(argv[0]) == "hivemill" && argv[1] == "upstream" && expands(seg) {
-				return "upstream: no $ outside single quotes (or use the quoted heredoc)"
+			// this text leaves the machine: no variable, home or file name may expand into it (the program may be ~/…)
+			if len(argv) > 2 && filepath.Base(argv[0]) == "hivemill" && argv[1] == "upstream" {
+				if t := strings.TrimLeft(seg, " \t"); expands(t[strings.IndexAny(t, " \t")+1:]) {
+					return "upstream: no $ ~ * ? [ the shell would expand: single-quote the text (or use the quoted heredoc)"
+				}
 			}
 		} else if why := plannerFilter(argv); why != "" {
 			return why
@@ -146,7 +148,7 @@ func unquotedNewline(s string) int {
 	return -1
 }
 
-// expands reports a $ the shell would expand: outside single quotes and not escaped.
+// expands reports what the shell would expand: an unescaped $ outside single quotes, or ~ * ? [ outside any quotes.
 func expands(s string) bool {
 	var q byte
 	for i := 0; i < len(s); i++ {
@@ -166,6 +168,8 @@ func expands(s string) bool {
 			}
 		case c == '\'' || c == '"':
 			q = c
+		case strings.IndexByte("~*?[", c) >= 0:
+			return true
 		}
 	}
 	return false
@@ -224,7 +228,7 @@ func unquotedMeta(s string) string {
 		case c == '#' && (i == 0 || s[i-1] == ' ' || s[i-1] == '\t' || s[i-1] == '|'): // it would comment out a heredoc
 			return "no comments"
 		case c == '{': // brace expansion makes words the checks below never see
-			return "no { outside quotes"
+			return "no { outside quotes: quote the word, as in 'HEAD@{1}'"
 		case c == ';' || c == '&' || c == '>' || c == '<' || c == '`' || c == '\n' || c == '(' || c == ')':
 			return fmt.Sprintf("one plain command per call: %q is not allowed outside quotes", c)
 		case c == '$' && i+1 < len(s) && s[i+1] == '(':
@@ -334,14 +338,14 @@ var filters = map[string]filterRule{
 	"wc":   {refused: []string{"--files0-from"}},
 	"cut":  {value: map[string]int{"-d": 1, "-f": 1, "-c": 1, "-b": 1, "--delimiter": 1, "--fields": 1}},
 	"sort": {value: map[string]int{"-k": 1, "-t": 1, "--key": 1, "--field-separator": 1}, refused: []string{"-o", "--output", "--files0-from", "-T", "--temporary-directory"},
-		only: regexp.MustCompile(`^(-[bcCdfghiMmnrsuVz]+|-[bcCdfghiMmnrsuVz]*[kt].*|--(reverse|unique|stable|numeric-sort|human-numeric-sort|version-sort|ignore-case)|--(key|field-separator)(=.*)?)$`)},
+		only: regexp.MustCompile(`^(-[bcCdfghiMmnRrsuVz]+|-[bcCdfghiMmnRrsuVz]*[kt].*|--(reverse|unique|stable|numeric-sort|general-numeric-sort|human-numeric-sort|month-sort|random-sort|version-sort|ignore-case|ignore-leading-blanks|ignore-nonprinting|dictionary-order|check)|--(key|field-separator)(=.*)?)$`)},
 	"grep": {value: map[string]int{"-e": 1, "-m": 1, "-A": 1, "-B": 1, "-C": 1, "--regexp": 1, "--max-count": 1}, positional: 1,
 		refused: []string{"-f", "--file", "-r", "-R", "--recursive", "--dereference-recursive", "-d", "--directories", "--exclude-from"}},
 	"jq": {value: map[string]int{"--arg": 2, "--argjson": 2, "--indent": 1}, positional: 1,
 		refused: []string{"-f", "--from-file", "--rawfile", "--slurpfile", "--argfile", "-L", "--jsonargs", "--args"}},
 }
 
-var bundledValueRe = regexp.MustCompile(`^-[bcCdfghiMmnrsuVz]+[kt]$`)
+var bundledValueRe = regexp.MustCompile(`^-[bcCdfghiMmnRrsuVz]+[kt]$`)
 
 func plannerFilter(argv []string) string {
 	name := filepath.Base(argv[0])
