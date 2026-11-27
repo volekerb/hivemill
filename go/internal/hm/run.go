@@ -296,12 +296,7 @@ func (r *Runner) Start(id string) error {
 		State:     Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
-	adopting := r.lock(prLock, true) // until the run is saved: the sweep must not close the PR in between
-	if adopting != nil {
-		defer adopting.Close()
-	}
-	r.adoptPR(run, t) // before the save: a pass must not see the run without the PR it continues
-	if err := r.Store.PutRun(run); err != nil {
+	if err := r.saveStarted(run, t); err != nil {
 		return err
 	}
 	unlock()
@@ -319,6 +314,25 @@ func (r *Runner) Start(id string) error {
 	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,
 		machineLabel(pl.Machine))
 	return nil
+}
+
+// saveStarted adopts the PR the new run continues and saves the run, under one lock: the sweep must not close that PR
+// in between, and of two starts on one branch only the first is saved.
+func (r *Runner) saveStarted(run *Run, t *Task) error {
+	if l := r.lock(prLock, true); l != nil {
+		defer l.Close()
+	}
+	user, err := r.branchUser(run.Task, run.Repo, run.Branch, "")
+	if err != nil {
+		return err
+	}
+	if user != "" {
+		return fmt.Errorf("%w: %s: the run of %s works on %s", ErrRefused, run.Task, user, run.Branch)
+	}
+	if err := r.adoptPR(run, t); err != nil { // before the save: a pass must not see the run without its PR
+		return err
+	}
+	return r.Store.PutRun(run)
 }
 
 // taskEnv is the environment of a task session, started or relaunched: the noreply identity, the scrub terms and,
@@ -392,11 +406,13 @@ func (r *Runner) Clone(t *Task, branch string) (string, error) {
 	g := r.Tools.Git
 	wt := filepath.Join(r.Env.Home, "worktrees", t.Goal+"-"+t.ID)
 	if fi, err := os.Stat(filepath.Join(wt, ".git")); err == nil && fi.IsDir() {
+		g(wt, "fetch", "-q", "origin") // another run may have pushed to the branch; offline, the local one serves
 		if rc, _, errs := g(wt, "checkout", "-q", branch); rc != 0 {
 			if rc, _, errs2 := g(wt, "checkout", "-q", "-B", branch, "origin/"+t.Base); rc != 0 {
 				return "", fmt.Errorf("clone %s: cannot check out %s: %s %s", wt, branch, errs, errs2)
 			}
 		}
+		g(wt, "merge", "-q", "--ff-only", "origin/"+branch) // best effort: unpushed local commits stay
 	} else {
 		if _, err := os.Stat(wt); err == nil {
 			return "", fmt.Errorf("%w: %s exists but is not a clone; remove it", ErrRefused, wt)

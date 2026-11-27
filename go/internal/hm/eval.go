@@ -45,7 +45,7 @@ func (r *Runner) EvalStart(id, mode string) error {
 	}
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Branch: branch,
 		Agent: "claude-coder-" + strings.ToLower(id) + "-a7", State: Working, Round: 1, Eval: true, EvalMode: mode,
-		Dispatched: nowISO(), RoundStart: nowISO(), Criteria: len(Criteria(t.Acceptance))}
+		Dispatched: nowISO(), RoundStart: nowISO(), Criteria: len(Criteria(t.Acceptance)), Continues: r.continuesFrom(id, branch)}
 	if run.CINone, err = r.ciMode(t.Project); err != nil {
 		return err
 	}

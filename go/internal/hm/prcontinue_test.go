@@ -367,12 +367,48 @@ func TestAdoptPRLeavesAHumanCloseAndForgetsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	run := &Run{Task: "T-0001", Repo: "zz-test/www", Branch: "factory/t-0001"}
-	r.adoptPR(run, task)
+	if err := r.adoptPR(run, task); err != nil {
+		t.Fatal(err)
+	}
 	if len(f.calls) != 0 || run.PRURL != "" {
 		t.Errorf("reopened a PR a person closed: %v, %q", f.calls, run.PRURL)
 	}
 	if x, _ := s.Task("T-0001"); x.PRURL != "" {
 		t.Errorf("the task keeps the closed PR %q", x.PRURL)
+	}
+}
+
+// A PR that cannot be read stops the adoption: a start must not open a second one.
+func TestAdoptPRWaitsForAnUnreadablePR(t *testing.T) {
+	r, s := testRunner(t, "")
+	newFakePRs(r)
+	url := "https://github.com/zz-test/www/pull/9"
+	if err := s.SetMeta(prClosedKey+url, nowISO()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.TaskPR("T-0001", url, ""); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.Task("T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.adoptPR(&Run{Task: "T-0001", Repo: "zz-test/www", Branch: "factory/t-0001"}, task); err == nil {
+		t.Error("no error")
+	}
+}
+
+// A sweep that read a run before it started again does not close the new run's PR.
+func TestPRCloseSkipsARestartedRun(t *testing.T) {
+	r, s := testRunner(t, "")
+	pr := openPRof(1, "factory/t-0001")
+	f := newFakePRs(r, pr)
+	old := endedRun("T-0001", Failed, pr.URL, time.Hour)
+	again := *old
+	again.State, again.Dispatched = Working, nowISO()
+	putRuns(t, s, &again)
+	if r.closePR(old, "why", "") || len(f.calls) != 0 {
+		t.Errorf("calls %v", f.calls)
 	}
 }
 
