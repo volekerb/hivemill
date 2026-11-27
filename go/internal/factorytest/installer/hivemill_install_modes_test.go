@@ -102,7 +102,7 @@ func TestHivemillInstallDryRunChangesNothingAndListsArgv(t *testing.T) {
 	hiIn(t, out, "checkout --detach refs/tags/v0.10.0")
 	hiNotIn(t, out, "config max_live_agents")
 	hiNotIn(t, out, "project add")
-	hiIn(t, out, "systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer")
+	hiIn(t, out, "systemctl --user enable --now hivemill.service hivemill-obs.service hivemill-digest.timer hivemill-health.timer")
 	for _, unit := range []string{"herdr-server", "factory-tick", "factory-serve", "factory-up"} {
 		hiNotIn(t, out, unit)
 	}
