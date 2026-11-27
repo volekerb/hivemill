@@ -711,10 +711,21 @@ func (r *Runner) adoptFinished(j *ciJob) {
 	run, err := r.Store.Run(j.Task)
 	// a working session's gate has yet to read it (its hook may have ended first): adopting it here would make that
 	// gate start gate_cmd over, for good when gate_cmd outlasts the hook
-	if err != nil || run == nil || run.State == Working || !slices.ContainsFunc(r.ciJobs(), func(x *ciJob) bool { return x.key() == j.key() }) {
+	if err != nil || run == nil || run.State == Working {
 		return
 	}
-	if cmd, limit := r.projectGate(run.Project); j.Cmd != cmd || j.LimitS != int(limit/time.Second) {
+	// the record as it is now: another process may have started or dropped the job since the caller read it
+	jobs := r.ciJobs()
+	i := slices.IndexFunc(jobs, func(x *ciJob) bool { return x.key() == j.key() })
+	if i < 0 || jobs[i].Dropped {
+		return
+	}
+	j = jobs[i]
+	cmd, limit := r.projectGate(run.Project)
+	if cmd == "" {
+		return // unread or removed: nothing to compare the job with
+	}
+	if j.Cmd != cmd || j.LimitS != int(limit/time.Second) {
 		r.dropCIJob(j) // the project's gate_cmd or limit changed: this result says nothing about the new one
 		return
 	}
