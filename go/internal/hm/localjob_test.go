@@ -1,6 +1,7 @@
 package hm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -250,7 +251,7 @@ func TestLocalCIJobOnRunMachine(t *testing.T) {
 	run := &Run{Task: "T-0001", State: Gated, Round: 1, Machine: "w1", Mirror: t.TempDir(), RemoteHome: m.home, Worktree: repo}
 	logdir := r.logDir(run)
 	request := func() (string, error) {
-		return r.requestCIJob(run, head, "echo zz-remote; exit 5", time.Minute, logdir, false)
+		return r.requestCIJob(run, head, "echo zz-remote $HOME/zz; exit 5", time.Minute, logdir, false)
 	}
 	var note string
 	waitFor(t, "the remote job", func() bool {
@@ -264,7 +265,94 @@ func TestLocalCIJobOnRunMachine(t *testing.T) {
 	if run.LocalCI.RC != 5 || !strings.Contains(note, "exited 5") || !strings.Contains(run.LocalCI.Tail, "zz-remote") {
 		t.Fatalf("local ci %+v note %q", run.LocalCI, note)
 	}
+	// the other machine's home names its user: neither the PR comment nor the note carries it
+	if strings.Contains(run.LocalCI.Tail+note, m.home) || !strings.Contains(run.LocalCI.Tail, "zz-remote ~/zz") {
+		t.Errorf("tail %q", run.LocalCI.Tail)
+	}
 	if left, _ := filepath.Glob(filepath.Join(remoteBase(m.home), "gate", "*")); len(left) != 0 {
 		t.Errorf("left on the machine: %v", left)
+	}
+
+	// a job dropped while its machine is unreachable keeps its record until it is confirmed ended
+	if _, err := r.requestCIJob(run, head, "sleep 60", time.Minute, logdir, false); !errors.Is(err, errLocalCIRunning) {
+		t.Fatal(err)
+	}
+	j := theJob(t, r, "T-0001")
+	up := r.SSH
+	r.SSH = func(string, string, time.Duration, string) (int, string, string) { return sshFailed, "", "no route" }
+	if r.dropCIJob(j) || !theJob(t, r, "T-0001").Dropped {
+		t.Fatal("an unconfirmed job must stay on record")
+	}
+	r.SSH = up
+	r.sweepLocalCI()
+	waitFor(t, "the dropped job to end", func() bool { return syscall.Kill(j.PID, 0) != nil || zombie(j.PID) })
+	if len(r.ciJobs()) != 0 {
+		t.Errorf("jobs %v", r.ciJobs())
+	}
+
+	// a start whose answer was lost leaves a process: the next start ends it first
+	if _, err := r.requestCIJob(run, head, "sleep 60", time.Minute, logdir, false); !errors.Is(err, errLocalCIRunning) {
+		t.Fatal(err)
+	}
+	j = theJob(t, r, "T-0001")
+	orphan := j.PID
+	r.removeCICheckout(j)
+	waitFor(t, "the orphan to end", func() bool { return syscall.Kill(orphan, 0) != nil || zombie(orphan) })
+	r.forgetCIJob(j)
+}
+
+func zombie(pid int) bool {
+	b, _ := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	return strings.Contains(string(b), ") Z ")
+}
+
+// A result no gate has read stays for a working session's gate; one that finished at its time limit keeps its exit code.
+func TestLocalCILeftForWorkingSession(t *testing.T) {
+	f, dir := jobFake(t)
+	f.run.State = Working
+	if err := f.s.PutRun(f.run); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.r.localCI(f.run, headA); !errors.Is(err, errLocalCIRunning) {
+		t.Fatal(err)
+	}
+	j := theJob(t, f.r, "T-0001")
+	release(t, dir, "T-0001", 3)
+	waitFor(t, "the result", ended(f.r, j))
+	f.r.sweepLocalCI()
+	f.r.timeOutCIJob(j, time.Second)
+	if run, err := f.s.Run("T-0001"); err != nil || run.LocalCI != nil {
+		t.Fatalf("adopted behind the session: %+v %v", run.LocalCI, err)
+	}
+	if st, rc, err := f.r.ciJobState(j); err != nil || st != jobDone || rc != 3 {
+		t.Fatalf("%s %d %v", st, rc, err)
+	}
+}
+
+// Why a job could not start reaches the next request of its run, even when another look tried the start.
+func TestLocalCIStartFailureKept(t *testing.T) {
+	f, _ := jobFake(t)
+	f.r.Tools.Detach = func(string, string, string, []string, ...string) (int, error) { return 0, errors.New("zz-no-start") }
+	if err := f.r.saveCIJob(f.r.newCIJob(f.run, headA, "true", time.Minute, f.r.logDir(f.run))); err != nil {
+		t.Fatal(err)
+	}
+	f.r.sweepLocalCI()
+	f.r.sweepLocalCI()
+	if err := f.r.localCI(f.run, headA); err == nil || !strings.Contains(err.Error(), "zz-no-start") || len(f.r.ciJobs()) != 0 {
+		t.Fatalf("%v, jobs %v", err, f.r.ciJobs())
+	}
+}
+
+// A merging run whose local CI has no result alerts the owner once.
+func TestLocalCIMergeWaitAlerts(t *testing.T) {
+	f, _ := jobFake(t)
+	now := time.Now()
+	f.r.localCIWaits(f.run, headA, now)
+	if f.run.CI == nil || f.run.CI.Alerted {
+		t.Fatalf("%+v", f.run.CI)
+	}
+	f.r.localCIWaits(f.run, headA, now.Add(24*time.Hour))
+	if !f.run.CI.Alerted {
+		t.Fatalf("%+v", f.run.CI)
 	}
 }

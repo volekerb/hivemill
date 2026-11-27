@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
@@ -42,6 +43,10 @@ type ciJob struct {
 	Queued, Started time.Time
 	PID, Restarts   int
 	Failed          string `json:",omitempty"`
+	// StartFailed: Failed says why the job could not start; the next request reads it and forgets the job
+	StartFailed bool `json:",omitempty"`
+	// Dropped: no longer wanted, but not yet confirmed ended (its machine was unreachable)
+	Dropped bool `json:",omitempty"`
 }
 
 const (
@@ -196,9 +201,6 @@ func (r *Runner) startCIJob(j *ciJob) error {
 			return fail("%v", err)
 		}
 		j.Checkout = dir
-	} else {
-		j.Checkout = path.Join(remoteBase(j.RemoteHome), "gate", j.key())
-		j.RDir = j.Checkout + ".job"
 	}
 	if rc, _, errs := p.git(j.Clone, "worktree", "add", "-q", "--detach", j.Checkout, j.Head); rc != 0 {
 		return fail("cannot check out head %.12s: %s", j.Head, firstLine(errs))
@@ -217,7 +219,7 @@ func (r *Runner) startCIJob(j *ciJob) error {
 		script := fmt.Sprintf("mkdir -p %[1]s && rm -f %[2]s && cd %[3]s || exit 1\n", shlex.Quote(j.RDir), shlex.Quote(rcFile),
 			shlex.Quote(j.Checkout)) + remoteCleanEnv + "\nnohup $(command -v setsid) bash -c " +
 			quoteAll([]string{ciWrapper, "hivemill-localci", j.Cmd, rcFile}) + " >" + shlex.Quote(path.Join(j.RDir, "log")) +
-			" 2>&1 </dev/null &\necho $!"
+			" 2>&1 </dev/null &\necho $! >" + shlex.Quote(path.Join(j.RDir, "pid")) + "\necho $!"
 		rc, out, errs := p.rsh("", 60*time.Second, script)
 		pid, err := strconv.Atoi(strings.TrimSpace(out))
 		if rc != 0 || err != nil {
@@ -241,16 +243,21 @@ func (r *Runner) startCIJob(j *ciJob) error {
 	return nil
 }
 
-// killCIJob ends a job that still runs.
-func (r *Runner) killCIJob(j *ciJob) {
-	if st, _, err := r.ciJobState(j); err != nil || st != jobRunning || j.PID <= 1 {
-		return
+// killCIJob ends a job that still runs. An error means it may still run: its machine could not be reached.
+func (r *Runner) killCIJob(j *ciJob) error {
+	st, _, err := r.ciJobState(j)
+	if err != nil || st != jobRunning || j.PID <= 1 {
+		return err
 	}
 	if j.Machine != "" {
-		_, _, _ = r.rsh(j.Machine, "", 30*time.Second, fmt.Sprintf("kill -KILL -%[1]d 2>/dev/null || kill -KILL %[1]d", j.PID))
-		return
+		if _, err := r.rshOK(j.Machine, "", 30*time.Second,
+			fmt.Sprintf("kill -KILL -%[1]d 2>/dev/null || kill -KILL %[1]d 2>/dev/null || true", j.PID)); err != nil {
+			return fmt.Errorf("%w: %w", errLocalCIMachine, err)
+		}
+		return nil
 	}
 	_ = syscall.Kill(-j.PID, syscall.SIGKILL)
+	return nil
 }
 
 func (r *Runner) removeCICheckout(j *ciJob) {
@@ -258,34 +265,69 @@ func (r *Runner) removeCICheckout(j *ciJob) {
 		return
 	}
 	p := r.jobPlace(j, nil)
+	if j.Machine != "" {
+		// a start whose answer was lost may have left a process that no record knows: end it before its files go
+		_, _, _ = p.rsh("", 60*time.Second, fmt.Sprintf(`p=$(cat %s 2>/dev/null) && ps -ww -p "$p" -o args= 2>/dev/null | grep -qF -- %s `+
+			`&& { kill -KILL -"$p" || kill -KILL "$p"; }`, shlex.Quote(path.Join(j.RDir, "pid")), shlex.Quote(path.Join(j.RDir, "rc"))))
+	}
 	p.git(j.Clone, "worktree", "remove", "--force", j.Checkout)
 	if j.Machine == "" {
 		_ = os.RemoveAll(j.Checkout)
 	} else {
-		_, _, _ = p.rsh("", 60*time.Second, "rm -rf "+shlex.Quote(j.Checkout)+" "+shlex.Quote(j.Checkout+".job"))
+		_, _, _ = p.rsh("", 60*time.Second, "rm -rf "+shlex.Quote(j.Checkout)+" "+shlex.Quote(j.RDir))
 	}
 	p.git(j.Clone, "worktree", "prune") // and what an interrupted call left behind
 }
 
-// dropCIJob forgets a job, ending it first.
-func (r *Runner) dropCIJob(j *ciJob) {
-	r.killCIJob(j)
+// dropCIJob ends a job and forgets it. A job that cannot be confirmed ended keeps its record, marked, so it still counts
+// against the cap and a later look ends it.
+func (r *Runner) dropCIJob(j *ciJob) bool {
+	if err := r.killCIJob(j); err != nil {
+		j.Dropped = true
+		_ = r.saveCIJob(j)
+		return false
+	}
 	r.removeCICheckout(j)
-	_ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json"))
+	r.forgetCIJob(j)
+	return true
 }
+
+func (r *Runner) forgetCIJob(j *ciJob) { _ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json")) }
 
 // scheduleCIJobs moves every job on: a job past its time limit ends with exit 124, one that is gone without a result is
 // queued again once, and queued jobs start while their machine has fewer than local_ci_jobs running. It returns why a
-// job could not start; such a job is forgotten, unless only its machine was unreachable. The caller holds the lock.
+// job could not be looked at or started; a failed start stays on its record until a request reads it. A machine found
+// unreachable is not asked again in this look. The caller holds the lock.
 func (r *Runner) scheduleCIJobs() map[string]error {
 	errs := map[string]error{}
 	running := map[string]int{}
+	down := map[string]error{}
 	var queued []*ciJob
+	unknown := func(j *ciJob, err error) {
+		running[j.Machine]++ // unknown counts as running
+		errs[j.key()] = err
+		if j.Machine != "" {
+			down[j.Machine] = err
+		}
+	}
 	for _, j := range r.ciJobs() {
+		if err := down[j.Machine]; err != nil {
+			if j.Started.IsZero() && !j.Dropped {
+				queued = append(queued, j)
+			} else {
+				unknown(j, err)
+			}
+			continue
+		}
+		if j.Dropped {
+			if !r.dropCIJob(j) {
+				unknown(j, fmt.Errorf("%w: %s: a dropped job is not confirmed ended", errLocalCIMachine, j.Machine))
+			}
+			continue
+		}
 		st, _, err := r.ciJobState(j)
 		if err != nil {
-			running[j.Machine]++ // unknown counts as running
-			errs[j.key()] = err
+			unknown(j, err)
 			continue
 		}
 		switch st {
@@ -295,7 +337,10 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 				running[j.Machine]++
 				continue
 			}
-			r.killCIJob(j)
+			if err := r.killCIJob(j); err != nil {
+				unknown(j, err)
+				continue
+			}
 			r.timeOutCIJob(j, limit)
 		case jobGone:
 			if j.Restarts > 0 {
@@ -318,18 +363,25 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 	})
 	limit := max(1, cfgInt(r.Store, "local_ci_jobs"))
 	for _, j := range queued {
+		if err := down[j.Machine]; err != nil {
+			errs[j.key()] = err
+			continue
+		}
 		if running[j.Machine] >= limit {
 			continue
 		}
 		if err := r.startCIJob(j); err != nil {
 			errs[j.key()] = err
-			if !errors.Is(err, errLocalCIMachine) {
-				_ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json"))
+			if errors.Is(err, errLocalCIMachine) {
+				down[j.Machine] = err
+			} else {
+				j.Failed, j.StartFailed = err.Error(), true
+				_ = r.saveCIJob(j)
 			}
 			continue
 		}
 		if err := r.saveCIJob(j); err != nil {
-			r.killCIJob(j) // an unrecorded job would run beyond the cap
+			_ = r.killCIJob(j) // an unrecorded job would run beyond the cap
 			errs[j.key()] = err
 			continue
 		}
@@ -340,11 +392,15 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 	return errs
 }
 
+// timeOutCIJob records exit 124 for a job that was killed at its limit, unless it finished before the kill.
 func (r *Runner) timeOutCIJob(j *ciJob, limit time.Duration) {
 	note := fmt.Sprintf("\ntimed out after %s\n", limit)
 	if j.Machine != "" {
-		_, _, _ = r.rsh(j.Machine, "", 30*time.Second, fmt.Sprintf("printf %%s %s >>%s; echo 124 >%s", shlex.Quote(note),
-			shlex.Quote(path.Join(j.RDir, "log")), shlex.Quote(path.Join(j.RDir, "rc"))))
+		_, _, _ = r.rsh(j.Machine, "", 30*time.Second, fmt.Sprintf("[ -f %[3]s ] || { printf %%s %[1]s >>%[2]s; echo 124 >%[3]s; }",
+			shlex.Quote(note), shlex.Quote(path.Join(j.RDir, "log")), shlex.Quote(path.Join(j.RDir, "rc"))))
+		return
+	}
+	if _, err := os.Stat(filepath.Join(j.Dir, "result")); err == nil {
 		return
 	}
 	if f, err := os.OpenFile(filepath.Join(j.Dir, "gate-cmd.log"), os.O_APPEND|os.O_WRONLY, 0o600); err == nil {
@@ -370,6 +426,10 @@ func (r *Runner) requestCIJob(run *Run, head, cmd string, limit time.Duration, l
 		case j.Task != run.Task:
 		case j.key() != want.key() || j.Head != head || (retry && j.Failed != ""):
 			r.dropCIJob(j) // an older head's job has no use any more
+		case j.Dropped:
+			if !r.dropCIJob(j) {
+				return "", fmt.Errorf("%w: %s: a dropped job is not confirmed ended", errLocalCIMachine, j.Machine)
+			}
 		default:
 			job = j
 		}
@@ -383,6 +443,9 @@ func (r *Runner) requestCIJob(run *Run, head, cmd string, limit time.Duration, l
 	}
 	errs := r.scheduleCIJobs()
 	if err := errs[job.key()]; err != nil {
+		if !errors.Is(err, errLocalCIMachine) {
+			r.forgetCIJob(job) // its owner has read why
+		}
 		return "", err
 	}
 	for _, j := range r.ciJobs() {
@@ -396,6 +459,9 @@ func (r *Runner) requestCIJob(run *Run, head, cmd string, limit time.Duration, l
 		case st == jobDone:
 			return r.adoptCIJob(run, j, rc, logdir)
 		case st == jobFailed:
+			if j.StartFailed {
+				r.forgetCIJob(j)
+			}
 			return "", errors.New(j.Failed)
 		case st == jobQueued:
 			return "", fmt.Errorf("%w queued since %s", errLocalCIRunning, j.Queued.Format(time.RFC3339))
@@ -411,6 +477,8 @@ func (r *Runner) newCIJob(run *Run, head, cmd string, limit time.Duration, logdi
 		Rank: 1, Order: now}
 	if run.cloned() {
 		j.Machine, j.RemoteHome = run.Machine, run.RemoteHome
+		j.Checkout = path.Join(remoteBase(j.RemoteHome), "gate", j.key())
+		j.RDir = j.Checkout + ".job"
 	}
 	j.Dir = filepath.Join(logdir, "localci-"+fmt.Sprintf("%.12s", head))
 	since := ""
@@ -435,7 +503,7 @@ func (r *Runner) adoptCIJob(run *Run, j *ciJob, rc int, logdir string) (string, 
 	var err error
 	if j.Machine == "" {
 		b, err = os.ReadFile(filepath.Join(j.Dir, "gate-cmd.log"))
-	} else if b, err = r.jobPlace(j, nil).read(path.Join(j.RDir, "log")); err != nil {
+	} else if b, err = r.jobPlace(j, nil).read(path.Join(j.RDir, "log")); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("%w: %w", errLocalCIMachine, err)
 	}
 	if err != nil {
@@ -446,6 +514,9 @@ func (r *Runner) adoptCIJob(run *Run, j *ciJob, rc int, logdir string) (string, 
 	_ = os.MkdirAll(logdir, 0o700)
 	log := filepath.Join(logdir, "gate-cmd.log")
 	_ = os.WriteFile(log, b, 0o600)
+	if j.RemoteHome != "" { // the other machine's home names its user: it must not reach the PR comment
+		text = strings.ReplaceAll(text, j.RemoteHome, "~")
+	}
 	// the whole log is checked: the tail alone may have lost the line that marks it as private
 	private := true
 	if args, why := r.guardArgs(); why == "" {
@@ -458,6 +529,9 @@ func (r *Runner) adoptCIJob(run *Run, j *ciJob, rc int, logdir string) (string, 
 }
 
 const ciWaiter = "localci-wait-"
+
+// ciMachineGrace is how long a waiting gate bears an unreachable machine before it gives up.
+var ciMachineGrace = 3 * time.Minute
 
 func (r *Runner) ciWaited(task string) bool {
 	l := r.lock(ciWaiter+task, false)
@@ -475,12 +549,19 @@ func (r *Runner) waitLocalCI(run *Run, head, cmd string, limit time.Duration, lo
 	if w := r.lock(ciWaiter+run.Task, true); w != nil {
 		defer w.Close()
 	}
+	var lost time.Time // since when the machine has not answered
 	for retry := true; ; retry = false {
 		note, err := r.requestCIJob(run, head, cmd, limit, logdir, retry)
 		switch {
 		case err == nil:
 			return run.LocalCI.RC == 0, note, nil
-		case !errors.Is(err, errLocalCIRunning):
+		case errors.Is(err, errLocalCIRunning):
+			lost = time.Time{}
+		case !errors.Is(err, errLocalCIMachine):
+			return false, "", err
+		case lost.IsZero():
+			lost = time.Now()
+		case time.Since(lost) >= ciMachineGrace:
 			return false, "", err
 		}
 		time.Sleep(r.Poll)
@@ -518,7 +599,7 @@ func (r *Runner) adoptFinished(j *ciJob) {
 		return // its gate is waiting for this job
 	}
 	defer task.Close()
-	if r.ciWaited(j.Task) {
+	if j.Dropped || r.ciWaited(j.Task) {
 		return
 	}
 	l := r.lock("localci", true)
@@ -527,7 +608,9 @@ func (r *Runner) adoptFinished(j *ciJob) {
 	}
 	defer l.Close()
 	run, err := r.Store.Run(j.Task)
-	if err != nil || run == nil || !slices.ContainsFunc(r.ciJobs(), func(x *ciJob) bool { return x.key() == j.key() }) {
+	// a working session's gate has yet to read it (its hook may have ended first): adopting it here would make that
+	// gate start gate_cmd over, for good when gate_cmd outlasts the hook
+	if err != nil || run == nil || run.State == Working || !slices.ContainsFunc(r.ciJobs(), func(x *ciJob) bool { return x.key() == j.key() }) {
 		return
 	}
 	st, rc, err := r.ciJobState(j)

@@ -238,8 +238,10 @@ func (r *Runner) Merge(run *Run) {
 			// a new head (a refresh, a revert): run gate_cmd now and decide on the next pass from fresh PR data
 			if err := r.localCI(run, in.Head); err != nil {
 				run.MergeHold = err.Error()
+				r.localCIWaits(run, in.Head, time.Now())
 				return
 			}
+			r.endCIWait(run)
 		}
 		r.postLocalCI(run)
 		if d.Why == ciPending {
