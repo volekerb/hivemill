@@ -1,0 +1,549 @@
+package hm
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+
+	"factory/go/internal/shlex"
+)
+
+// Local CI jobs: a ci_gate none gate_cmd runs as a background job, one per (run, head), never inside a daemon pass. The
+// job is detached (its own session), so a daemon restart leaves it running; its output and exit code are files, which any
+// later process reads. state/hivemill/localci/ holds one record per job; at most local_ci_jobs run per machine.
+
+// errLocalCIRunning: the head has a job without a result yet.
+var errLocalCIRunning = errors.New("local CI")
+
+// errLocalCIMachine: the job's machine could not be reached, so nothing is known about it.
+var errLocalCIMachine = errors.New("local CI machine unreachable")
+
+type ciJob struct {
+	Task, Head string
+	// where gate_cmd runs: Machine "" is this machine; Clone and Checkout are paths there
+	Machine, RemoteHome string
+	Clone, Checkout     string
+	// Dir holds gate-cmd.log, result and lock here; RDir holds log and rc on Machine
+	Dir, RDir string
+	Cmd       string
+	LimitS    int
+	// the queue: judged runs first, in the order they were judged, then the others in the order their gate passed
+	Rank            int
+	Order           time.Time
+	Queued, Started time.Time
+	PID, Restarts   int
+	Failed          string `json:",omitempty"`
+}
+
+const (
+	jobQueued  = "queued"
+	jobRunning = "running"
+	jobDone    = "done"
+	jobGone    = "gone"
+	jobFailed  = "failed"
+)
+
+// ciWrapper runs gate_cmd ($1) and then puts its exit code in $2. The lock on fd 3 is the wrapper's alone: gate_cmd and
+// whatever it leaves behind do not hold it.
+const ciWrapper = `bash -c "$1" 3>&-; rc=$?; echo "$rc" >"$2.tmp" && mv -f "$2.tmp" "$2"`
+
+// detach starts argv in its own session with its output in logfile. The process holds an flock on lockfile for as long
+// as it lives, which is how any later process tells that it still runs (a pid alone may be reused).
+func detach(dir, logfile, lockfile string, env []string, argv ...string) (int, error) {
+	lock, err := os.OpenFile(lockfile, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return 0, err
+	}
+	defer lock.Close()
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return 0, fmt.Errorf("lock %s: %w", lockfile, err)
+	}
+	out, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return 0, err
+	}
+	defer out.Close()
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = dir, env, out, out
+	cmd.ExtraFiles = []*os.File{lock}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		return 0, err
+	}
+	go func() { _ = cmd.Wait() }() // reap it when this process outlives it
+	return cmd.Process.Pid, nil
+}
+
+// lockHeld reports whether a live process holds the flock of file.
+func lockHeld(file string) bool {
+	f, err := os.OpenFile(file, os.O_RDWR, 0o600)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) != nil
+}
+
+func (j *ciJob) key() string { return j.Task + "-" + fmt.Sprintf("%.12s", j.Head) }
+
+func (r *Runner) ciJobDir() string { return filepath.Join(r.Env.StateDir(), "localci") }
+
+func (r *Runner) saveCIJob(j *ciJob) error {
+	_ = os.MkdirAll(r.ciJobDir(), 0o700)
+	b, err := json.MarshalIndent(j, "", " ")
+	if err != nil {
+		return err
+	}
+	return writeFile(filepath.Join(r.ciJobDir(), j.key()+".json"), string(b), 0o600)
+}
+
+func (r *Runner) ciJobs() []*ciJob {
+	files, _ := filepath.Glob(filepath.Join(r.ciJobDir(), "*.json"))
+	var out []*ciJob
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		j := &ciJob{}
+		if err == nil && json.Unmarshal(b, j) == nil && j.Task != "" {
+			out = append(out, j)
+		}
+	}
+	return out
+}
+
+func (r *Runner) jobPlace(j *ciJob, lost *bool) place {
+	return place{r: r, machine: j.Machine, lost: lost}
+}
+
+// ciJobState reads what the job's files and process say.
+func (r *Runner) ciJobState(j *ciJob) (string, int, error) {
+	switch {
+	case j.Failed != "":
+		return jobFailed, 0, nil
+	case j.Started.IsZero():
+		return jobQueued, 0, nil
+	case j.Machine != "":
+		return r.remoteJobState(j)
+	}
+	result := filepath.Join(j.Dir, "result")
+	read := func() (int, bool) {
+		b, err := os.ReadFile(result)
+		if err != nil {
+			return 0, false
+		}
+		rc, err := strconv.Atoi(strings.TrimSpace(string(b)))
+		return rc, err == nil
+	}
+	if rc, ok := read(); ok {
+		return jobDone, rc, nil
+	}
+	if lockHeld(filepath.Join(j.Dir, "lock")) {
+		return jobRunning, 0, nil
+	}
+	if rc, ok := read(); ok { // it ended between the two looks
+		return jobDone, rc, nil
+	}
+	return jobGone, 0, nil
+}
+
+func (r *Runner) remoteJobState(j *ciJob) (string, int, error) {
+	rc := shlex.Quote(path.Join(j.RDir, "rc"))
+	// the pid counts only while its command line still names this job's result file
+	script := fmt.Sprintf(`if [ -f %[1]s ]; then echo "done $(cat %[1]s)"; elif ps -ww -p %[2]d -o args= 2>/dev/null | grep -qF -- %[1]s; `+
+		`then echo running; elif [ -f %[1]s ]; then echo "done $(cat %[1]s)"; else echo gone; fi`, rc, j.PID)
+	out, err := r.rshOK(j.Machine, "", 30*time.Second, script)
+	if err != nil {
+		return "", 0, fmt.Errorf("%w: %w", errLocalCIMachine, err)
+	}
+	f := strings.Fields(out)
+	switch {
+	case len(f) == 2 && f[0] == jobDone:
+		if n, err := strconv.Atoi(f[1]); err == nil {
+			return jobDone, n, nil
+		}
+	case len(f) == 1 && (f[0] == jobRunning || f[0] == jobGone):
+		return f[0], 0, nil
+	}
+	return "", 0, fmt.Errorf("%w: %s: unreadable job state %q", errLocalCIMachine, j.Machine, firstLine(out))
+}
+
+// startCIJob checks out exactly the head in a fresh detached worktree and starts gate_cmd there (docs/local-gate.md):
+// nothing uncommitted or untracked in the task clone can make it pass, and the clone itself is never touched.
+func (r *Runner) startCIJob(j *ciJob) error {
+	lost := false
+	p := r.jobPlace(j, &lost)
+	fail := func(format string, a ...any) error {
+		r.removeCICheckout(j)
+		if lost {
+			return fmt.Errorf("%w: "+format, append([]any{errLocalCIMachine}, a...)...)
+		}
+		return fmt.Errorf("gate_cmd: "+format, a...)
+	}
+	r.removeCICheckout(j) // what an earlier attempt left
+	if j.Machine == "" {
+		parent := filepath.Join(r.Env.StateDir(), "gate")
+		_ = os.MkdirAll(parent, 0o700)
+		dir, err := os.MkdirTemp(parent, j.Task+"-")
+		if err != nil {
+			return fail("%v", err)
+		}
+		j.Checkout = dir
+	} else {
+		j.Checkout = path.Join(remoteBase(j.RemoteHome), "gate", j.key())
+		j.RDir = j.Checkout + ".job"
+	}
+	if rc, _, errs := p.git(j.Clone, "worktree", "add", "-q", "--detach", j.Checkout, j.Head); rc != 0 {
+		return fail("cannot check out head %.12s: %s", j.Head, firstLine(errs))
+	}
+	if _, at, _ := p.git(j.Checkout, "rev-parse", "HEAD"); at != j.Head {
+		return fail("the checkout is at %.12s, not at the head %.12s", at, j.Head)
+	}
+	if err := os.MkdirAll(j.Dir, 0o700); err != nil {
+		return fail("%v", err)
+	}
+	result := filepath.Join(j.Dir, "result")
+	_ = os.Remove(result)
+	switch {
+	case j.Machine != "":
+		rcFile := path.Join(j.RDir, "rc")
+		script := fmt.Sprintf("mkdir -p %[1]s && rm -f %[2]s && cd %[3]s || exit 1\n", shlex.Quote(j.RDir), shlex.Quote(rcFile),
+			shlex.Quote(j.Checkout)) + remoteCleanEnv + "\nnohup $(command -v setsid) bash -c " +
+			quoteAll([]string{ciWrapper, "hivemill-localci", j.Cmd, rcFile}) + " >" + shlex.Quote(path.Join(j.RDir, "log")) +
+			" 2>&1 </dev/null &\necho $!"
+		rc, out, errs := p.rsh("", 60*time.Second, script)
+		pid, err := strconv.Atoi(strings.TrimSpace(out))
+		if rc != 0 || err != nil {
+			return fail("cannot start on %s: exit %d: %s", j.Machine, rc, firstLine(errs))
+		}
+		j.PID = pid
+	case r.Tools.Detach == nil: // no background jobs (tests that replace the tools): the job runs here and now
+		rc, _, _ := r.execProjectGate(j.Checkout, j.Cmd, time.Duration(j.LimitS)*time.Second, j.Dir)
+		if err := writeFile(result, strconv.Itoa(rc), 0o600); err != nil {
+			return fail("%v", err)
+		}
+	default:
+		pid, err := r.Tools.Detach(j.Checkout, filepath.Join(j.Dir, "gate-cmd.log"), filepath.Join(j.Dir, "lock"), cleanEnv(),
+			"bash", "-c", ciWrapper, "hivemill-localci", j.Cmd, result)
+		if err != nil {
+			return fail("%v", err)
+		}
+		j.PID = pid
+	}
+	j.Started = time.Now()
+	return nil
+}
+
+// killCIJob ends a job that still runs.
+func (r *Runner) killCIJob(j *ciJob) {
+	if st, _, err := r.ciJobState(j); err != nil || st != jobRunning || j.PID <= 1 {
+		return
+	}
+	if j.Machine != "" {
+		_, _, _ = r.rsh(j.Machine, "", 30*time.Second, fmt.Sprintf("kill -KILL -%[1]d 2>/dev/null || kill -KILL %[1]d", j.PID))
+		return
+	}
+	_ = syscall.Kill(-j.PID, syscall.SIGKILL)
+}
+
+func (r *Runner) removeCICheckout(j *ciJob) {
+	if j.Checkout == "" {
+		return
+	}
+	p := r.jobPlace(j, nil)
+	p.git(j.Clone, "worktree", "remove", "--force", j.Checkout)
+	if j.Machine == "" {
+		_ = os.RemoveAll(j.Checkout)
+	} else {
+		_, _, _ = p.rsh("", 60*time.Second, "rm -rf "+shlex.Quote(j.Checkout)+" "+shlex.Quote(j.Checkout+".job"))
+	}
+	p.git(j.Clone, "worktree", "prune") // and what an interrupted call left behind
+}
+
+// dropCIJob forgets a job, ending it first.
+func (r *Runner) dropCIJob(j *ciJob) {
+	r.killCIJob(j)
+	r.removeCICheckout(j)
+	_ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json"))
+}
+
+// scheduleCIJobs moves every job on: a job past its time limit ends with exit 124, one that is gone without a result is
+// queued again once, and queued jobs start while their machine has fewer than local_ci_jobs running. It returns why a
+// job could not start; such a job is forgotten, unless only its machine was unreachable. The caller holds the lock.
+func (r *Runner) scheduleCIJobs() map[string]error {
+	errs := map[string]error{}
+	running := map[string]int{}
+	var queued []*ciJob
+	for _, j := range r.ciJobs() {
+		st, _, err := r.ciJobState(j)
+		if err != nil {
+			running[j.Machine]++ // unknown counts as running
+			errs[j.key()] = err
+			continue
+		}
+		switch st {
+		case jobRunning:
+			limit := time.Duration(j.LimitS) * time.Second
+			if time.Since(j.Started) < limit {
+				running[j.Machine]++
+				continue
+			}
+			r.killCIJob(j)
+			r.timeOutCIJob(j, limit)
+		case jobGone:
+			if j.Restarts > 0 {
+				j.Failed = "the local gate job ended twice without a result"
+			} else {
+				j.Restarts, j.Rank, j.Started, j.PID = 1, -1, time.Time{}, 0
+				queued = append(queued, j)
+				r.printf("%s: the local gate job is gone without a result; starting it again\n", j.Task)
+			}
+			_ = r.saveCIJob(j)
+		case jobQueued:
+			queued = append(queued, j)
+		}
+	}
+	slices.SortStableFunc(queued, func(a, b *ciJob) int {
+		if a.Rank != b.Rank {
+			return a.Rank - b.Rank
+		}
+		return a.Order.Compare(b.Order)
+	})
+	limit := max(1, cfgInt(r.Store, "local_ci_jobs"))
+	for _, j := range queued {
+		if running[j.Machine] >= limit {
+			continue
+		}
+		if err := r.startCIJob(j); err != nil {
+			errs[j.key()] = err
+			if !errors.Is(err, errLocalCIMachine) {
+				_ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json"))
+			}
+			continue
+		}
+		if err := r.saveCIJob(j); err != nil {
+			r.killCIJob(j) // an unrecorded job would run beyond the cap
+			errs[j.key()] = err
+			continue
+		}
+		if st, _, err := r.ciJobState(j); err != nil || st == jobRunning {
+			running[j.Machine]++
+		}
+	}
+	return errs
+}
+
+func (r *Runner) timeOutCIJob(j *ciJob, limit time.Duration) {
+	note := fmt.Sprintf("\ntimed out after %s\n", limit)
+	if j.Machine != "" {
+		_, _, _ = r.rsh(j.Machine, "", 30*time.Second, fmt.Sprintf("printf %%s %s >>%s; echo 124 >%s", shlex.Quote(note),
+			shlex.Quote(path.Join(j.RDir, "log")), shlex.Quote(path.Join(j.RDir, "rc"))))
+		return
+	}
+	if f, err := os.OpenFile(filepath.Join(j.Dir, "gate-cmd.log"), os.O_APPEND|os.O_WRONLY, 0o600); err == nil {
+		_, _ = f.WriteString(note)
+		_ = f.Close()
+	}
+	_ = writeFile(filepath.Join(j.Dir, "result"), "124", 0o600)
+}
+
+// requestCIJob is one look at the (run, head) job, made and queued when there is none. With a result it records it on
+// the run and returns gate_cmd's note. Without one it returns errLocalCIRunning ("local CI running since <t>"). Any
+// other error means gate_cmd gave no result. retry replaces a job that had failed for good.
+func (r *Runner) requestCIJob(run *Run, head, cmd string, limit time.Duration, logdir string, retry bool) (string, error) {
+	l := r.lock("localci", true)
+	if l == nil {
+		return "", errors.New("gate_cmd: cannot lock the local CI jobs")
+	}
+	defer l.Close()
+	want := &ciJob{Task: run.Task, Head: head}
+	var job *ciJob
+	for _, j := range r.ciJobs() {
+		switch {
+		case j.Task != run.Task:
+		case j.key() != want.key() || j.Head != head || (retry && j.Failed != ""):
+			r.dropCIJob(j) // an older head's job has no use any more
+		default:
+			job = j
+		}
+	}
+	if job == nil {
+		job = r.newCIJob(run, head, cmd, limit, logdir)
+		r.jobPlace(job, nil).git(job.Clone, "fetch", "-q", "origin", run.Branch)
+		if err := r.saveCIJob(job); err != nil {
+			return "", fmt.Errorf("gate_cmd: %w", err)
+		}
+	}
+	errs := r.scheduleCIJobs()
+	if err := errs[job.key()]; err != nil {
+		return "", err
+	}
+	for _, j := range r.ciJobs() {
+		if j.key() != job.key() {
+			continue
+		}
+		st, rc, err := r.ciJobState(j)
+		switch {
+		case err != nil:
+			return "", err
+		case st == jobDone:
+			return r.adoptCIJob(run, j, rc, logdir)
+		case st == jobFailed:
+			return "", errors.New(j.Failed)
+		case st == jobQueued:
+			return "", fmt.Errorf("%w queued since %s", errLocalCIRunning, j.Queued.Format(time.RFC3339))
+		}
+		return "", fmt.Errorf("%w running since %s", errLocalCIRunning, j.Started.Format(time.RFC3339))
+	}
+	return "", errors.New("gate_cmd: the job record is gone")
+}
+
+func (r *Runner) newCIJob(run *Run, head, cmd string, limit time.Duration, logdir string) *ciJob {
+	now := time.Now()
+	j := &ciJob{Task: run.Task, Head: head, Clone: run.Worktree, Cmd: cmd, LimitS: int(limit / time.Second), Queued: now,
+		Rank: 1, Order: now}
+	if run.cloned() {
+		j.Machine, j.RemoteHome = run.Machine, run.RemoteHome
+	}
+	j.Dir = filepath.Join(logdir, "localci-"+fmt.Sprintf("%.12s", head))
+	since := ""
+	switch run.State {
+	case Judged, Merging:
+		j.Rank = 0
+		if n := len(run.Verdicts); n > 0 {
+			since = run.Verdicts[n-1].TS
+		}
+	case Gated:
+		since = run.Gated
+	}
+	if t, err := time.Parse(time.RFC3339, since); err == nil {
+		j.Order = t
+	}
+	return j
+}
+
+// adoptCIJob records a finished job's result on the run and removes the job. The log stays in the round's log dir.
+func (r *Runner) adoptCIJob(run *Run, j *ciJob, rc int, logdir string) (string, error) {
+	var b []byte
+	var err error
+	if j.Machine == "" {
+		b, err = os.ReadFile(filepath.Join(j.Dir, "gate-cmd.log"))
+	} else if b, err = r.jobPlace(j, nil).read(path.Join(j.RDir, "log")); err != nil {
+		return "", fmt.Errorf("%w: %w", errLocalCIMachine, err)
+	}
+	if err != nil {
+		r.printf("%s: gate_cmd log: %v\n", j.Task, err)
+	}
+	// the checkout's name differs between jobs: an unchanged failure must read the same, or it looks new each time
+	text := strings.ReplaceAll(string(b), j.Checkout, "<checkout>")
+	_ = os.MkdirAll(logdir, 0o700)
+	log := filepath.Join(logdir, "gate-cmd.log")
+	_ = os.WriteFile(log, b, 0o600)
+	// the whole log is checked: the tail alone may have lost the line that marks it as private
+	private := true
+	if args, why := r.guardArgs(); why == "" {
+		refused, _ := r.guardText(args, r.redactHomes(text))
+		private = refused != 0
+	}
+	run.LocalCI = &LocalCI{Head: j.Head, RC: rc, Tail: r.commentTail(text), Private: private}
+	r.dropCIJob(j)
+	return strings.ReplaceAll(gateNote(j.Cmd, rc, time.Duration(j.LimitS)*time.Second, log, text), j.Checkout, "<checkout>"), nil
+}
+
+const ciWaiter = "localci-wait-"
+
+func (r *Runner) ciWaited(task string) bool {
+	l := r.lock(ciWaiter+task, false)
+	if l == nil {
+		return true
+	}
+	l.Close()
+	return false
+}
+
+// waitLocalCI is the gate's gate_cmd step: the same background job, waited for here (the session's Stop hook must give
+// its answer; the daemon passes on meanwhile). A job that outlives this process is picked up by the next one.
+func (r *Runner) waitLocalCI(run *Run, head, cmd string, limit time.Duration, logdir string) (bool, string, error) {
+	// tells the sweep that this job has a waiter, whatever its run's state (`hivemill gate T-x`, an eval)
+	if w := r.lock(ciWaiter+run.Task, true); w != nil {
+		defer w.Close()
+	}
+	for retry := true; ; retry = false {
+		note, err := r.requestCIJob(run, head, cmd, limit, logdir, retry)
+		switch {
+		case err == nil:
+			return run.LocalCI.RC == 0, note, nil
+		case !errors.Is(err, errLocalCIRunning):
+			return false, "", err
+		}
+		time.Sleep(r.Poll)
+	}
+}
+
+// sweepLocalCI is each pass's look at the jobs, so a new daemon adopts what finished while none ran: jobs of ended runs
+// are dropped, queued and lost jobs are started, and results are recorded on their runs.
+func (r *Runner) sweepLocalCI() {
+	if len(r.ciJobs()) == 0 {
+		return
+	}
+	l := r.lock("localci", true)
+	if l == nil {
+		return
+	}
+	for _, j := range r.ciJobs() {
+		if run, err := r.Store.Run(j.Task); err == nil && (run == nil || !Active(run.State)) && !r.ciWaited(j.Task) {
+			r.dropCIJob(j)
+		}
+	}
+	for _, err := range r.scheduleCIJobs() {
+		r.printf("local CI: %v\n", err)
+	}
+	jobs := r.ciJobs()
+	l.Close() // a task lock is never taken while holding this one: its holder may be waiting for it
+	for _, j := range jobs {
+		r.adoptFinished(j)
+	}
+}
+
+func (r *Runner) adoptFinished(j *ciJob) {
+	task := r.lock(j.Task, false)
+	if task == nil {
+		return // its gate is waiting for this job
+	}
+	defer task.Close()
+	if r.ciWaited(j.Task) {
+		return
+	}
+	l := r.lock("localci", true)
+	if l == nil {
+		return
+	}
+	defer l.Close()
+	run, err := r.Store.Run(j.Task)
+	if err != nil || run == nil || !slices.ContainsFunc(r.ciJobs(), func(x *ciJob) bool { return x.key() == j.key() }) {
+		return
+	}
+	st, rc, err := r.ciJobState(j)
+	if err != nil || st != jobDone {
+		return
+	}
+	if _, err := r.adoptCIJob(run, j, rc, filepath.Dir(j.Dir)); err != nil {
+		r.printf("%s: %v\n", j.Task, err)
+		return
+	}
+	r.noteLocalCI(run)
+	if err := r.Store.PutRun(run); err != nil {
+		r.printf("%s: %v\n", j.Task, err)
+	}
+}
+
+func (r *Runner) noteLocalCI(run *Run) {
+	_ = r.Log.Emit("ci_gate.gate_cmd", run, Event{Data: map[string]any{"head": run.LocalCI.Head, "exit": run.LocalCI.RC}})
+}

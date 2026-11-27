@@ -48,11 +48,16 @@ func (r *Runner) execProjectGateAt(p place, wt, cmd string, limit time.Duration,
 	rc, text := p.sh(wt, limit, cleanEnv(), "bash", "-c", cmd)
 	log := filepath.Join(logdir, "gate-cmd.log")
 	_ = os.WriteFile(log, []byte(text), 0o600)
+	return rc, text, gateNote(cmd, rc, limit, log, text)
+}
+
+// gateNote is the gate's line about one gate_cmd result.
+func gateNote(cmd string, rc int, limit time.Duration, log, text string) string {
 	switch {
 	case rc == 0:
-		return rc, text, fmt.Sprintf("project gate `%s` ok", cmd)
+		return fmt.Sprintf("project gate `%s` ok", cmd)
 	case rc == 124:
-		return rc, text, fmt.Sprintf("project gate `%s` timed out after %s (log %s)", cmd, limit, log)
+		return fmt.Sprintf("project gate `%s` timed out after %s (log %s)", cmd, limit, log)
 	}
-	return rc, text, fmt.Sprintf("project gate `%s` exited %d (log %s):\n%s", cmd, rc, log, lastLines(text, 8))
+	return fmt.Sprintf("project gate `%s` exited %d (log %s):\n%s", cmd, rc, log, lastLines(text, 8))
 }

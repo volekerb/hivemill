@@ -513,6 +513,10 @@ func (r *Runner) Pass(startNew bool) error {
 	if err != nil {
 		return err
 	}
+	r.sweepLocalCI() // results first: they free job slots, and the runs below read them
+	if runs, err = r.Store.Runs(); err != nil {
+		return err
+	}
 	for _, x := range runs {
 		if heldForOwner(&x) && !x.Eval {
 			if l := r.lock(x.Task, false); l != nil {
