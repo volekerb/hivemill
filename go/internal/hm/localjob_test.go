@@ -237,6 +237,23 @@ func TestLocalCIResultAdoptedOnStart(t *testing.T) {
 	}
 }
 
+// A result of a gate_cmd the project no longer has is not recorded.
+func TestLocalCIOldCommandResultDropped(t *testing.T) {
+	f, dir := jobFake(t)
+	f.r.gated(f.run)
+	j := theJob(t, f.r, "T-0001")
+	release(t, dir, "T-0001", 0)
+	waitFor(t, "the result", ended(f.r, j))
+	j.Cmd = "zz-the-old-command"
+	if err := f.r.saveCIJob(j); err != nil {
+		t.Fatal(err)
+	}
+	f.r.sweepLocalCI()
+	if run, err := f.s.Run("T-0001"); err != nil || run.LocalCI != nil || len(f.r.ciJobs()) != 0 {
+		t.Fatalf("run %+v %v, jobs %v", run.LocalCI, err, f.r.ciJobs())
+	}
+}
+
 // A run placed on another machine runs its job there (T-2017): started, polled and read over ssh.
 func TestLocalCIJobOnRunMachine(t *testing.T) {
 	r, _ := testRunner(t, "")
@@ -321,6 +338,21 @@ func TestLocalCIJobOnRunMachine(t *testing.T) {
 		t.Fatalf("jobs %v", r.ciJobs())
 	}
 	waitFor(t, "the lost start to end", func() bool { return syscall.Kill(pid, 0) != nil || zombie(pid) })
+
+	// a start that times out on the machine is no verdict on the head
+	r.SSH = func(machine, stdin string, d time.Duration, script string) (int, string, string) {
+		if strings.Contains(script, "hivemill-localci") {
+			return 124, "", "timed out"
+		}
+		return up(machine, stdin, d, script)
+	}
+	if _, err := request(); !errors.Is(err, errLocalCIMachine) || !theJob(t, r, "T-0001").StartLost {
+		t.Fatalf("%v", err)
+	}
+	r.SSH = up
+	if !r.dropCIJob(theJob(t, r, "T-0001")) {
+		t.Fatal("not dropped")
+	}
 }
 
 func zombie(pid int) bool {

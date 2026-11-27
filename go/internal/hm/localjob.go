@@ -191,9 +191,11 @@ func (r *Runner) remoteJobState(j *ciJob) (string, int, error) {
 // startCIJob checks out exactly the head in a fresh detached worktree and starts gate_cmd there (docs/local-gate.md):
 // nothing uncommitted or untracked in the task clone can make it pass, and the clone itself is never touched.
 func (r *Runner) startCIJob(j *ciJob) error {
-	lost := false
+	lost, timedOut := false, false
 	p := r.jobPlace(j, &lost)
 	fail := func(format string, a ...any) error {
+		// a command that timed out on another machine says as little about the head as a lost connection
+		lost = lost || (j.Machine != "" && timedOut)
 		r.removeCICheckout(j)
 		if lost {
 			return fmt.Errorf("%w: "+format, append([]any{errLocalCIMachine}, a...)...)
@@ -211,9 +213,11 @@ func (r *Runner) startCIJob(j *ciJob) error {
 		j.Checkout = dir
 	}
 	if rc, _, errs := p.git(j.Clone, "worktree", "add", "-q", "--detach", j.Checkout, j.Head); rc != 0 {
+		timedOut = rc == 124
 		return fail("cannot check out head %.12s: %s", j.Head, firstLine(errs))
 	}
-	if _, at, _ := p.git(j.Checkout, "rev-parse", "HEAD"); at != j.Head {
+	if rc, at, _ := p.git(j.Checkout, "rev-parse", "HEAD"); at != j.Head {
+		timedOut = rc == 124
 		return fail("the checkout is at %.12s, not at the head %.12s", at, j.Head)
 	}
 	if err := os.MkdirAll(j.Dir, 0o700); err != nil {
@@ -237,6 +241,7 @@ func (r *Runner) startCIJob(j *ciJob) error {
 		rc, out, errs := p.rsh("", 60*time.Second, script)
 		pid, err := strconv.Atoi(strings.TrimSpace(out))
 		if rc != 0 || err != nil {
+			timedOut = rc == 124
 			return fail("cannot start on %s: exit %d: %s", j.Machine, rc, firstLine(errs))
 		}
 		j.PID = pid
@@ -707,6 +712,10 @@ func (r *Runner) adoptFinished(j *ciJob) {
 	// a working session's gate has yet to read it (its hook may have ended first): adopting it here would make that
 	// gate start gate_cmd over, for good when gate_cmd outlasts the hook
 	if err != nil || run == nil || run.State == Working || !slices.ContainsFunc(r.ciJobs(), func(x *ciJob) bool { return x.key() == j.key() }) {
+		return
+	}
+	if cmd, limit := r.projectGate(run.Project); j.Cmd != cmd || j.LimitS != int(limit/time.Second) {
+		r.dropCIJob(j) // the project's gate_cmd or limit changed: this result says nothing about the new one
 		return
 	}
 	st, rc, err := r.ciJobState(j)
