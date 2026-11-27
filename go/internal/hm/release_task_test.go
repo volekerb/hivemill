@@ -4,7 +4,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -206,7 +208,7 @@ exit 4
 		}
 	}
 	var work int
-	if err := g.s.db.QueryRow(`SELECT COUNT(*) FROM planner_work WHERE kind='release_failed' AND ref=?`, g.task).Scan(&work); err != nil || work != 1 {
+	if err := g.s.db.QueryRow(`SELECT COUNT(*) FROM planner_work WHERE kind='release.failed' AND ref=?`, g.task).Scan(&work); err != nil || work != 1 {
 		t.Errorf("planner work items: %d %v", work, err)
 	}
 }
@@ -284,6 +286,43 @@ func TestReleaseTaskRefusesSubmit(t *testing.T) {
 		t.Fatalf("calls: %q", lines)
 	}
 
+	// an approval given to another task's question does not count
+	g = newReleaseRig(t, `{"submitExternal": true}`, releaseOK)
+	id, _, err := g.s.AddAsk(Ask{Project: "www", Question: "ship?", AskedBy: "runner"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.s.CloseAsk(id, "answered", "release build 42", "owner"); err != nil {
+		t.Fatal(err)
+	}
+	g.start(t)
+	g.want(t, "blocked", releaseFailed)
+	if lines := g.lines(t); len(lines) != 1 {
+		t.Fatalf("calls: %q", lines)
+	}
+
+	// submit hidden in a variable is still seen, and the variable's value is not logged
+	t.Setenv("ZZ_RELEASE_FLAG", "--submit")
+	g = newReleaseRig(t, "", releaseOK)
+	if err := g.s.SetReleaseCmd("www", "~/release.sh $ZZ_RELEASE_FLAG"); err != nil {
+		t.Fatal(err)
+	}
+	g.start(t)
+	g.want(t, "blocked", releaseFailed)
+	if lines := g.lines(t); len(lines) != 0 {
+		t.Fatalf("calls: %q", lines)
+	}
+	t.Setenv("ZZ_RELEASE_FLAG", "zz-plain-value")
+	g = newReleaseRig(t, "", releaseOK)
+	if err := g.s.SetReleaseCmd("www", "~/release.sh $ZZ_RELEASE_FLAG"); err != nil {
+		t.Fatal(err)
+	}
+	g.start(t)
+	g.want(t, "done", releaseDone)
+	if strings.Contains(g.log(), "zz-plain-value") {
+		t.Errorf("the expanded value is logged:\n%s", g.log())
+	}
+
 	// a config nobody can read is refused too
 	g = newReleaseRig(t, `{"submitExternal": `, releaseOK)
 	g.start(t)
@@ -329,5 +368,44 @@ func TestReleaseTaskGuards(t *testing.T) {
 	}
 	if err := g.r.Start(g.task); err == nil || len(g.lines(t)) != 0 {
 		t.Errorf("a running release started again: %v", err)
+	}
+}
+
+// A dead job whose release_cmd still runs stays live; once its processes are gone it is failed. The dashboard sees both
+// ends of a release.
+func TestReleaseTaskOrphanAndOutcome(t *testing.T) {
+	g := newReleaseRig(t, "", releaseOK)
+	if err := g.s.SetRelease(g.task, releaseRunning, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.s.TaskStatus(g.task, "in_progress", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(g.r.releaseDir(g.task), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	child := exec.Command("sleep", "60")
+	child.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = child.Process.Kill() })
+	writeT(t, g.r.releasePgid(g.task), strconv.Itoa(child.Process.Pid), 0o600)
+	if _, err := g.r.HoldRelease(g.task); err == nil {
+		t.Error("a running release was held for a status change")
+	}
+	g.r.sweepReleases()
+	g.want(t, "in_progress", releaseRunning)
+	_ = child.Process.Kill()
+	_, _ = child.Process.Wait()
+	g.r.sweepReleases()
+	g.want(t, "blocked", releaseFailed)
+
+	for event, outcome := range map[string]string{"release.done": "released", "release.failed": "FAIL: no", "release.started": "open"} {
+		x := Row{Outcome: "FAIL: old"}
+		x.apply(Event{Event: event, Data: map[string]any{"why": "no"}})
+		if x.Outcome != outcome || terminalEvents[event] != (event != "release.started") {
+			t.Errorf("%s: outcome %q, terminal %v", event, x.Outcome, terminalEvents[event])
+		}
 	}
 }

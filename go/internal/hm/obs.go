@@ -333,7 +333,7 @@ func (o *Obs) OpenAsks(me string, local map[string]int, ok bool) map[string]int 
 }
 
 var terminalEvents = map[string]bool{"pr.merged": true, "task.failed": true, "task.cancelled": true, "eval.done": true,
-	"pr.reverted": true}
+	"pr.reverted": true, "release.done": true, "release.failed": true}
 
 // TaskKey is machine/task.
 func TaskKey(machine, task string) string { return machine + "/" + task }
@@ -391,6 +391,9 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 			t.Last, t.Machine = e.TS, run[i]
 			t.Events = append(t.Events, e)
 			t.Row.apply(e)
+			if e.Event == "release.started" { // a failed release that the owner runs again
+				t.Terminal = ""
+			}
 			if terminalEvents[e.Event] {
 				t.Terminal = e.TS
 			}

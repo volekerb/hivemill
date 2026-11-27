@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -43,6 +45,52 @@ func (r *Runner) releaseDir(task string) string {
 // ReleaseLog is the redacted output of the task's last release.
 func (r *Runner) ReleaseLog(task string) string {
 	return filepath.Join(r.releaseDir(task), "release.log")
+}
+
+// releasePgid holds the process group of the release_cmd that runs now.
+func (r *Runner) releasePgid(task string) string {
+	return filepath.Join(r.releaseDir(task), "pgid")
+}
+
+// releaseOrphaned is true while the release_cmd of a dead job still has processes: they may still upload. A file older
+// than releaseTimeout no longer counts, so a reused process group id cannot hold a release forever.
+func (r *Runner) releaseOrphaned(task string) bool {
+	fi, err := os.Stat(r.releasePgid(task))
+	if err != nil || time.Since(fi.ModTime()) > releaseTimeout {
+		return false
+	}
+	b, err := os.ReadFile(r.releasePgid(task))
+	pgid, perr := strconv.Atoi(string(b))
+	return err == nil && perr == nil && pgid > 1 && syscall.Kill(-pgid, 0) == nil
+}
+
+// HoldRelease takes the task lock of a release task whose release is neither queued nor running, so that a status change
+// cannot cross a start. The caller closes the lock after its change.
+func (r *Runner) HoldRelease(task string) (io.Closer, error) {
+	s, err := r.sq()
+	if err != nil {
+		return nil, err
+	}
+	l := r.lock(task, false)
+	if l == nil {
+		return nil, fmt.Errorf("%w: %s is busy; try again", ErrRefused, task)
+	}
+	state, _, err := s.Release(task)
+	if err == nil && (state == releaseQueued || state == releaseRunning) {
+		err = fmt.Errorf("%w: %s has a release %s; wait until it ends", ErrRefused, task, state)
+	}
+	if err != nil {
+		l.Close()
+		return nil, err
+	}
+	return l, nil
+}
+
+func (r *Runner) dropReleaseWorktree(t *Task) {
+	wt := filepath.Join(r.Env.Home, "worktrees", "release-"+t.ID)
+	r.Tools.Git(t.RepoPath, "worktree", "remove", "--force", wt)
+	_ = os.RemoveAll(wt)
+	r.Tools.Git(t.RepoPath, "worktree", "prune")
 }
 
 func (r *Runner) releaseLock(task string) string {
@@ -96,6 +144,12 @@ func (r *Runner) startRelease(t *Task) error {
 	}
 	if err := os.MkdirAll(r.releaseDir(t.ID), 0o700); err != nil {
 		return err
+	}
+	// a job that dies before it writes must not be reported with an earlier attempt's log or process group
+	for _, f := range []string{r.ReleaseLog(t.ID), r.releasePgid(t.ID)} {
+		if err := os.Remove(f); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
 	}
 	if err := s.SetRelease(t.ID, releaseQueued, ""); err != nil {
 		return err
@@ -161,7 +215,8 @@ func (r *Runner) sweepReleases() {
 		}
 		state, _, err := s.Release(id)
 		if t, terr := s.Task(id); err == nil && terr == nil && (state == releaseQueued || state == releaseRunning) &&
-			!lockHeld(r.releaseLock(id)) {
+			!lockHeld(r.releaseLock(id)) && !r.releaseOrphaned(id) {
+			r.dropReleaseWorktree(t)
 			b, _ := os.ReadFile(r.ReleaseLog(id))
 			res := releaseResult{why: "the release job died; check App Store Connect for an uploaded build before a new release",
 				exit: -1, tail: lastLines(string(b), releaseTailLines)}
@@ -225,18 +280,16 @@ func (r *Runner) recordRelease(t *Task, res releaseResult) error {
 	if !res.ok {
 		state, status, waits, event = releaseFailed, "blocked", "owner", "release.failed"
 	}
-	if err := s.SetRelease(t.ID, state, result); err != nil {
-		return err
-	}
 	if cur, _, err := s.TaskState(t.ID); err == nil && cur == "in_progress" {
 		if err := s.TaskStatus(t.ID, status, waits); err != nil {
 			return err
 		}
 	}
+	// The release state is written last: until then it is live, and sweepReleases repairs a record that stopped half way.
 	if res.ok {
 		r.releaseEvent(t, event, map[string]any{"build": res.summary["build"]})
 		r.printf("%s: release done: %s\n", t.ID, result)
-		return nil
+		return s.SetRelease(t.ID, state, result)
 	}
 	why := redactRelease(res.why)
 	r.releaseEvent(t, event, map[string]any{"why": why, "exit": res.exit})
@@ -256,7 +309,11 @@ func (r *Runner) recordRelease(t *Task, res releaseResult) error {
 	if added {
 		_ = r.Log.Emit("ask.added", nil, Event{Project: t.Project, Data: map[string]any{"id": askID, "by": "runner", "task": t.ID}})
 	}
-	return s.EnqueuePlannerWork("release_failed", t.ID)
+	// the kind of the release.failed wake row, so one failure is one work item
+	if err := s.EnqueuePlannerWork(event, t.ID); err != nil {
+		return err
+	}
+	return s.SetRelease(t.ID, state, result)
 }
 
 func (r *Runner) releaseEvent(t *Task, name string, data map[string]any) {
@@ -299,9 +356,17 @@ func (r *Runner) release(t *Task) releaseResult {
 	if err != nil {
 		return failed("%v", err)
 	}
-	asks = slices.DeleteFunc(asks, func(a Ask) bool { return a.Project != "" && a.Project != t.Project })
-	submit, _ := ReleaseAction(cmd)
-	submit = submit || strings.Contains(strings.ToLower(cmd), "submit")
+	// only answers to this task's questions: an approval given for something else never submits
+	asks = slices.DeleteFunc(asks, func(a Ask) bool { return a.Task != t.ID })
+	expanded := strings.Join(argv, " ")
+	if r.Env.UserHome != "" { // the directory's own name is not part of the command
+		expanded = strings.ReplaceAll(expanded, r.Env.UserHome, "~")
+	}
+	submit := false
+	for _, c := range []string{cmd, expanded} {
+		action, _ := ReleaseAction(c)
+		submit = submit || action || strings.Contains(strings.ToLower(c), "submit")
+	}
 	// a command that submits does not run at all, not even dry, before the owner has allowed some build
 	if submit && !anyReleaseAllowed(asks) {
 		return failed("refused: release_cmd names submit; an App Store submit needs the owner's answer \"release build N\"")
@@ -313,13 +378,8 @@ func (r *Runner) release(t *Task) releaseResult {
 		return releaseResult{why: "git fetch origin failed", exit: rc, tail: lastLines(all.String(), releaseTailLines)}
 	}
 	wt := filepath.Join(r.Env.Home, "worktrees", "release-"+t.ID)
-	drop := func() {
-		g(t.RepoPath, "worktree", "remove", "--force", wt)
-		_ = os.RemoveAll(wt)
-		g(t.RepoPath, "worktree", "prune")
-	}
-	drop() // what a job that died left behind
-	defer drop()
+	r.dropReleaseWorktree(t) // what a job that died left behind
+	defer r.dropReleaseWorktree(t)
 	if err := os.MkdirAll(filepath.Dir(wt), 0o700); err != nil {
 		return failed("%v", err)
 	}
@@ -336,8 +396,9 @@ func (r *Runner) release(t *Task) releaseResult {
 	env := cleanEnv()
 	step := func(args ...string) (int, map[string]any) {
 		full := append(slices.Clone(argv), args...)
-		logText("$ " + strings.Join(full, " "))
-		rc, out, errs := runReleaseCmd(releaseTimeout, wt, env, full)
+		// release_cmd as configured: what its variables expand to may be a secret
+		logText("$ " + strings.Join(append([]string{cmd}, args...), " "))
+		rc, out, errs := runReleaseCmd(releaseTimeout, wt, env, full, r.releasePgid(t.ID))
 		logText(errs)
 		logText(out)
 		logText(fmt.Sprintf("exit %d", rc))
@@ -388,7 +449,7 @@ func (r *Runner) release(t *Task) releaseResult {
 }
 
 // runReleaseCmd runs release_cmd in its own process group, so a timeout also kills the build and upload it started.
-func runReleaseCmd(timeout time.Duration, dir string, env, argv []string) (int, string, string) {
+func runReleaseCmd(timeout time.Duration, dir string, env, argv []string, pgidFile string) (int, string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
@@ -398,7 +459,17 @@ func runReleaseCmd(timeout time.Duration, dir string, env, argv []string) (int, 
 	cmd.WaitDelay = 30 * time.Second
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
-	err := cmd.Run()
+	err := cmd.Start()
+	if err == nil {
+		if werr := os.WriteFile(pgidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o600); werr != nil {
+			_ = cmd.Cancel() // without the file a dead job's processes could not be seen: do not go on
+			err = werr
+		}
+		if werr := cmd.Wait(); err == nil {
+			err = werr
+		}
+		_ = os.Remove(pgidFile)
+	}
 	if ctx.Err() == context.DeadlineExceeded {
 		return 124, out.String(), errb.String() + fmt.Sprintf("\ntimed out after %s", timeout)
 	}

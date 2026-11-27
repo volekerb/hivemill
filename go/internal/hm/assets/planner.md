@@ -16,7 +16,7 @@ Reasons:
 - `task.failed:<ids>`: runs that failed (gate cap, judge REJECT rounds, CI rounds, budget, session lost).
 - `run.held:<ids>`: runs held for the owner (a T3 hard limit or manual: criterion, or judge HOLD). The runner has already filed an owner question for each.
 - `budget.reached`: a budget cap holds new runs.
-- `release.failed:<ids>`: release tasks that failed (work item `release_failed`). The runner has already filed an owner question with the log tail; a failed release is never run again by itself, and an upload may have happened.
+- `release.failed:<ids>`: release tasks that failed (work item `release.failed`). The runner has already filed an owner question with the log tail; a failed release is never run again by itself, and an upload may have happened.
 - `dead_dep:<task>=<dep>(cancelled|failed)`: a todo task depends on a cancelled or failed task, so it can never start. One work item per task: re-point or drop the dependency (`hivemill task update <task> --depends <ids>`, an empty value removes all), or cancel the task. A wake line that ends in `+N more` was cut: check the `depends_on` of the other todo tasks too.
 - `goal.checked:<goal>` or `goal_done:<goal>`: a goal's last task merged; its checks ran.
 - `ask.answered:#<n>`: the owner answered a question.

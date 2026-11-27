@@ -736,11 +736,11 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 				return fail(stderr, fmt.Errorf("%w: %s has an active run (%s); `hivemill run stop %s` first", hm.ErrRefused, id, run.State, id))
 			}
 			if t.Kind == hm.KindRelease {
-				if state, _, err := s.Release(id); err != nil {
+				l, err := r.HoldRelease(id)
+				if err != nil {
 					return fail(stderr, err)
-				} else if state == "queued" || state == "running" {
-					return fail(stderr, fmt.Errorf("%w: %s has a release %s; wait until it ends", hm.ErrRefused, id, state))
 				}
+				defer l.Close()
 			}
 			set["status"] = *status
 		}
@@ -792,17 +792,25 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			fmt.Fprintln(stderr, taskUsage)
 			return 2
 		}
-		if _, err := s.Task(id); err != nil {
+		t, err := s.Task(id)
+		if err != nil {
 			return fail(stderr, err)
 		}
 		if run, _ := s.Run(id); run != nil && hm.Active(run.State) {
 			return fail(stderr, fmt.Errorf("%w: %s has an active run (%s); `hivemill run stop %s` first", hm.ErrRefused, id, run.State, id))
 		}
-		if state, _, err := s.Release(id); err == nil && (state == "queued" || state == "running") {
-			return fail(stderr, fmt.Errorf("%w: %s is releasing now; cancel it after the release ends", hm.ErrRefused, id))
+		if t.Kind == hm.KindRelease {
+			l, err := r.HoldRelease(id)
+			if err != nil {
+				return fail(stderr, err)
+			}
+			defer l.Close()
 		}
 		if err := s.UpdateTask(id, map[string]any{"status": "cancelled"}); err != nil {
 			return fail(stderr, err)
+		}
+		if t.Kind == hm.KindRelease { // it has no run to log its end; the dashboard needs one
+			_ = r.Log.Emit("task.cancelled", nil, hm.Event{TaskID: id, GoalID: t.Goal, Project: t.Project})
 		}
 		fmt.Fprintf(stdout, "%s cancelled\n", id)
 		repoint(r, stderr)
