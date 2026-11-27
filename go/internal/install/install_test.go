@@ -376,7 +376,7 @@ func TestDryRunPinnedRefAndSystemd(t *testing.T) {
 	if rc != 0 {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
-	for _, want := range []string{"fetch origin -- abc123", "checkout --detach FETCH_HEAD", "copy " + f.HomeDir + "/factory/systemd/hivemill.service -> ", "$ loginctl enable-linger", "$ systemctl --user daemon-reload", "$ systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer"} {
+	for _, want := range []string{"fetch origin -- abc123", "checkout --detach FETCH_HEAD", "copy " + f.HomeDir + "/factory/systemd/hivemill.service -> ", "$ loginctl enable-linger", "$ systemctl --user daemon-reload", "$ systemctl --user enable --now hivemill.service hivemill-obs.service hivemill-digest.timer hivemill-health.timer"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("plan lacks %q\n%s", want, out)
 		}
@@ -390,7 +390,7 @@ func TestDryRunPinnedRefAndSystemd(t *testing.T) {
 
 // ---------------------------------------------------------------------------------------------- systemd units
 
-var wantUnits = []string{"hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+var wantUnits = []string{"hivemill.service", "hivemill-obs.service", "hivemill-digest.service", "hivemill-digest.timer",
 	"hivemill-health.service", "hivemill-health.timer"}
 
 // repoUnit is the content of a unit file of the repo's systemd folder.
@@ -462,7 +462,7 @@ func TestInstallSystemdUnits(t *testing.T) {
 			got = append(got, strings.Join(c, " "))
 		}
 		want := []string{"systemctl --user daemon-reload",
-			"systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer"}
+			"systemctl --user enable --now hivemill.service hivemill-obs.service hivemill-digest.timer hivemill-health.timer"}
 		if strings.Join(got, "\n") != strings.Join(want, "\n") {
 			t.Errorf("calls = %q, want %q", got, want)
 		}
