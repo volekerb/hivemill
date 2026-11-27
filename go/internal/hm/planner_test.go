@@ -58,6 +58,11 @@ func plannerRunner(t *testing.T, actor string) (*Runner, *SQLite, *fakeHC) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
+	// Tests that move the clock by hours check other wake rules, so open rows are not redelivered under them.
+	// TestPlannerWorkRedelivers puts the default back.
+	if err := s.SetCfg("planner_ack_s", "86400"); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.AddProject(Project{ID: "www", RepoPath: "/nonexistent", GHRepo: "zz-test/www"}); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +137,6 @@ func TestPlannerPassDebouncesAndCoalesces(t *testing.T) {
 	r, s, f := plannerRunner(t, "")
 	_ = s.SetMeta("planner", "on")
 	_ = s.SetMeta("planner_cursor", "0")
-	_ = s.SetCfg("planner_ack_s", "86400") // redelivery is TestPlannerWorkRedelivers
 	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
 	t0 := time.Now()
 	failed := func(task string) {
@@ -636,6 +640,7 @@ func TestPlannerWorkStartableLevelsClear(t *testing.T) {
 func TestPlannerWorkRedelivers(t *testing.T) {
 	r, s, f := plannerRunner(t, "runner")
 	_ = s.SetMeta("planner", "on")
+	_ = s.SetCfg("planner_ack_s", Defaults["planner_ack_s"]) // 900, which the clock steps below straddle
 	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
 	t0 := time.Now().Truncate(time.Second)
 	attempts := func() (out []int) {
