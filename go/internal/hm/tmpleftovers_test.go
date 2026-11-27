@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// The test packages that build a binary leave nothing in the temp directory. They run with a private TMPDIR, so the
+// internal/guard and the three cmd/ci-* test packages leave nothing of their builds in the temp directory. They run with a private TMPDIR, so the
 // leftovers of other processes in /tmp cannot fail or hide the check.
 // The test cache does not see changes in those packages: run it with -count=1.
 func TestNoTmpLeftoversFromBuildHelpers(t *testing.T) {
@@ -17,7 +17,7 @@ func TestNoTmpLeftoversFromBuildHelpers(t *testing.T) {
 	}
 	t.Cleanup(func() { os.RemoveAll(tmp) })
 
-	run := func(args []string, mustPass ...string) {
+	run := func(args []string, mustRun ...string) {
 		t.Helper()
 		cmd := exec.Command("go", append([]string{"test", "-count=1", "-v"}, args...)...)
 		cmd.Dir = "../.." // the module root
@@ -26,9 +26,13 @@ func TestNoTmpLeftoversFromBuildHelpers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("go test %v: %v\n%s", args, err, out)
 		}
-		for _, name := range mustPass { // a renamed test must not turn the check into a no-op
-			if !strings.Contains(string(out), "--- PASS: "+name+" ") {
-				t.Errorf("go test %v: %s did not run and pass", args, name)
+		for _, name := range mustRun { // a renamed test must not turn the check into a no-op
+			switch {
+			case strings.Contains(string(out), "--- PASS: "+name+" "):
+			case strings.Contains(string(out), "--- SKIP: "+name+" "): // no python3 or no reference script
+				t.Logf("go test %v: %s skipped, its build is not checked", args, name)
+			default:
+				t.Errorf("go test %v: %s did not run", args, name)
 			}
 		}
 	}
@@ -48,6 +52,9 @@ func TestNoTmpLeftoversFromBuildHelpers(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range left {
+		if strings.HasPrefix(e.Name(), "xcrun_db") { // the cache of the macOS git and python3 shims
+			continue
+		}
 		t.Errorf("left behind in the temp directory: %s", e.Name())
 	}
 }
