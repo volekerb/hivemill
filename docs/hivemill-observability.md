@@ -81,6 +81,10 @@ A factory is one runner with its own database and obs server. Two factories neve
 
 The answer is built at most every 10 seconds, however many clients ask.
 
+**`GET /api/obs/v1/board`** (`?project=` narrows it) is every task in the column of where it is now: `queued`, `working`, `ci`, `merge`, `held`, `done`. Inside a column the cards are grouped by cause, trouble first: "Main's checks still running", "Behind main, refreshing", "CI red, repairing", "Idle after a nudge", "Waiting for another task". A card has the task's title, its time in the stage and one note. Queued tasks come from the task table, so a task shows before it ever ran. `done` counts today's merged, failed and re-filed, failed, and cancelled tasks, and lists the failures nobody re-filed and the last merges.
+
+**`GET /api/obs/v1/task?k=<key>`** is the trace of `/api/obs/task` plus the task's title, outcome, stage, PR and `prompts`: for each `prompt.sent` step, the text the runner sent, up to 64 KB. Only files under the state directory's `prompts/` are read. Prompt text can hold anything the task spec holds, so keep obs on a network you trust.
+
 **The hub** is the All factories page: what needs you over every factory, then one row per factory, each linking into that factory's own pages. It keeps no data of its own.
 
 ```

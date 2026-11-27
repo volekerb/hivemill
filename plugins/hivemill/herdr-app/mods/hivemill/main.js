@@ -11,7 +11,7 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, theme, run, exec, spaces, panes, window, keys, notify, nextCommand } from "herdr";
-import { data, oneRead, config, tick, ago, money, dur, alerts, usage, webUrl, taskUrl, levelColor, warn, good, demo, hidden, clean, machineRows, factoryViews, barSegments, spendToday, workerTerminal, stuckLimit, locationLabel, resolveSpace, boardOf, BOARD, STAGE_WORDS, loadTrace } from "./data.js";
+import { data, oneRead, config, tick, ago, money, dur, brief, alerts, usage, webUrl, taskUrl, levelColor, warn, good, demo, hidden, clean, machineRows, factoryViews, barSegments, spendToday, workerTerminal, stuckLimit, locationLabel, resolveSpace, loadBoard, traceView, traceLists, STAGE_WORDS, loadTrace } from "./data.js";
 
 const MOD = "hivemill";
 const alpha = (c, a) => (typeof c === "string" && c.length === 7 ? c + a : c);
@@ -62,7 +62,10 @@ export default class Dashboard extends View {
     this.me = Math.random().toString(36).slice(2);
     this.mode = props()?.mode === "bar" ? "bar" : "full";
     this.width = 0;
-    this.tab = ["spend"].includes(props()?.view) ? props().view : "overview"; // props {view} opens on that tab
+    this.tab = ["board", "traces", "spend"].includes(props()?.view) ? props().view : "overview"; // props {view} opens on that tab
+    this.list = "look"; // the Traces tab's list
+    this.shown = {}; // prompts opened in the trace
+    this.first = props()?.view === "traces" ? props().task ?? null : null; // props {view: "traces", task: KEY} opens that trace
     this.fac = null; // the factory the Board, Traces and Spend tabs show (its key); null = the first
     this.project = null; // the Board's project; null = all
     try {
@@ -82,6 +85,7 @@ export default class Dashboard extends View {
     cx.timer.every(15_000, (cx) => {
       tick(this.me, cx);
       if (this.mode === "bar") this.tell();
+      else this.askBoard(cx);
     });
   }
 
@@ -403,8 +407,7 @@ export default class Dashboard extends View {
 
     const wide = this.width >= 1040;
     const side = this.aside(t, k, d, views);
-    // Board and Traces are built but not shown: they wait for task titles in the factory API and an approved design.
-    const tabs = [["overview", "Overview"], ["spend", "Spend"]];
+    const tabs = [["overview", "Overview"], ["board", "Board"], ["traces", "Traces"], ["spend", "Spend"]];
     const header = h_flex().pb(14).gap(14).items_center().text_size(13)
       .child(div().font_semibold().text_color(k.fg).child("Hivemill"))
       .child(div().flex_1().text_color(k.dim).child(`${views.length} factor${views.length === 1 ? "y" : "ies"}, ${fresh}`))
@@ -413,12 +416,12 @@ export default class Dashboard extends View {
       div().id(`tab-${id}`).cursor_pointer().pb(8).text_size(13)
         .when(this.tab === id, (el) => el.font_semibold().text_color(k.fg).border_b(2).border_color(k.accent))
         .when(this.tab !== id, (el) => el.text_color(k.muted).hover((st) => st.text_color(k.fg)))
-        .on_click((_e, cx) => { this.tab = id; cx.notify(); }).child(label)));
+        .on_click((_e, cx) => { this.tab = id; this.askBoard(cx, true); cx.notify(); }).child(label)));
     const body = this.tab === "board" ? this.boardTab(t, k, views)
       : this.tab === "traces" ? this.tracesTab(t, k, views)
       : this.tab === "spend" ? this.spendTab(t, k, views)
       : wide ? h_flex().gap(56).items_start().child(main).child(side.flex_none().w(280)) : v_flex().child(main).child(side);
-    const page = v_flex().flex_none().w_full().max_w(this.tab === "board" ? 1500 : 1180).mx_auto().px(32).pt(26).pb(56).child(header).child(tabRow).child(body);
+    const page = v_flex().flex_none().w_full().max_w(this.tab === "board" ? 1440 : 1180).mx_auto().px(32).pt(26).pb(56).child(header).child(tabRow).child(body);
     return v_flex().id("root").size_full().bg(t.background)
       .on_size_change((size, cx) => {
         if (Math.abs(size.width - this.width) > 20) {
@@ -437,95 +440,175 @@ export default class Dashboard extends View {
     return live.find((v) => v.key === this.fac) ?? live[0] ?? null;
   }
 
+  // The board is asked while the Board or Traces tab is open: at once on a click, else when the last ask is 30 s old.
+  askBoard(cx, now = false) {
+    if (this.tab !== "board" && this.tab !== "traces") return;
+    const v = this.picked(factoryViews());
+    if (!v) return;
+    if (this.first) {
+      const key = this.first;
+      this.first = null;
+      return this.openTrace(cx, v, key);
+    }
+    const project = this.tab === "board" && v.projects.includes(this.project) ? this.project : null;
+    const b = v.board;
+    if (now || !b || (b.project ?? null) !== project || Date.now() - Math.max(b.at ?? 0, b.tried ?? 0) > 30_000) loadBoard(cx, v.factory, project);
+  }
+
   chips(k, id, items, current, pick) {
-    return h_flex().flex_wrap().gap(18).pb(16).text_size(13).children(items.map(([value, label]) =>
+    return h_flex().flex_wrap().gap(14).text_size(13).children(items.map(([value, label]) =>
       div().id(`${id}-${value ?? "all"}`).cursor_pointer()
         .when(value === current, (el) => el.font_semibold().text_color(k.fg))
         .when(value !== current, (el) => el.text_color(k.muted).hover((st) => st.text_color(k.fg)))
-        .on_click((_e, cx) => { pick(value); cx.notify(); }).child(label)));
+        .on_click((_e, cx) => { pick(value); this.askBoard(cx, true); cx.notify(); }).child(label)));
   }
 
   empty(k, text) {
-    return div().py(18).text_size(13).text_color(k.dim).child(text);
+    return div().py(18).max_w(640).text_size(13).text_color(k.muted).child(text);
+  }
+
+  // Why a factory has no board to show, in a sentence; null when it has one.
+  noBoard(k, v) {
+    const b = v.board;
+    if (b?.columns) return null;
+    if (!b) return this.empty(k, "Loading the board…");
+    if (b.old) return this.empty(k, `${v.label} runs a build from before the board. Update the factory to see its tasks by column. Overview and Spend work as before.`);
+    return div().py(18).text_size(13).text_color(k.bad).child(`The board did not load: ${demo() ? "not reachable" : b.error}`);
   }
 
   openTrace(cx, v, key) {
     this.tab = "traces";
     this.fac = v.key;
+    this.shown = {};
     loadTrace(cx, v.factory, key);
+    this.askBoard(cx);
     cx.notify();
   }
 
-  // Tasks as cards, in the column of where each is now. A click opens the task's trace.
+  // Tasks as cards, in the column of where each is now and under the reason it waits there. A click opens the trace.
   boardTab(t, k, views) {
     const v = this.picked(views);
     const out = v_flex();
     if (!v) return out.child(this.empty(k, "No factory has answered yet."));
-    if (views.length > 1) out.child(this.chips(k, "bf", views.filter((x) => x.loaded).map((x) => [x.key, x.label]), v.key, (key) => { this.fac = key; this.project = null; }));
+    const b = v.board;
     const projects = demo() ? [] : v.projects;
-    if (projects.length > 1) out.child(this.chips(k, "bp", [[null, "all projects"], ...projects.map((p) => [p, p])], this.project, (p) => { this.project = p; }));
-    const cols = boardOf(v, projects.includes(this.project) ? this.project : null);
-    const LIMIT = { working: 12, ci: 12, merge: 12, held: 12, done: 14 };
-    const box = h_flex().items_start().rounded(8).border(1).border_color(k.line).bg(t.surface).overflow_hidden();
-    BOARD.forEach(([id, label], i) => {
-      const cards = cols[id];
-      const col = v_flex().flex_1().min_w(0).min_h(240)
-        .child(h_flex().px(12).pt(10).pb(8).border_b(1).border_color(k.line).text_size(13)
-          .child(div().flex_1().font_semibold().text_color(k.fg).child(label)).child(div().text_color(k.dim).child(String(cards.length))));
-      cards.slice(0, LIMIT[id]).forEach((c) => col.child(
-        v_flex().id(`card-${id}-${c.key}`).px(12).py(9).gap(1).border_b(1).border_color(k.line).cursor_pointer().hover((st) => st.bg(k.hover))
-          .on_click((_e, cx) => this.openTrace(cx, v, c.key))
-          .when(Boolean(c.title), (el) => el.child(div().truncate().text_size(13).text_color(k.fg).child(clean(c.title ?? ""))))
-          .child(h_flex().gap(8).text_size(c.title ? 12 : 13)
-            .child(div().flex_none().text_color(c.title ? k.dim : k.fg).child(demo() ? (c.title ? "" : "Task") : c.task))
-            .child(h_flex().flex_1().min_w(0).justify_end().child(div().truncate().text_size(12).text_color(c.bad ? k.bad : k.dim).child(clean(c.note ?? "")))))));
-      if (!cards.length) col.child(div().px(12).py(10).text_size(12).text_color(k.faint).child("none"));
-      if (cards.length > LIMIT[id]) col.child(div().px(12).py(8).text_size(12).text_color(k.dim).child(`and ${cards.length - LIMIT[id]} more`));
-      box.child(i < BOARD.length - 1 ? col.border_r(1).border_color(k.line) : col);
-    });
-    out.child(box);
-    out.child(div().pt(10).text_size(12).text_color(k.dim).child("Tasks with an event today. Red says why a card is not moving. Queued tasks appear once the factory's API lists them."));
+    const bar = h_flex().pb(18).gap(28).items_center().text_size(13);
+    if (views.length > 1) bar.child(this.chips(k, "bf", views.filter((x) => x.loaded).map((x) => [x.key, x.label]), v.key, (key) => { this.fac = key; this.project = null; }));
+    if (projects.length > 1) bar.child(this.chips(k, "bp", [[null, "All projects"], ...projects.map((p) => [p, p])], projects.includes(this.project) ? this.project : null, (p) => { this.project = p; }));
+    bar.child(div().flex_1());
+    if (b?.columns) bar.child(div().text_color(k.muted).child(`${b.open} open task${b.open === 1 ? "" : "s"}, ${b.done.merged} merged today${b.error ? `, last answer ${ago(b.at)} ago` : ""}`));
+    out.child(bar);
+    const none = this.noBoard(k, v);
+    if (none) return out.child(none);
+    const drift = Math.max(0, Math.round((Date.now() - b.at) / 1000));
+    const card = (col, g, c, i) => {
+      const right = col.id === "done" ? (c.note ? brief(c.note, 22) : clock(c.at)) : c.note && c.note.length <= 22 && !demo() && col.id !== "held" ? c.note : dur(c.age_sec + drift);
+      const title = c.title ? clean(c.title) : demo() ? "Task" : c.task;
+      const el = v_flex().id(`card-${col.id}-${g.cause}-${i}`).mb(6).px(10).py(9).rounded(6).border(1).border_color(k.line).bg(t.surface)
+        .child(div().when(Boolean(c.title), (x) => x.h(36)).overflow_hidden().whitespace_normal().line_height(1.38).text_size(13).text_color(k.fg).child(title))
+        .child(h_flex().pt(6).gap(8).text_size(12)
+          .child(div().flex_1().min_w(0).truncate().text_color(k.muted).child(demo() || !c.title ? "" : c.task))
+          .child(div().flex_none().text_color(g.bad ? k.bad : k.muted).child(right)));
+      return c.key ? el.cursor_pointer().hover((st) => st.border_color(k.accent)).on_click((_e, cx) => this.openTrace(cx, v, c.key)) : el;
+    };
+    const column = (col) => {
+      const el = v_flex().flex_1().min_w(0)
+        .child(h_flex().mb(8).pb(8).border_b(1).border_color(k.line).text_size(13)
+          .child(div().flex_1().font_semibold().text_color(k.fg).child(col.name)).child(div().text_color(k.muted).child(String(col.count))));
+      if (col.id === "done") {
+        const d = b.done;
+        const parts = [[d.merged, "merged"], [d.failed_refiled, "failed and re-filed"], [d.cancelled, "cancelled"]].filter(([n]) => n > 0);
+        if (parts.length) el.child(div().pb(4).whitespace_normal().text_size(13).text_color(k.muted).child(parts.map(([n, w]) => `${n} ${w}`).join(", ")));
+      }
+      if (!col.count) el.child(div().py(4).text_size(12).text_color(k.faint).child("none"));
+      for (const g of col.groups) {
+        const cause = g.cause || (g.bad && col.id !== "held" ? "Over the stage limit" : "");
+        if (cause) el.child(div().pt(8).pb(6).text_size(12).text_color(g.bad ? k.bad : k.muted).child(col.id === "done" && !g.bad ? cause : `${cause} (${g.count})`));
+        g.cards.forEach((c, i) => {
+          el.child(card(col, g, c, i));
+          if (col.id === "held" && c.pr && !demo()) el.child(h_flex().pb(8).px(2).text_size(12).child(this.link(k, `held-pr-${i}`, `Open PR ${String(c.pr).split("/").pop()}`, () => openUrl(c.pr))));
+        });
+        if (g.count > g.cards.length && !(col.id === "done" && !g.bad)) el.child(div().px(2).pb(4).text_size(12).text_color(k.muted).child(`${g.count - g.cards.length} more`));
+      }
+      if (col.id === "done" && col.count && webUrl("/flow", v.factory)) el.child(h_flex().px(2).pt(2).text_size(12).child(this.link(k, "done-all", "All of today", () => openUrl(webUrl("/flow", v.factory)))));
+      return el;
+    };
+    const rows = this.width && this.width < 1100 ? [b.columns.slice(0, 3), b.columns.slice(3)] : [b.columns];
+    for (const r of rows) out.child(h_flex().pb(22).gap(14).items_start().children(r.map(column)));
     return out;
   }
 
-  // One task from dispatch to merge: every step the runner logged, with its cost.
+  // One task from dispatch to merge, as phases: what the runner did, what it sent, what it cost.
   tracesTab(t, k, views) {
     const v = this.picked(views);
     const out = v_flex();
     if (!v) return out.child(this.empty(k, "No factory has answered yet."));
-    if (views.length > 1) out.child(this.chips(k, "tf", views.filter((x) => x.loaded).map((x) => [x.key, x.label]), v.key, (key) => { this.fac = key; }));
+    const lists = traceLists(v);
+    const LISTS = [["look", "Needs a look"], ["running", "Running"], ["merged", "Merged today"], ["failed", "Failed today"]];
+    const bar = h_flex().pb(18).gap(28).items_center().text_size(13);
+    if (views.length > 1) bar.child(this.chips(k, "tf", views.filter((x) => x.loaded).map((x) => [x.key, x.label]), v.key, (key) => { this.fac = key; }));
+    bar.child(this.chips(k, "tl", LISTS.map(([id, label]) => [id, `${label} ${lists[id].length}`]), this.list, (id) => { this.list = id; }));
+    out.child(bar);
     const tr = v.trace;
-    const seen = new Set();
-    const tasks = [...v.running, ...v.needs.filter((n) => n.kind === "held"), ...v.today].filter((r) => r.key && !seen.has(r.key) && seen.add(r.key));
-    const list = v_flex().flex_none().w(300).children(tasks.slice(0, 40).map((r) =>
-      v_flex().id(`tl-${r.key}`).px(10).py(7).rounded(6).cursor_pointer().when(tr?.key === r.key, (el) => el.bg(t.surface)).hover((st) => st.bg(k.hover))
+    const rows = lists[this.list] ?? [];
+    const list = v_flex().flex_none().w(340);
+    for (const r of rows.slice(0, 40))
+      list.child(v_flex().id(`tl-${r.key}`).px(10).py(8).rounded(6).border(1).cursor_pointer()
+        .when(tr?.key === r.key, (el) => el.bg(t.surface).border_color(k.line))
+        .when(tr?.key !== r.key, (el) => el.border_color(alpha(t.background, "00")).hover((st) => st.bg(k.hover)))
         .on_click((_e, cx) => this.openTrace(cx, v, r.key))
         .child(div().truncate().text_size(13).text_color(k.fg).child(r.title ? clean(r.title) : demo() ? "Task" : r.task))
-        .child(div().truncate().text_size(12).text_color(k.dim).child([demo() || !r.title ? null : r.task, r.kind === "held" ? "held" : STAGE_WORDS[r.stage] ?? (String(r.outcome ?? "").startsWith("FAIL") ? "failed" : r.outcome)].filter(Boolean).join(", ")))));
+        .child(div().truncate().pt(2).text_size(12).text_color(k.muted).child([demo() || !r.title ? null : r.task, demo() ? r.why.replace(/\bT-\d+\b/g, "a task") : r.why].filter(Boolean).join(", "))));
+    if (!rows.length) list.child(div().px(10).py(8).text_size(13).text_color(k.muted).child(this.list === "look" ? "Nothing needs a look." : "None today."));
+    if (v.board?.old) list.child(div().px(10).pt(12).whitespace_normal().text_size(12).text_color(k.muted).child("This factory runs an older build: no titles and no prompt text until it is updated."));
+
     const detail = v_flex().flex_1().min_w(0);
     if (!tr) detail.child(this.empty(k, "Pick a task on the left, or click a card on the Board."));
     else if (tr.loading) detail.child(this.empty(k, "Loading the trace…"));
     else if (tr.error) detail.child(div().py(18).text_size(13).text_color(k.bad).child(`The trace did not load: ${demo() ? "not reachable" : tr.error}`));
     else {
-      const title = tasks.find((r) => r.key === tr.key)?.title;
-      detail.child(div().text_size(20).font_semibold().text_color(k.fg).child(title ? clean(title) : demo() ? "Task" : tr.task))
-        .child(h_flex().pt(4).pb(14).gap(14).text_size(13).text_color(k.muted)
-          .child(div().child([demo() ? null : tr.task, demo() ? null : tr.project, `${tr.steps.length} steps`, tr.usd != null ? money(tr.usd) : null].filter(Boolean).join(", ")))
-          .child(this.link(k, "tr-open", "Open the full page", () => openUrl(taskUrl(v.factory, tr.key)))));
-      const rows = v_flex().border_t(1).border_color(k.line);
-      for (const [i, st] of tr.steps.entries()) {
-        const bad = /fail|red|blocked|reject|held|stalled/i.test(`${st.kind} ${st.summary}`);
-        rows.child(h_flex().id(`st-${i}`).py(7).gap(12).items_start().border_b(1).border_color(k.line).text_size(13)
-          .child(div().flex_none().w(46).text_color(k.dim).child(clock(st.ts)))
-          .child(div().flex_none().w(52).text_color(k.dim).child(st.role ?? ""))
-          .child(div().flex_1().min_w(0).text_color(bad ? k.bad : st.kind === "prompt.sent" ? k.muted : k.fg).child(clean(st.summary)))
-          .when(Boolean(st.pr), (el) => el.child(this.link(k, `st-${i}-pr`, "PR", () => openUrl(st.pr))))
-          .child(h_flex().flex_none().w(56).justify_end().child(div().text_color(k.muted).child(st.usd != null ? money(st.usd) : ""))));
-      }
-      detail.child(rows);
-      detail.child(div().pt(10).text_size(12).text_color(k.dim).child("Prompt steps name the prompt's file. Its text shows here once the factory's API serves it."));
+      const tv = traceView(tr);
+      const title = tr.title ?? [...rows, ...lists.running].find((r) => r.key === tr.key)?.title;
+      const held = tv.state === "held" ? [...tr.steps].reverse().find((s) => s.kind === "run.held")?.summary.replace(/^held:\s*/, "") : null;
+      const lede = [demo() ? null : tr.task, tr.goal && !demo() ? `goal ${tr.goal}` : null, tr.project && !demo() ? `project ${tr.project}` : null].filter(Boolean).join(", ");
+      const state = held ? `Held for you: ${clean(held)}.` : `${tv.state[0].toUpperCase()}${tv.state.slice(1)}.`;
+      detail.child(div().text_size(22).font_semibold().text_color(k.fg).child(title ? clean(title) : demo() ? "Task" : tr.task))
+        .child(h_flex().flex_wrap().pt(4).pb(18).gap(14).text_size(13)
+          .child(div().text_color(k.muted).child(`${lede ? `${lede}. ` : ""}${state}`))
+          .when(Boolean(tr.pr) && !demo(), (el) => el.child(this.link(k, "tr-pr", `Open PR ${String(tr.pr).split("/").pop()}`, () => openUrl(tr.pr))))
+          .when(Boolean(taskUrl(v.factory, tr.key)), (el) => el.child(this.link(k, "tr-open", "Open the full page", () => openUrl(taskUrl(v.factory, tr.key))))));
+      const fact = (big, small) => v_flex().child(div().text_size(15).font_semibold().text_color(k.fg).child(big)).child(div().text_size(12).text_color(k.muted).child(small));
+      const n = (c, w) => `${c} ${w}${c === 1 ? "" : "s"}`;
+      detail.child(h_flex().py(12).gap(36).border_t(1).border_b(1).border_color(k.line)
+        .child(fact(tv.sec != null ? dur(tv.sec) : "–", tv.open ? "since dispatch" : "from dispatch to the end"))
+        .child(fact(tr.usd ? money(tr.usd) : "–", n(tv.sessions, "session")))
+        .child(fact(n(tv.rounds, "gate round"), `${tv.blocks} blocked`))
+        .child(fact(n(tv.prompts, "prompt"), "sent by the runner")));
+      tv.phases.forEach((ph, pi) => {
+        detail.child(h_flex().pt(22).pb(4).gap(10).items_center().text_size(13)
+          .child(div().font_semibold().text_color(k.fg).child(ph.name))
+          .child(div().text_color(k.muted).child([ph.sec ? dur(ph.sec) : null, ph.usd ? money(ph.usd) : null].filter(Boolean).join(", "))));
+        ph.rows.forEach((r, i) => {
+          const id = `${pi}-${i}`;
+          const open = Boolean(this.shown[id]);
+          const body = v_flex().flex_1().min_w(0)
+            .child(h_flex().gap(10).items_start()
+              .child(div().flex_1().min_w(0).whitespace_normal().text_color(r.bad ? k.bad : k.fg).child(`${clean(r.text)}${r.times > 1 ? `, ${r.times} times` : ""}`))
+              .when(Boolean(r.prompt), (el) => el.child(this.link(k, `pr-${id}`, open ? "Hide" : "Show", (cx) => { this.shown[id] = !open; cx.notify(); })))
+              .when(Boolean(r.pr) && !demo(), (el) => el.child(this.link(k, `st-${id}-pr`, "PR", () => openUrl(r.pr)))));
+          if (r.prompt && open && !demo())
+            body.child(v_flex().mt(6).mb(4).px(12).py(10).rounded(6).border(1).border_color(k.line).bg(t.surface).text_size(12).text_color(k.muted)
+              .children(r.prompt.text.split("\n").slice(0, 60).map((line) => div().whitespace_normal().min_h(16).child(line)))
+              .when(r.prompt.cut || r.prompt.lines > 60, (el) => el.child(div().pt(8).text_color(k.faint).child(`The start of ${r.prompt.lines} lines. The whole prompt is on the factory's page.`))));
+          detail.child(h_flex().id(`st-${id}`).py(6).gap(12).items_start().border_b(1).border_color(k.line).text_size(13)
+            .child(div().flex_none().w(48).text_color(k.muted).child(clock(r.ts)))
+            .child(body)
+            .child(h_flex().flex_none().w(60).justify_end().child(div().text_color(k.muted).child(r.usd ? money(r.usd) : ""))));
+        });
+      });
+      if (!tr.v1) detail.child(div().pt(10).text_size(12).text_color(k.muted).child("Prompt text shows here once this factory is updated."));
     }
-    return out.child(h_flex().gap(32).items_start().child(list).child(detail));
+    return out.child(h_flex().gap(40).items_start().child(list).child(detail));
   }
 
   // Where the money went: per day, per role, and the most expensive tasks of the last 7 days.
