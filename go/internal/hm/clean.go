@@ -27,7 +27,7 @@ import (
 
 // `hivemill clean` (and the daemon, every clean_every_min) frees disk space without an agent: task worktrees of
 // finished tasks (dirty or unmerged ones are saved to the attic first), Go build caches over go_cache_max_gb or idle on
-// a full disk, temp leftovers, Xcode DerivedData and simulator clones of removed worktrees, and old session transcripts
+// a full disk, temp leftovers, Xcode DerivedData and simulator clones of removed worktrees, old Maestro output, and old session transcripts
 // (gzipped, never deleted). The other session machines get the same through the DB-free `hivemill local clean`.
 // Every check fails closed: what cannot be read is kept, with the reason.
 
@@ -39,11 +39,13 @@ const (
 	cleanTmp         = "tmp"
 	cleanDerived     = "deriveddata"
 	cleanSim         = "simulators"
+	cleanMaestro     = "maestro"
 
 	goCacheIdle   = 7 * 24 * time.Hour
 	atticKeep     = 60 * 24 * time.Hour
 	tmpIdle       = 3 * time.Hour
 	userCacheIdle = 7 * 24 * time.Hour
+	maestroKeep   = 7 * 24 * time.Hour
 	diskWarnPct   = 85
 	diskUsageMeta = "disk_usage" // what the last clean saw, for `hivemill health`
 	// the spec for a session machine is one command argument (128 KiB at most), so its lists are bounded
@@ -51,7 +53,7 @@ const (
 	specAttic = 200
 )
 
-var cleanKinds = []string{cleanWorktrees, cleanGoCache, cleanTranscripts, cleanAttic, cleanTmp, cleanDerived, cleanSim}
+var cleanKinds = []string{cleanWorktrees, cleanGoCache, cleanTranscripts, cleanAttic, cleanTmp, cleanDerived, cleanSim, cleanMaestro}
 
 // CleanItem is one thing clean removed (or would remove), or kept for Reason.
 type CleanItem struct {
@@ -1284,6 +1286,7 @@ func (r *Runner) cleanHere(ctx context.Context, spec MachineSpec, gate func() st
 	if GOOS == "darwin" {
 		r.cleanDerivedData(ctx, spec, rep)
 		r.cleanSimulators(ctx, spec, rep)
+		r.cleanMaestroOutput(ctx, rep, now)
 	}
 }
 
@@ -1320,7 +1323,7 @@ func (r *Runner) cleanTmpLeftovers(ctx context.Context, rep *CleanReport, now ti
 		return ""
 	}
 	for _, dir := range r.tmpRoots() {
-		removeStale(ctx, rep, now, dir, tmpIdle, busy, func(name string) bool {
+		removeStale(ctx, rep, cleanTmp, now, dir, tmpIdle, busy, func(name string) bool {
 			return slices.ContainsFunc(tmpPatterns, func(p string) bool { ok, _ := filepath.Match(p, name); return ok })
 		})
 	}
@@ -1329,12 +1332,12 @@ func (r *Runner) cleanTmpLeftovers(ctx context.Context, rep *CleanReport, now ti
 	other := func(name string) bool { return !slices.Contains(keep, name) }
 	cache := filepath.Join(r.Env.UserHome, ".cache")
 	for _, dir := range []string{"hivemill", "hivemill/tmp", "hivemill/go", "hivemill/go/tmp", "factory-gate"} {
-		removeStale(ctx, rep, now, filepath.Join(cache, dir), userCacheIdle, busy, other)
+		removeStale(ctx, rep, cleanTmp, now, filepath.Join(cache, dir), userCacheIdle, busy, other)
 	}
 }
 
 // removeStale removes the matching files and directories of dir that this user owns and nothing wrote for idle.
-func removeStale(ctx context.Context, rep *CleanReport, now time.Time, dir string, idle time.Duration,
+func removeStale(ctx context.Context, rep *CleanReport, kind string, now time.Time, dir string, idle time.Duration,
 	busy func(string) string, match func(string) bool) {
 	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {
@@ -1342,13 +1345,13 @@ func removeStale(ctx context.Context, rep *CleanReport, now time.Time, dir strin
 	}
 	root, err := fsx.OpenRoot(real)
 	if err != nil {
-		rep.Errors = append(rep.Errors, "tmp: "+err.Error())
+		rep.Errors = append(rep.Errors, kind+": "+err.Error())
 		return
 	}
 	defer root.Close()
 	ents, err := os.ReadDir(real)
 	if err != nil {
-		rep.Errors = append(rep.Errors, "tmp: "+err.Error())
+		rep.Errors = append(rep.Errors, kind+": "+err.Error())
 		return
 	}
 	for _, e := range ents {
@@ -1370,9 +1373,9 @@ func removeStale(ctx context.Context, rep *CleanReport, now time.Time, dir strin
 		if err != nil || (!size.Newest.IsZero() && now.Sub(size.Newest) < idle) {
 			continue
 		}
-		item := CleanItem{Kind: cleanTmp, Path: path, Bytes: size.Bytes}
+		item := CleanItem{Kind: kind, Path: path, Bytes: size.Bytes}
 		if why := busy(path); why != "" {
-			rep.Kept = append(rep.Kept, CleanItem{Kind: cleanTmp, Path: path, Reason: why})
+			rep.Kept = append(rep.Kept, CleanItem{Kind: kind, Path: path, Reason: why})
 			continue
 		}
 		if !rep.DryRun {
@@ -1389,6 +1392,20 @@ func removeStale(ctx context.Context, rep *CleanReport, now time.Time, dir strin
 			}
 		}
 		rep.Removed = append(rep.Removed, item)
+	}
+}
+
+// maestroDirs hold the output of Maestro UI test runs.
+func (r *Runner) maestroDirs() []string {
+	m := filepath.Join(r.Env.UserHome, ".maestro")
+	return []string{filepath.Join(m, "tests"), filepath.Join(m, "screenshots"), filepath.Join(m, "recordings")}
+}
+
+// cleanMaestroOutput removes the Maestro output that nothing wrote for maestroKeep.
+func (r *Runner) cleanMaestroOutput(ctx context.Context, rep *CleanReport, now time.Time) {
+	for _, dir := range r.maestroDirs() {
+		removeStale(ctx, rep, cleanMaestro, now, dir, maestroKeep,
+			func(string) string { return "" }, func(string) bool { return true })
 	}
 }
 
@@ -1528,6 +1545,7 @@ func (r *Runner) categorySizes() map[string]int64 {
 		cleanTmp:         {filepath.Join(h, ".cache", "hivemill", "tmp"), filepath.Join(h, ".cache", "hivemill", "go", "tmp")},
 		cleanDerived:     {filepath.Join(h, "Library", "Developer", "Xcode", "DerivedData")},
 		cleanSim:         {filepath.Join(h, "Library", "Developer", "CoreSimulator")},
+		cleanMaestro:     r.maestroDirs(),
 	}
 	for _, root := range r.tmpRoots() {
 		if real, err := filepath.EvalSymlinks(root); err == nil {

@@ -303,6 +303,45 @@ func TestCleanDerivedDataOfRemovedWorktree(t *testing.T) {
 	}
 }
 
+func TestCleanMaestroOutput(t *testing.T) {
+	f := newCleanFix(t)
+	zzDarwin(t)
+	home, err := filepath.EvalSymlinks(f.r.Env.UserHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var old, young []string
+	for _, dir := range []string{"tests", "screenshots", "recordings"} {
+		base := filepath.Join(home, ".maestro", dir)
+		stale := filepath.Join(base, "old")
+		zzWrite(t, filepath.Join(stale, "f"), "x")
+		zzOld(t, 8*24*time.Hour, stale)
+		fresh := filepath.Join(base, "new")
+		zzWrite(t, fresh, "x")
+		zzOld(t, 6*24*time.Hour, fresh)
+		old, young = append(old, stale), append(young, fresh)
+	}
+	slices.Sort(old)
+	dry := f.clean(t, true)
+	if got := removedPaths(dry, cleanMaestro); !slices.Equal(got, old) || !exists(old[0]) {
+		t.Fatalf("dry run: %v", got)
+	}
+	rep := f.clean(t, false)
+	if got := removedPaths(rep, cleanMaestro); !slices.Equal(got, old) {
+		t.Fatalf("removed %v, want %v", got, old)
+	}
+	for _, p := range old {
+		if exists(p) {
+			t.Errorf("%s stays", p)
+		}
+	}
+	for _, p := range young {
+		if !exists(p) {
+			t.Errorf("%s removed", p)
+		}
+	}
+}
+
 func TestCleanSimCloneOfRemovedWorktree(t *testing.T) {
 	f := newCleanFix(t)
 	zzDarwin(t)
