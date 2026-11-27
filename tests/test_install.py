@@ -5,6 +5,9 @@ import unittest
 from pathlib import Path
 
 SYSTEMD = Path(__file__).resolve().parent.parent / "systemd"
+HIVEMILL_UNITS = ["hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+                  "hivemill-health.service", "hivemill-health.timer"]
+HIVEMILL_ENABLE = ["hivemill.service", "hivemill-digest.timer", "hivemill-health.timer"]
 
 
 class InstallTests(unittest.TestCase):
@@ -26,56 +29,44 @@ class InstallTests(unittest.TestCase):
     def test_dry_run_changes_nothing(self):
         p = self.install("--dry-run")
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertIn("enable factory-up.service", p.stdout)
+        for u in HIVEMILL_ENABLE:
+            self.assertIn(f"[dry-run] systemctl --user enable {u}", p.stdout)
         self.assertFalse((self.tmp / "cfg").exists())
         calls = self.tmp / "calls"  # only the read-only linger query may run
         self.assertNotIn("systemctl", calls.read_text() if calls.exists() else "")
 
-    def test_serve_unit_is_opt_in(self):
-        p = self.install("--dry-run")
-        self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertNotIn("factory-serve", p.stdout + p.stderr)
-        p = self.install("--dry-run", "--with-serve")
-        self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertIn(f"[dry-run] ln -sfn {SYSTEMD}/factory-serve.service", p.stdout)
-        self.assertIn("[dry-run] systemctl --user enable factory-serve.service", p.stdout)
-        self.assertFalse((self.tmp / "cfg").exists())
-
-    def test_serve_unit_installed_only_with_flag(self):
-        link = self.tmp / "cfg" / "systemd" / "user" / "factory-serve.service"
-        self.assertEqual(self.install().returncode, 0)
-        self.assertFalse(link.is_symlink())
-        self.assertNotIn("factory-serve", (self.tmp / "calls").read_text())
-        self.assertEqual(self.install("--with-serve").returncode, 0)
-        self.assertEqual(link.resolve(), (SYSTEMD / "factory-serve.service").resolve())
-        calls = (self.tmp / "calls").read_text()
-        self.assertIn("--user enable factory-serve.service", calls)
-        self.assertNotIn("--now", calls)
-        self.assertNotIn("start", calls)  # nothing is started or restarted
-
     def test_unknown_flag_exits_2(self):
-        p = self.install("--bogus")
-        self.assertEqual(p.returncode, 2)
-        self.assertIn("--with-serve", p.stderr)
+        for flag in ("--bogus", "--with-serve"):
+            p = self.install(flag)
+            self.assertEqual(p.returncode, 2, flag)
+            self.assertIn("usage:", p.stderr)
+            self.assertFalse((self.tmp / "cfg").exists())
 
-    def test_serve_unit_file_limits(self):
-        text = (SYSTEMD / "factory-serve.service").read_text()
-        for line in ("ExecStart=%h/factory/bin/factory serve", "Restart=always", "RestartSec=10", "Nice=10", "MemoryMax=200M", "MemoryHigh=150M",
-                     "CPUQuota=50%", "NoNewPrivileges=yes", "PrivateTmp=yes", "ProtectSystem=strict", "ProtectHome=read-only",
-                     "ReadWritePaths=%h/factory", "ReadOnlyPaths=%h/.claude", "WantedBy=default.target",
-                     "ReadOnlyPaths=-%h/factory/bin -%h/factory/roles -%h/factory/systemd -%h/factory/web "
-                     "-%h/factory/worktrees -%h/factory/.git -%h/factory/tests"):
-            self.assertIn(line, text.splitlines())
+    def test_unit_files_exist(self):
+        for u in HIVEMILL_UNITS:
+            self.assertTrue((SYSTEMD / u).is_file(), u)
 
     def test_install_idempotent_and_safe(self):
         for _ in range(2):
             self.assertEqual(self.install().returncode, 0)
-        unit = self.tmp / "cfg" / "systemd" / "user" / "factory-up.service"
-        self.assertEqual(unit.resolve(), (SYSTEMD / "factory-up.service").resolve())
+        dest = self.tmp / "cfg" / "systemd" / "user"
+        self.assertEqual(sorted(f.name for f in dest.iterdir()), sorted(HIVEMILL_UNITS))  # no factory-* or herdr unit
+        for u in HIVEMILL_UNITS:
+            self.assertEqual((dest / u).resolve(), (SYSTEMD / u).resolve())
         calls = (self.tmp / "calls").read_text()
-        self.assertIn("--user enable factory-up.service", calls)
+        enabled = [ln.split()[-1] for ln in calls.splitlines() if ln.startswith("systemctl --user enable ")]
+        self.assertEqual(enabled, HIVEMILL_ENABLE * 2)
+        self.assertIn("--user daemon-reload", calls)
         self.assertNotIn("--now", calls)
-        self.assertNotIn("restart", calls)
+        self.assertNotIn("start", calls)  # nothing is started or restarted
+
+    def test_differing_unit_is_backed_up(self):
+        dest = self.tmp / "cfg" / "systemd" / "user"
+        dest.mkdir(parents=True)
+        (dest / "hivemill.service").write_text("[Service]\nExecStart=/bin/true\n")
+        self.assertEqual(self.install().returncode, 0)
+        self.assertEqual((dest / "hivemill.service.bak").read_text(), "[Service]\nExecStart=/bin/true\n")
+        self.assertTrue((dest / "hivemill.service").is_symlink())
 
 
 class HerdrResumeTests(InstallTests):
@@ -135,6 +126,15 @@ class HerdrResumeTests(InstallTests):
 
 
 class UnitTests(unittest.TestCase):
+    def test_serve_unit_file_limits(self):
+        text = (SYSTEMD / "factory-serve.service").read_text()
+        for line in ("ExecStart=%h/factory/bin/factory serve", "Restart=always", "RestartSec=10", "Nice=10", "MemoryMax=200M", "MemoryHigh=150M",
+                     "CPUQuota=50%", "NoNewPrivileges=yes", "PrivateTmp=yes", "ProtectSystem=strict", "ProtectHome=read-only",
+                     "ReadWritePaths=%h/factory", "ReadOnlyPaths=%h/.claude", "WantedBy=default.target",
+                     "ReadOnlyPaths=-%h/factory/bin -%h/factory/roles -%h/factory/systemd -%h/factory/web "
+                     "-%h/factory/worktrees -%h/factory/.git -%h/factory/tests"):
+            self.assertIn(line, text.splitlines())
+
     def test_units(self):
         up = (SYSTEMD / "factory-up.service").read_text()
         self.assertIn("ExecStart=%h/.local/bin/factory up", up)

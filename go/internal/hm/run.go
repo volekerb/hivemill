@@ -61,6 +61,8 @@ type Runner struct {
 	loads      map[string]loadReading // CPU load per machine, see load.go
 	poll       *prPoll                // the pass's one read of the open PRs; nil outside a pass
 	queueSlow  bool                   // a PR is queued for CI over its budget: no refresh
+	// DiskFree is (total, available) bytes of a path's filesystem; nil = statfs. Tests replace it.
+	DiskFree func(path string) (uint64, uint64, error)
 }
 
 // NewRunner opens the factory DB of the environment.

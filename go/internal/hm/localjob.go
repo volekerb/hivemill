@@ -298,8 +298,18 @@ func (r *Runner) killCIOrphans(j *ciJob) error {
 		}
 		return nil
 	}
-	if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
-		_ = syscall.Kill(-pid, syscall.SIGKILL)
+	// the wrapper's lock is free before its pid is: it has yet to exit and be reaped, so wait for that while the group
+	// lasts. A process that is exiting or a zombie has no command line; one that names no result file is someone else's.
+	cmdline, result := fmt.Sprintf("/proc/%d/cmdline", pid), filepath.Join(j.Dir, "result")
+	for end := time.Now().Add(5 * time.Second); syscall.Kill(-pid, 0) == nil; time.Sleep(10 * time.Millisecond) {
+		err := syscall.Kill(pid, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
+		}
+		b, _ := os.ReadFile(cmdline)
+		if err != nil || time.Now().After(end) || (len(b) > 0 && !strings.Contains(string(b), result)) {
+			break
+		}
 	}
 	return nil
 }
@@ -376,7 +386,39 @@ func (r *Runner) dropCIJob(j *ciJob) bool {
 	return true
 }
 
-func (r *Runner) forgetCIJob(j *ciJob) { _ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json")) }
+// writeScrubbedLog keeps gate_cmd's output at file without the key. A log that cannot be rewritten does not stay: lost
+// says what became of it, and is "" when the scrubbed log is there.
+func writeScrubbedLog(file string, b []byte) (lost string) {
+	if os.WriteFile(file, []byte(ScrubSecrets(string(b))), 0o600) == nil {
+		return ""
+	}
+	return removeUnscrubbed(file)
+}
+
+func removeUnscrubbed(file string) (lost string) {
+	if err := os.Remove(file); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "gate log could not be removed: scrub failed"
+	}
+	return "gate log removed: scrub failed"
+}
+
+func (r *Runner) forgetCIJob(j *ciJob) {
+	r.scrubJobLog(j)
+	_ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json"))
+}
+
+// scrubJobLog removes the key from the job's own copy of the log, once nothing writes it any more.
+func (r *Runner) scrubJobLog(j *ciJob) {
+	own, lost := filepath.Join(j.Dir, "gate-cmd.log"), ""
+	if b, err := os.ReadFile(own); err == nil {
+		lost = writeScrubbedLog(own, b)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		lost = removeUnscrubbed(own)
+	}
+	if lost != "" {
+		r.printf("%s: %s\n", j.Task, lost)
+	}
+}
 
 // scheduleCIJobs moves every job on: a job past its time limit ends with exit 124, one that is gone without a result is
 // queued again once, and queued jobs start while their machine has fewer than local_ci_jobs running. It returns why a
@@ -448,6 +490,7 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 				queued = append(queued, j)
 				r.printf("%s: the local gate job is gone without a result; starting it again\n", j.Task)
 			}
+			r.scrubJobLog(j) // a failed or requeued job may keep its record, and this log, for a long time
 			_ = r.saveCIJob(j)
 		case jobQueued:
 			queued = append(queued, j)
@@ -475,6 +518,7 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 				down[j.Machine], j.StartLost = err, true
 			} else {
 				j.Failed, j.StartFailed = err.Error(), true
+				r.scrubJobLog(j)
 			}
 			_ = r.saveCIJob(j)
 			continue
@@ -619,19 +663,30 @@ func (r *Runner) adoptCIJob(run *Run, j *ciJob, rc int, logdir string) (string, 
 	text := strings.ReplaceAll(string(b), j.Checkout, "<checkout>")
 	_ = os.MkdirAll(logdir, 0o700)
 	log := filepath.Join(logdir, "gate-cmd.log")
-	_ = os.WriteFile(log, b, 0o600)
+	lost := writeScrubbedLog(log, b)
 	if j.RemoteHome != "" { // the other machine's home names its user: it must not reach the PR comment
 		text = strings.ReplaceAll(text, j.RemoteHome, "~")
 	}
 	// the whole log is checked: the tail alone may have lost the line that marks it as private
 	private := true
 	if args, why := r.guardArgs(); why == "" {
-		refused, _ := r.guardText(args, r.redactHomes(text))
+		// before the key scrub: a log that held a key is still withheld, not posted redacted
+		refused, _ := r.guardText(args, r.replaceHomes(text))
 		private = refused != 0
 	}
 	run.LocalCI = &LocalCI{Head: j.Head, RC: rc, Tail: r.commentTail(text), Private: private}
 	r.dropCIJob(j)
-	return strings.ReplaceAll(gateNote(j.Cmd, rc, time.Duration(j.LimitS)*time.Second, log, text), j.Checkout, "<checkout>"), nil
+	// scrubbed before gateNote cuts the last lines: half a key block would not be recognised
+	note := gateNote(j.Cmd, rc, time.Duration(j.LimitS)*time.Second, log, ScrubSecrets(text))
+	if lost != "" {
+		r.printf("%s: %s\n", j.Task, lost)
+		if named := strings.Replace(note, "log "+log, lost, 1); named != note {
+			note = named
+		} else { // an ok note names no log
+			note += " (" + lost + ")"
+		}
+	}
+	return strings.ReplaceAll(ScrubSecrets(note), j.Checkout, "<checkout>"), nil
 }
 
 const ciWaiter = "localci-wait-"

@@ -39,6 +39,8 @@ printf 'load='
 if [ "$(uname -s)" = Darwin ]; then sysctl -n vm.loadavg 2>/dev/null; else cat /proc/loadavg 2>/dev/null; fi
 echo
 echo "cpus=$(getconf _NPROCESSORS_ONLN 2>/dev/null)"
+printf 'disk='; df -Pk "$HOME" 2>/dev/null | tail -n 1
+echo
 echo '---mem'
 if [ "$(uname -s)" = Darwin ]; then
   echo "pressure=$(sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null)"
@@ -52,11 +54,12 @@ type Probe struct {
 	Home, OS, Marker, Coordinator string
 	MemMB                         int // -1 = unreadable
 	Load                          Load
+	DiskPct                       int // used share of the disk of the user home, -1 = unreadable
 }
 
 // ParseProbe reads the output of probeScript.
 func ParseProbe(out string) Probe {
-	p := Probe{MemMB: -1}
+	p := Probe{MemMB: -1, DiskPct: -1}
 	head, mem, _ := strings.Cut(out, "---mem\n")
 	avg, cpus := "", 0
 	for _, line := range strings.Split(head, "\n") {
@@ -78,6 +81,13 @@ func ParseProbe(out string) Probe {
 			avg = v
 		case "cpus":
 			cpus, _ = strconv.Atoi(v)
+		case "disk": // the data line of df -P: its capacity column is the one that ends in %
+			for _, f := range strings.Fields(v) {
+				if n, err := strconv.Atoi(strings.TrimSuffix(f, "%")); err == nil && strings.HasSuffix(f, "%") {
+					p.DiskPct = n
+					break
+				}
+			}
 		}
 	}
 	p.Load = parseLoad(avg, cpus)

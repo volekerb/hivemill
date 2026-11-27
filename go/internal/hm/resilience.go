@@ -262,6 +262,10 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		r.printf("guard export: %v\n", err)
 	}
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
+	cleaned := make(chan struct{})
+	cleanCtx, stopClean := context.WithCancel(ctx) // a take-over returns with ctx still live
+	go func() { defer close(cleaned); r.keepClean(cleanCtx) }()
+	defer func() { stopClean(); <-cleaned }() // the daemon lock is held until a running clean has stopped
 	sdNotify("READY=1")
 	for {
 		if err := r.refreshDaemonLock(host, time.Now()); errors.Is(err, ErrRefused) { // another host took over

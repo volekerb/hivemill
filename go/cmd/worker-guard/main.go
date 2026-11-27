@@ -3,10 +3,10 @@
 // stdin, exit 0 = allow, exit 2 = block with the reason on stderr.
 //
 // Every rule is ported, the public-text rule (T-0887) included. The decisions that read the factory DB (own goal,
-// test_sandbox, public-text repos, the coder's task worktree) are made from the guard export. One rule still
-// re-runs a payload through the Python hook (--py-hook <path>): the archive member list of a no-push tar/unzip
-// extraction (T-1001); the delegation also stays for a DB value the export has no row for. --py-hook still names
-// the checkout the hook belongs to (ci/scrub_allowlist.txt for a push check).
+// test_sandbox, public-text repos, the coder's task worktree) are made from the guard export; a value the export has
+// no row for is absent. The archive member list of a no-push tar/unzip extraction is read in Go. Nothing runs the
+// Python hook (T-2112): --py-hook <path> is still accepted and only names the checkout the hook belongs to
+// (ci/scrub_allowlist.txt for a push check).
 // A panic or any internal error exits 2. The code lives in internal/guard (HookMain), which `hivemill guard` also runs.
 package main
 

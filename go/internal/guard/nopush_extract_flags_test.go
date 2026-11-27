@@ -84,8 +84,8 @@ func TestNoPushExtractFlagsBenignAllowed(t *testing.T) {
 		"node x.js -c", "node -r x.js", "ruby -c x.rb", "ruby -E utf-8 x.rb", "node -print x", "node -e code", "php -r code"} {
 		cmds = append(cmds, c+" ; unzip "+z+" -d "+clean)
 	}
-	SetPyHook(hookPath(t))
-	t.Cleanup(func() { SetPyHook("") })
+	SetHookPath(hookPath(t))
+	t.Cleanup(func() { SetHookPath("") })
 	for _, role := range noPushRolesList {
 		for _, c := range cmds {
 			if got := exitThroughBinaryPathCwd(t, c, s, role); got != 0 {

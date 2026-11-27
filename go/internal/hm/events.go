@@ -16,6 +16,7 @@ const Harness = "claude-code"
 // task.dispatched, session.started, session.ended, session.closed, gate.blocked, gate.passed, review.findings, ci.red,
 // pr.refreshed, judge.verdict, judge.unasked_ok, merge.guarded, pr.merged, pr.reverted, task.failed, task.cancelled, task.depends_repointed, goal.checked, prompt.sent, prompt.record_failed, dispatch.paused_waiting, task.unstartable, run.long_working,
 // pr.flow, pr.stale, ci.queue_slow, ci.rerun, pr.held_alert (docs/pr-flow.md).
+// clean.kept, clean.done.
 type Event struct {
 	TS      string         `json:"ts"`
 	Event   string         `json:"event"`

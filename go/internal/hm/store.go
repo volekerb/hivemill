@@ -86,6 +86,7 @@ type Store interface {
 	Task(id string) (*Task, error)
 	ReadyTasks(projects []string) ([]Task, error)
 	TaskStatus(id, status, waits string) error
+	TaskState(id string) (status, updated string, err error)
 	TaskPR(id, prURL, tier string) error
 	TaskClone(id, worktree, branch string) error
 	NewTask(goal, title, spec, acceptance string) (string, error)
@@ -258,6 +259,12 @@ func (s *SQLite) TaskStatus(id, status, waits string) error {
 	}
 	_, err := s.db.Exec(`UPDATE tasks SET status=?, updated=? WHERE id=?`, status, s.now(), id)
 	return err
+}
+
+// TaskState is a task's status and the time of its last change.
+func (s *SQLite) TaskState(id string) (status, updated string, err error) {
+	err = s.db.QueryRow(`SELECT status, updated FROM tasks WHERE id=?`, id).Scan(&status, &updated)
+	return status, updated, err
 }
 
 func (s *SQLite) TaskPR(id, prURL, tier string) error {
