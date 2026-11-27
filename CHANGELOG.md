@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Changed
 
+- **Failed tasks are retried in place, not filed again.** `hivemill task retry T-x [--note TEXT]` sets a failed task back to todo; the next pass starts a fresh session on its own branch, which updates its open PR, and the kickoff carries the failure reason and the note. `retry_max` (default 2) bounds the retries. `task add --refile-of T-x` is refused while T-x's PR is open, and `task cancel` closes the cancelled task's open PR (branch kept). `hivemill pr create` on a branch whose PR is already open answers with that PR. The planner retries by default; a split is the rare exception.
+
 - **The Herdr app dashboard reads each factory's obs API.** One headline for the runs that wait for you, the factories as one table, a Resources table per machine, and a Spend view, and no number shown as live after its source stopped answering. The spawn gate, lanes and the old server's address are gone. `install.py --herdr-app` takes `--factory [LABEL=]URL` in place of `--factory-url`, `--factory-machine`, `--factory-web-url` and `--orgs`, and drops the old settings keys with a note. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md) and [docs/design/multi-factory.md](docs/design/multi-factory.md).
 
 ### Fixed
