@@ -29,6 +29,13 @@ func landRunner(t *testing.T, state, head string) (*Runner, *SQLite, *Run) {
 		Branch: "factory/t-0001", Agent: "claude-task-t-0001", State: Working, Round: 1,
 		Dispatched: time.Now().Add(-time.Hour).Format(time.RFC3339)}
 	putRuns(t, s, run)
+	git := r.Tools.Git
+	r.Tools.Git = func(repo string, args ...string) (int, string, string) {
+		if args[0] == "status" {
+			return 0, "", "" // a clean worktree
+		}
+		return git(repo, args...)
+	}
 	return r, s, run
 }
 
@@ -40,6 +47,30 @@ func noOpenPR(r *Runner) {
 func stall(r *Runner, run *Run) {
 	run.IdleSince, run.IdleNudges = time.Now().Add(-time.Hour).Format(time.RFC3339), 1
 	r.idleWatch(run, []Terminal{{Name: run.Agent, Status: "idle"}})
+}
+
+func TestRescueOpenPRNotWithUncommittedChanges(t *testing.T) {
+	r, _, run := landRunner(t, "OPEN", landHead)
+	git := r.Tools.Git
+	r.Tools.Git = func(repo string, args ...string) (int, string, string) {
+		if args[0] == "status" {
+			return 0, " M index.html", ""
+		}
+		return git(repo, args...)
+	}
+	if stall(r, run); run.State != Failed {
+		t.Errorf("run %s", run.State)
+	}
+}
+
+func TestRescueOpenPRNotAHeadSentBack(t *testing.T) {
+	r, _, run := landRunner(t, "OPEN", landHead)
+	run.Head = landHead
+	r.resumeAs(run, "ci", "fix the red check")
+	run.State = Working // also when the fake session could not be reached
+	if stall(r, run); run.State != Failed {
+		t.Errorf("run %s", run.State)
+	}
 }
 
 func TestRescueOpenPRStalled(t *testing.T) {

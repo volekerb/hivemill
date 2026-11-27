@@ -821,7 +821,8 @@ func onlyNoPR(problems []string) bool {
 // rescueOpenPR moves a run that is about to fail (why) to evaluation when its branch has an open PR: the gated state,
 // so CI, the judge and the merge decide about the PR. It returns false, and the caller fails the run, for an eval run,
 // with no open non-draft PR, when the worktree is not at the PR head (the judge reads the diff there), for a head the
-// judge already rejected, and for a head it rescued before (a rescue that came back must not repeat for ever).
+// judge already rejected, with uncommitted tracked changes, and for a head that was rescued before or that the session
+// was resumed to change (resumeAs).
 func (r *Runner) rescueOpenPR(run *Run, why string) bool {
 	if run.Eval {
 		return false
@@ -840,6 +841,10 @@ func (r *Runner) rescueOpenPR(run *Run, why string) bool {
 	if rc, head, _ := r.at(run).git(run.Worktree, "rev-parse", "HEAD"); rc != 0 || head != pr.HeadRefOid {
 		return false
 	}
+	// a pushed first commit with more work still uncommitted is not a finished PR
+	if rc, dirty, _ := r.at(run).git(run.Worktree, "status", "--porcelain", "--untracked-files=no"); rc != 0 || dirty != "" {
+		return false
+	}
 	tier := run.Tier
 	if !run.cloned() || r.syncMirror(run, pr.HeadRefOid) == nil {
 		tier = or(r.tierOf(run.Project, run.coordWT(), run.Base, pr.HeadRefOid), tier)
@@ -850,7 +855,7 @@ func (r *Runner) rescueOpenPR(run *Run, why string) bool {
 		"gate":     "FAIL no pass on this head: no proof, test or review was verified; judge the PR on its diff",
 		"gate-why": "the runner took the open PR to evaluation instead of failing the run: " + why,
 	}
-	run.Tier = tier
+	run.Tier, run.Proven, run.Manual = tier, 0, 0
 	run.LastGate = &GateRecord{PRURL: url, Head: pr.HeadRefOid, Tier: tier, Checks: checks,
 		Problems: []string{"gate: " + checks["gate"]}}
 	run.IdleSince, run.HookStarted = "", ""

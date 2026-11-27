@@ -473,6 +473,9 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	run.RoundStart = nowISO()
 	run.LongPct, run.LongResumed, run.LongSendFailed = 0, "", ""
 	run.HookStarted = ""
+	if run.Head != "" { // sent back for more work: this head must not go to evaluation unchanged (rescueOpenPR)
+		run.RescuedHead = run.Head
+	}
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	send := r.Prompt
 	list, listed := Terminals(r.Tools)

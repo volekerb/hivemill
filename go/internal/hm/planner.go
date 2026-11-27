@@ -548,7 +548,7 @@ func heldRef(x *Run) string { return fmt.Sprintf("held:%s:%d", x.Task, x.Round) 
 
 // fileHeldAsk files the one owner question of a held round; a second call for the round adds nothing.
 func (r *Runner) fileHeldAsk(s *SQLite, x *Run, why string) {
-	q := fmt.Sprintf("%s is held for you: %s. PR %s. Merge it by hand, close it, or answer with what to change. After a judge HOLD, an answer that starts with approved or merge it merges the judged head as it is.", x.Task, why, or(x.PRURL, "-"))
+	q := fmt.Sprintf("%s is held for you: %s. PR %s. Merge it by hand, close it, or answer with what to change. After a judge HOLD, an answer that starts with approved or merge it merges the judged head as it is, unless another merge rule still holds it.", x.Task, why, or(x.PRURL, "-"))
 	if id, created, err := s.AddAsk(Ask{Ref: heldRef(x), Project: x.Project, Goal: x.Goal, Task: x.Task, Question: q, AskedBy: "runner"}); err == nil && created {
 		_ = r.Log.Emit("ask.added", nil, Event{Project: x.Project, Data: map[string]any{"id": id, "by": "runner", "task": x.Task}})
 	}
