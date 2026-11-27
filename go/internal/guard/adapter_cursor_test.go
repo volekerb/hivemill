@@ -68,12 +68,7 @@ var (
 func guardBinary(t *testing.T) string {
 	t.Helper()
 	binOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "wg-bin-")
-		if err != nil {
-			binErr = err
-			return
-		}
-		binPath = filepath.Join(dir, "wg")
+		binPath = filepath.Join(testBinDir, "wg")
 		cmd := exec.Command("go", "build", "-o", binPath, "../../cmd/worker-guard")
 		cmd.Env = append(os.Environ(), "GOPROXY=off")
 		if out, err := cmd.CombinedOutput(); err != nil {
