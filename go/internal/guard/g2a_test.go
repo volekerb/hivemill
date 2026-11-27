@@ -2,7 +2,8 @@ package guard
 
 // The guard2 cases of go/internal/factorytest (persist, push_pin, repocfg, repoprot; T-1920, guard port 2a): every
 // TestG2<name> is the old Test<name> with the same inputs and the same expected answers, but it calls HookMain
-// in-process (g2_helpers_test.go) instead of the built binary. The map is testdata/portmap/guard2a.txt.
+// in-process (g2_helpers_test.go) instead of the built binary; a run under a fixture home (g2Opts.pw) takes
+// g2HookMainIn. The map is testdata/portmap/guard2a.txt.
 
 import (
 	"database/sql"
@@ -40,7 +41,7 @@ type g2PEnv struct {
 
 func g2NewP(t *testing.T) *g2PEnv {
 	t.Helper()
-	return &g2PEnv{t: t, home: g2RealTemp(t), pw: g2Pw(t)}
+	return &g2PEnv{t: t, home: g2RealTemp(t), pw: fxHome(t, fxSymlinkFactory)}
 }
 
 func (p *g2PEnv) hook(payload map[string]any, role string, hq bool) g2Res {
@@ -49,7 +50,8 @@ func (p *g2PEnv) hook(payload map[string]any, role string, hq bool) g2Res {
 	if hq {
 		args = []string{"--hq"}
 	}
-	return g2HookJSON(p.t, payload, g2Opts{args: args, cwd: g2RepoRoot(p.t), set: map[string]string{"FACTORY_HOME": p.home}})
+	return g2HookJSON(p.t, payload, g2Opts{args: args, cwd: g2RepoRoot(p.t),
+		set: map[string]string{"FACTORY_HOME": p.home, "HOME": p.pw}, pw: p.pw})
 }
 
 func (p *g2PEnv) bashIn(cmd, role string, hq bool, cwd string) g2Res {
@@ -493,10 +495,20 @@ func TestG2PersistLocalBinEditToolsIntoLocalBinAreBlocked(t *testing.T) {
 }
 
 func TestG2PersistLocalBinSymlinkEntryWithRealpathOutsideTreeIsBlocked(t *testing.T) {
-	// A fixture symlink cannot sit inside the real ~/.local/bin (never written); the spelled path of the live entry
-	// is decided on its text, so the check needs no file there.
+	// The entry links to a file outside every protected tree, so only the spelled ~/.local/bin path can block it.
 	p := g2NewP(t)
-	g2WantExit(t, "Write live entry", p.lbEdit("Write", g2LbBin(p)+"/factory", g2RepoRoot(t)), 2)
+	entry := g2LbBin(p) + "/factory"
+	if err := os.Remove(entry); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(g2RealTemp(t), "cli"), entry); err != nil {
+		t.Fatal(err)
+	}
+	r := p.lbEdit("Write", entry, g2RepoRoot(t))
+	g2WantExit(t, "Write live entry", r, 2)
+	if !strings.Contains(r.stderr, "~/.local/bin") {
+		t.Errorf("stderr lacks ~/.local/bin: %q", r.stderr)
+	}
 }
 
 func TestG2PersistLocalBinOtherPathsAreAllowed(t *testing.T) {
