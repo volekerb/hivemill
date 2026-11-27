@@ -370,7 +370,12 @@ func (r *Runner) findPR(run *Run, t *Task) string {
 // listOpenPR prints the URL of the open PR of a branch of the repo itself: `--head` also matches a fork's branch of
 // the same name, which is not the factory's to adopt or close.
 func (r *Runner) listOpenPR(repo, branch string) (int, string, string) {
-	return r.Tools.GH("", "pr", "list", "-R", repo, "--head", branch, "--state", "open", "--json", "url,isCrossRepository",
+	return r.listPR(repo, branch, "open")
+}
+
+// listPR is listOpenPR for any PR state.
+func (r *Runner) listPR(repo, branch, state string) (int, string, string) {
+	return r.Tools.GH("", "pr", "list", "-R", repo, "--head", branch, "--state", state, "--json", "url,isCrossRepository",
 		"-q", "[.[]|select(.isCrossRepository|not)][0].url")
 }
 

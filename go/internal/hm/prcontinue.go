@@ -12,6 +12,7 @@ import (
 // is closed with the reason. The branch is always kept.
 
 const (
+	prLock      = "prs"            // taken to adopt or close a PR
 	prDropGrace = 30 * time.Minute // how long a failed run waits for a re-file before its PR is closed
 	prSweepCap  = 10               // PRs looked at in one pass: the gh rate limit is shared
 	prClosedKey = "pr_closed:"     // + URL: when the runner closed this PR, so a run that continues it may reopen it
@@ -98,7 +99,8 @@ func (r *Runner) branchUser(task, repo, branch, url string) (string, error) {
 	return "", nil
 }
 
-// continuable: no other run works on the branch or its PR, and the PR is not merged. An unreadable PR is an error:
+// continuable: no other run works on the branch or its PR, and its PR (with none recorded, any PR of the branch) is not
+// merged. An unreadable PR is an error:
 // the start waits for a later pass instead of pushing to a branch that may have landed.
 func (r *Runner) continuable(t *Task, branch, url string) (bool, error) {
 	user, err := r.branchUser(t.ID, t.GHRepo, branch, url)
@@ -106,7 +108,11 @@ func (r *Runner) continuable(t *Task, branch, url string) (bool, error) {
 		return false, err
 	}
 	if url == "" {
-		return true, nil
+		rc, out, errs := r.listPR(t.GHRepo, branch, "merged")
+		if rc != 0 {
+			return false, fmt.Errorf("find a merged PR of %s: %s", branch, firstLine(errs))
+		}
+		return strings.TrimSpace(out) == "", nil
 	}
 	pr, err := PRView(r.Tools, url)
 	if err != nil {
@@ -357,6 +363,10 @@ func (r *Runner) sweepPRs() {
 		if tried, err := time.Parse(time.RFC3339, r.Store.Meta(prTriedKey+id)); err == nil && time.Since(tried) < prDropGrace {
 			continue
 		}
+		// a failed auto-revert is the owner's to finish: the base may be broken until its PR merges
+		if run.Kind == "revert" && w.status[id] != "cancelled" {
+			continue
+		}
 		var why, landedPR string
 		// a run held for the owner is theirs to decide: only their cancel closes its PR
 		if next := w.landed(id); next != nil && (!heldForOwner(run) || w.status[id] == "cancelled") {
@@ -423,6 +433,12 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
 		settled()
 		return
 	}
+	// a start holds this from adopting a PR until its run is saved, so branchUser sees every adopter
+	l := r.lock(prLock, true)
+	if l == nil {
+		return
+	}
+	defer l.Close()
 	if user, err := r.branchUser(run.Task, run.Repo, run.Branch, url); err != nil || user != "" {
 		return // another run works on it: look again when it ends
 	}
@@ -436,6 +452,8 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
 		settled()
 		return
 	}
+	// a PR found by its branch only: recorded, so that a re-file or a retry finds and reopens it
+	_ = r.Store.TaskPR(run.Task, url, "")
 	comment := "hivemill closed this PR: " + why
 	// the fail reason is free text: a public repo gets it only when the public-text check passes
 	if public, err := r.publicTextRepo(run.Repo); err != nil || (public && r.prTextHits(comment, "", run.Branch) != "") {
@@ -448,6 +466,12 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
 	}
 	settled()
 	_ = r.Store.SetMeta(prClosedKey+url, nowISO())
+	if run.State == Held { // else the next pass would read the close as the owner's and block the task again
+		run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
+		if err := r.Store.PutRun(run); err != nil {
+			r.printf("%s: %v\n", run.Task, err)
+		}
+	}
 	r.printf("%s: closed %s\n", run.Task, url)
 	_ = r.Log.Emit("pr.closed", run, Event{Data: map[string]any{"pr": url, "why": truncate(why, 900)}})
 	return

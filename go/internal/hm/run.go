@@ -296,6 +296,10 @@ func (r *Runner) Start(id string) error {
 		State:     Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
+	adopting := r.lock(prLock, true) // until the run is saved: the sweep must not close the PR in between
+	if adopting != nil {
+		defer adopting.Close()
+	}
 	r.adoptPR(run, t) // before the save: a pass must not see the run without the PR it continues
 	if err := r.Store.PutRun(run); err != nil {
 		return err

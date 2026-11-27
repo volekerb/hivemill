@@ -34,7 +34,7 @@ func newFakePRs(r *Runner, prs ...PR) *fakePRs {
 				p.State, p.HeadRefName, p.HeadRefOid, p.Body, p.URL, p.ClosedAt), ""
 		case "list":
 			for _, p := range f.prs {
-				if p.State == "OPEN" && p.HeadRefName == args[5] {
+				if strings.EqualFold(p.State, args[7]) && p.HeadRefName == args[5] {
 					return 0, p.URL, ""
 				}
 			}
@@ -199,6 +199,9 @@ func TestCancelledTaskClosesPR(t *testing.T) {
 	if n := events(t, r, "pr.closed"); n != 1 {
 		t.Errorf("%d pr.closed events", n)
 	}
+	if x, _ := s.Task("T-0001"); x.PRURL != pr.URL {
+		t.Errorf("the PR found by branch is not recorded: %q", x.PRURL)
+	}
 
 	// a failed run waits 30 minutes for a re-file
 	for _, c := range []struct {
@@ -279,6 +282,25 @@ func TestHeldPRStaysOpenOnLand(t *testing.T) {
 	if len(f.did("close")) != 1 {
 		t.Errorf("after the cancel: %v", f.calls)
 	}
+	// the run ends as cancelled: a held one would fail on the closed PR and block the task again
+	if run, _ := s.Run("T-0001"); run.State != Cancelled {
+		t.Errorf("the held run is %s", run.State)
+	}
+}
+
+// A failed auto-revert stays open for the owner: the base may be broken until it merges.
+func TestPRSweepLeavesAFailedRevert(t *testing.T) {
+	r, s := testRunner(t, "")
+	pr := openPRof(1, "factory/t-0001")
+	f := newFakePRs(r, pr)
+	run := endedRun("T-0001", Failed, pr.URL, time.Hour)
+	run.Kind = "revert"
+	putRuns(t, s, run)
+	setStatus(t, s, "T-0001", "blocked")
+	r.sweepPRs()
+	if len(f.calls) != 0 {
+		t.Errorf("closed a revert PR: %v", f.calls)
+	}
 }
 
 func TestStartBranchChecksTheContinuedBranch(t *testing.T) {
@@ -313,6 +335,12 @@ func TestStartBranchChecksTheContinuedBranch(t *testing.T) {
 		}
 		f.prs[pr.URL] = &pr
 	}
+	// no PR recorded, but one of the branch has merged: not continued
+	f.prs[pr.URL].State = "MERGED"
+	if got, err := start(id, "factory/t-0001", ""); err != nil || got != "factory/t-0002" {
+		t.Errorf("merged, unrecorded PR: %q %v", got, err)
+	}
+	f.prs[pr.URL].State = "OPEN"
 	// the re-file's run holds the old branch: the old task cannot be retried onto it
 	run := endedRun(id, Working, pr.URL, 0)
 	run.Branch = "factory/t-0001"
