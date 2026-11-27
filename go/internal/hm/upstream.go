@@ -18,9 +18,15 @@ import (
 var (
 	upstreamTargetRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._@-]*$`) // never an ssh option
 	upstreamFiledRe  = regexp.MustCompile(`(?m)^(T-\d+) todo in (G-\d+)$`)
+	upstreamGoalRe   = regexp.MustCompile(`^G-\d+$`)
 )
 
 const upstreamTimeout = 60 * time.Second
+
+const upstreamFiledEvent = "upstream.filed"
+
+// noTaskRow: an event that names a task without being part of a run of it, so the report and obs make no row for it.
+func noTaskRow(event string) bool { return event == repointedEvent || event == upstreamFiledEvent }
 
 // UpstreamTask is a task to file on the factory runner.
 type UpstreamTask struct {
@@ -42,7 +48,8 @@ func (r *Runner) upstreamTarget() (target, home string, err error) {
 	return target, home, nil
 }
 
-// upstreamRun runs one hivemill command on the factory runner. A refusal there is a refusal here.
+// upstreamRun runs one hivemill command on the factory runner. A refusal there is a refusal here, and so is a usage
+// error (2) or a missing hivemill (127): in both nothing ran.
 func (r *Runner) upstreamRun(target, home, stdin string, args ...string) (string, error) {
 	if r.SSH == nil {
 		return "", fmt.Errorf("no ssh transport")
@@ -53,7 +60,7 @@ func (r *Runner) upstreamRun(target, home, stdin string, args ...string) (string
 		return out, nil
 	}
 	err := fmt.Errorf("ssh %s: exit %d: %s", target, rc, strings.TrimSpace(errs+"\n"+out))
-	if rc == 3 {
+	if rc == 2 || rc == 3 || rc == 127 {
 		err = fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return out, err
@@ -66,8 +73,8 @@ func (r *Runner) UpstreamAdd(t UpstreamTask) (string, error) {
 		return "", err
 	}
 	goal := strings.ToUpper(strings.TrimSpace(r.Store.Cfg("upstream_goal")))
-	if goal == "" {
-		return "", fmt.Errorf("%w: config upstream_goal is not set (the factory runner's goal for these tasks)", ErrRefused)
+	if !upstreamGoalRe.MatchString(goal) {
+		return "", fmt.Errorf("%w: config upstream_goal %q: set it to the factory runner's goal for these tasks (G-123)", ErrRefused, goal)
 	}
 	title := strings.TrimSpace(t.Title)
 	if title == "" || strings.ContainsAny(title, "\r\n") || strings.TrimSpace(t.Spec) == "" {
@@ -95,8 +102,8 @@ func (r *Runner) UpstreamAdd(t UpstreamTask) (string, error) {
 	}
 	// a filed id stands even when ssh failed afterwards: reporting a failure would file it twice
 	id, g := m[len(m)-1][1], m[len(m)-1][2]
-	if err := r.Log.Emit("upstream.filed", nil, Event{Role: r.actor(), Data: map[string]any{
-		"upstream": target, "upstream_task": id, "upstream_goal": g, "title": title}}); err != nil {
+	if err := r.Log.Emit(upstreamFiledEvent, nil, Event{Data: map[string]any{
+		"by": r.actor(), "upstream": target, "upstream_task": id, "upstream_goal": g, "title": title}}); err != nil {
 		r.printf("hivemill: %s is filed, but the event was not logged: %v\n", id, err)
 	}
 	return id, nil

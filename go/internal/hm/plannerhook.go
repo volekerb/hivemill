@@ -13,7 +13,7 @@ import (
 )
 
 // The planner's PreToolUse hook (`hivemill planner hook`) is an allow-list: the planner plans, it never changes code or
-// the machine. Bash may run only `hivemill goal|task|run status|report|health|ask add|list|withdraw`, read-only git and
+// the machine. Bash may run only `hivemill goal|task|run status|report|health|upstream add|status|ask add|list|withdraw`, read-only git and
 // gh reads, optionally piped into a read-only filter; Edit, Write and NotebookEdit are refused; Read, Grep and Glob are
 // refused under hidden directories of the user's home (credentials).
 

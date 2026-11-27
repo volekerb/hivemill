@@ -53,7 +53,8 @@ func TestUpstreamAddLintsAndFiles(t *testing.T) {
 		t.Error("the title ran in the remote shell")
 	}
 	ev, _ := r.Log.Read()
-	if len(ev) != 1 || ev[0].Event != "upstream.filed" || ev[0].TaskID != "" || ev[0].Data["upstream_task"] != "T-0042" {
+	if len(ev) != 1 || ev[0].Event != "upstream.filed" || ev[0].TaskID != "" || ev[0].Role != "" ||
+		ev[0].Data["by"] != "owner" || ev[0].Data["upstream_task"] != "T-0042" {
 		t.Errorf("events %+v", ev)
 	}
 
@@ -66,6 +67,12 @@ func TestUpstreamAddLintsAndFiles(t *testing.T) {
 	if _, err := r.UpstreamAdd(task); !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "no goal G-007") ||
 		strings.Contains(err.Error(), "may have been filed") {
 		t.Errorf("remote refusal: %v", err)
+	}
+	for _, rc := range []string{"2", "127"} { // a usage error or no hivemill there: nothing ran
+		m.stub("hivemill", "exit "+rc)
+		if _, err := r.UpstreamAdd(task); !errors.Is(err, ErrRefused) || strings.Contains(err.Error(), "may have been filed") {
+			t.Errorf("remote exit %s: %v", rc, err)
+		}
 	}
 	m.stub("hivemill", "exit 1")
 	if _, err := r.UpstreamAdd(task); err == nil || !strings.Contains(err.Error(), "may have been filed") {
@@ -81,7 +88,8 @@ func TestUpstreamAddRefusesWithoutConfig(t *testing.T) {
 	task := UpstreamTask{Title: "zz", Spec: "spec", Acceptance: "1. works - cmd:true => exit 0", Priority: -1}
 	for _, c := range []struct{ upstream, goal, want string }{
 		{"", "G-007", "upstream is not set"},
-		{"w1:/srv/factory", "", "upstream_goal is not set"},
+		{"w1:/srv/factory", "", "config upstream_goal"},
+		{"w1:/srv/factory", "7", "config upstream_goal"},
 		{"w1", "G-007", "want an ssh target"},
 		{"w1:relative/home", "G-007", "want an ssh target"},
 		{"-oProxyCommand=x:/srv/factory", "G-007", "want an ssh target"},
