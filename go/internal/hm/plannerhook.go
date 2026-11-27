@@ -71,6 +71,13 @@ func PlannerBash(cmd string) string {
 	if cmd == "" {
 		return "empty command"
 	}
+	head := cmd
+	if i := unquotedNewline(cmd); i >= 0 {
+		head = cmd[:i]
+	}
+	if continued(head) { // bash joins the lines before it reads them, so every check below would see another command
+		return "no backslash-newline"
+	}
 	// One quoted heredoc (no expansion inside) may feed stdin: `hivemill task add ... --acceptance-file - <<'EOF'`.
 	if i := unquotedNewline(cmd); i >= 0 {
 		first, rest := cmd[:i], cmd[i+1:]
@@ -153,6 +160,32 @@ func expands(s string) bool {
 			i++
 		case c == '$':
 			return true
+		case q == '"':
+			if c == '"' {
+				q = 0
+			}
+		case c == '\'' || c == '"':
+			q = c
+		}
+	}
+	return false
+}
+
+// continued reports a backslash-newline outside single quotes.
+func continued(s string) bool {
+	var q byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case q == '\'':
+			if c == '\'' {
+				q = 0
+			}
+		case c == '\\':
+			if i+1 < len(s) && s[i+1] == '\n' {
+				return true
+			}
+			i++
 		case q == '"':
 			if c == '"' {
 				q = 0
@@ -290,6 +323,7 @@ type filterRule struct {
 	value      map[string]int
 	refused    []string
 	positional int
+	only       *regexp.Regexp // when set, no other flag: GNU takes abbreviations, which a refused list misses
 }
 
 var filters = map[string]filterRule{
@@ -297,7 +331,8 @@ var filters = map[string]filterRule{
 	"tail": {value: map[string]int{"-n": 1, "-c": 1, "--lines": 1, "--bytes": 1}, refused: []string{"-f", "-F", "--follow"}},
 	"wc":   {refused: []string{"--files0-from"}},
 	"cut":  {value: map[string]int{"-d": 1, "-f": 1, "-c": 1, "-b": 1, "--delimiter": 1, "--fields": 1}},
-	"sort": {value: map[string]int{"-k": 1, "-t": 1, "--key": 1}, refused: []string{"-o", "--output", "--files0-from", "-T", "--temporary-directory"}},
+	"sort": {value: map[string]int{"-k": 1, "-t": 1, "--key": 1}, refused: []string{"-o", "--output", "--files0-from", "-T", "--temporary-directory"},
+		only: regexp.MustCompile(`^(-[bdfghiMnrsuV]+|-[bdfghiMnrsuV]*[kt].*|--(reverse|unique|numeric-sort|human-numeric-sort|version-sort|ignore-case)|--(key|field-separator)(=.*)?)$`)},
 	"grep": {value: map[string]int{"-e": 1, "-m": 1, "-A": 1, "-B": 1, "-C": 1, "--regexp": 1, "--max-count": 1}, positional: 1,
 		refused: []string{"-f", "--file", "-r", "-R", "--recursive", "--dereference-recursive", "-d", "--directories", "--exclude-from"}},
 	"jq": {value: map[string]int{"--arg": 2, "--argjson": 2, "--indent": 1}, positional: 1,
@@ -318,6 +353,9 @@ func plannerFilter(argv []string) string {
 				if a == ref || strings.HasPrefix(a, ref+"=") || (len(ref) == 2 && !strings.HasPrefix(a, "--") && strings.HasPrefix(a, ref)) {
 					return fmt.Sprintf("%s %s reads or writes a file", name, a)
 				}
+			}
+			if rule.only != nil && !rule.only.MatchString(a) {
+				return fmt.Sprintf("%s %s is not an allowed flag", name, a)
 			}
 			if name == "grep" && (a == "-e" || strings.HasPrefix(a, "--regexp")) {
 				pos = rule.positional // the pattern comes with -e: no positional pattern is left

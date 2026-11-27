@@ -17,6 +17,7 @@ func cmdUpstream(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io
 	if r.Env.Actor != "" && r.Env.Actor != "owner" && !isPlanner(r) {
 		return fail(stderr, fmt.Errorf("%w: only the planner or the owner may use upstream", hm.ErrRefused))
 	}
+	r.Warn = stderr
 	switch {
 	case len(args) == 2 && args[0] == "status" && taskRe.MatchString(args[1]):
 		out, err := r.UpstreamStatus(strings.ToUpper(args[1]))
@@ -61,7 +62,6 @@ func cmdUpstream(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io
 	if err != nil {
 		return fail(stderr, err)
 	}
-	r.Warn = stderr
 	id, err := r.UpstreamAdd(hm.UpstreamTask{Title: *title, Spec: sp, Acceptance: a, Priority: *prio})
 	if err != nil {
 		return fail(stderr, err)
