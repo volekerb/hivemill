@@ -13,10 +13,10 @@ import (
 // The module-level state of worker-guard.py that depends on the passwd entry, the live-home file and the path of
 // the hook itself (LIVE_HOME, LIVE_HOMES, PW_DIR, CFG_DIR, PERSIST_*, RUN_SETTINGS, HOOK_REAL).
 
-// PyHook is the absolute path of roles/hooks/worker-guard.py, passed by the shim as `--py-hook` (T-0353). The Go
-// binary lives outside the repo, so it cannot find the hook from its own location: HOOK_REAL and the delegation
-// to the Python hook (owngoal.go) both start from this path. "" = not given.
-var PyHook string
+// HookPath is the absolute path of roles/hooks/worker-guard.py, passed by the shim as `--py-hook` (T-0353). The Go
+// binary lives outside the repo, so it cannot find the checkout from its own location: HOOK_REAL (the checkout's
+// live homes, ci/scrub_allowlist.txt) starts from this path. The file is never run (T-2112). "" = not given.
+var HookPath string
 
 // hostInfo is the set of module-level constants of worker-guard.py that come from the passwd entry.
 type hostInfo struct {
@@ -41,9 +41,9 @@ var (
 	hostErr   error
 )
 
-// SetPyHook sets PyHook and drops the cached host state that depends on it.
-func SetPyHook(path string) {
-	PyHook = path
+// SetHookPath sets HookPath and drops the cached host state that depends on it.
+func SetHookPath(path string) {
+	HookPath = path
 	resetHost()
 }
 
@@ -72,11 +72,11 @@ func getHost() (*hostInfo, error) {
 		hostErr = blockf("cannot read the passwd entry: " + err.Error())
 		return nil, hostErr
 	}
-	hostCache = buildHost(u.HomeDir, os.Getuid(), PyHook)
+	hostCache = buildHost(u.HomeDir, os.Getuid(), HookPath)
 	return hostCache, nil
 }
 
-// resetHost drops the cache (tests change PyHook or the passwd directory).
+// resetHost drops the cache (tests change HookPath or the passwd directory).
 func resetHost() {
 	hostMu.Lock()
 	hostCache, hostErr = nil, nil

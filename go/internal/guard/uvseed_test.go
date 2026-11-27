@@ -11,9 +11,9 @@ import (
 )
 
 // The blocked uv/uvx runner forms of tests/test_worker_guard_uv_runner.py, run with test_sandbox=1 seeded in a temp DB
-// (exit 2) and without it (exit 0). Go finds the runner; the test_sandbox row is read by the Python hook, which the
-// test runs exactly as the binary does (RunPython). The expected exits are those of the Python hook run directly on
-// the same payload.
+// (exit 2) and without it (exit 0). Go finds the runner and reads the test_sandbox row from the guard export written
+// next to the DB; the expected exits are those of the Python hook run directly (from this test only) on the same
+// payload and DB. The Go guard itself never runs Python (T-2112).
 
 // seedFactoryDB creates <home>/db/factory.db with the statements (sqlite is Python's; Go opens none).
 func seedFactoryDB(t *testing.T, stmts ...string) string {
@@ -42,7 +42,7 @@ func hookPath(t *testing.T) string {
 	return p
 }
 
-// exitThroughBinaryPath is what main does for a Bash payload: Check, and the Python hook for a delegation.
+// exitThroughBinaryPath is what main does for a Bash payload: Check, exit 2 for any block or fail-closed refusal.
 func exitThroughBinaryPath(t *testing.T, cmd, role string) int {
 	t.Helper()
 	return exitThroughBinaryPathCwd(t, cmd, "", role)
@@ -50,12 +50,7 @@ func exitThroughBinaryPath(t *testing.T, cmd, role string) int {
 
 func exitThroughBinaryPathCwd(t *testing.T, cmd, cwd, role string) int {
 	t.Helper()
-	err := Check(cmd, cwd, role, false)
-	if !IsDelegate(err) {
-		return exitOf(err)
-	}
-	payload, _ := json.Marshal(map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": cmd}, "cwd": cwd})
-	return RunPython([]string{"--role", role}, payload, &bytes.Buffer{}, &bytes.Buffer{})
+	return exitOf(Check(cmd, cwd, role, false))
 }
 
 func pythonExit(t *testing.T, cmd, role string) int {
@@ -75,11 +70,13 @@ func pythonExit(t *testing.T, cmd, role string) int {
 }
 
 func TestUvRunnersSeededTestSandbox(t *testing.T) {
-	exportTerms(t) // spawn exports it: only the test_sandbox row is left for the Python hook
-	SetPyHook(hookPath(t))
-	t.Cleanup(func() { SetPyHook("") })
+	exportTerms(t) // spawn exports it: only the test_sandbox row is left to read
+	SetHookPath(hookPath(t))
+	t.Cleanup(func() { SetHookPath("") })
 	on := seedFactoryDB(t, "CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)", "INSERT INTO config VALUES ('test_sandbox', '1')")
 	off := seedFactoryDB(t, "CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)")
+	writeExport(t, on, exportDoc{Config: map[string]string{"test_sandbox": "1"}}) // the tick's export of the seeded rows
+	writeExport(t, off, exportDoc{})                                              // no test_sandbox row
 	const url = "https://pypi.example.org/simple"
 	blocked := []string{
 		"uvx pytest", "uvx --from x pytest", "uvx pytest==8.0", "uv tool run pytest", "uv --quiet tool run py.test",
@@ -109,19 +106,24 @@ func TestUvRunnersSeededTestSandbox(t *testing.T) {
 	}
 }
 
-// With the Python hook made unreadable a payload that needs a DB decision exits 2 (acceptance 4).
-func TestUvDelegationFailsClosedWithoutThePythonHook(t *testing.T) {
+// With a DB file and no guard export a payload that needs a DB decision exits 2 whatever --py-hook names: nothing
+// falls back to the Python hook (acceptance 4 of the old delegation, T-2112).
+func TestUvDBDecisionFailsClosedWithoutTheExport(t *testing.T) {
 	clearTermsEnv(t)
 	on := seedFactoryDB(t, "CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT)", "INSERT INTO config VALUES ('test_sandbox', '1')")
 	t.Setenv("FACTORY_HOME", on)
-	for _, hook := range []string{"", filepath.Join(t.TempDir(), "missing.py"), t.TempDir()} {
-		SetPyHook(hook)
+	for _, hook := range []string{"", filepath.Join(t.TempDir(), "missing.py"), hookPath(t)} {
+		resetHookState()
 		var stderr bytes.Buffer
-		if code := RunPython([]string{"--role", "coder"}, []byte(`{"tool_name":"Bash","tool_input":{"command":"uvx ruff"}}`), &bytes.Buffer{}, &stderr); code != 2 || stderr.Len() == 0 {
-			t.Errorf("hook %q: exit %d stderr %q, want 2 with a message", hook, code, stderr.String())
+		argv := []string{"--role", "coder"}
+		if hook != "" {
+			argv = append([]string{"--py-hook", hook}, argv...)
+		}
+		if code := HookMain(argv, strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"uvx ruff"}}`), &bytes.Buffer{}, &stderr); code != 2 || !strings.Contains(stderr.String(), "failing closed") {
+			t.Errorf("hook %q: exit %d stderr %q, want 2 failing closed", hook, code, stderr.String())
 		}
 	}
-	SetPyHook("")
+	resetHookState()
 }
 
 // withTestPath names a test file on a pytest form: T-0435 refuses bare pytest (full suite) with or without test_sandbox,

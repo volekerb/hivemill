@@ -4,7 +4,7 @@ import "strings"
 
 // The public-text / frozen-repo rule (G-021, PublicText in worker-guard.py) is switched on by two rows of the factory
 // DB config table (public_text_repos, frozen_repos); the guard export carries them (guardexport.go). Since T-0887 the
-// whole rule is Go (ptrule.go, the checker in scrub.go and ptcheck.go): nothing goes to the Python hook. The entry
+// whole rule is Go (ptrule.go, the checker in scrub.go and ptcheck.go), and the Go guard runs no Python. The entry
 // conditions below (PublicText.command, .git, .gh, .gh_api up to the point where Python starts to use the config)
 // decide whether the export is read at all: a command that cannot reach the rule needs no export, as before.
 

@@ -1,19 +1,12 @@
 {
-  "factory": {
-    "url": "http://127.0.0.1:8765",
-    "machine": null,
-    "web_url": null
-  },
-  "teams": [
-    { "machine": "buildbox", "url": "http://127.0.0.1:8765", "web_url": "http://BUILDBOX-HOST:8765" }
+  "factories": [
+    { "label": "Workshop", "url": "http://BUILDBOX-HOST:7461", "space": "buildbox/hivemill" },
+    { "label": "Pilot", "url": "http://127.0.0.1:7461", "machine": "macmini", "web_url": "http://MACMINI-HOST:7461", "space": "macmini/hivemill" }
   ],
-  "orgs": "auto",
   "projects": [
     {
       "name": "Team B",
-      "github": "OWNER/NAME",
       "space": "macmini/teamb",
-      "boss": "teamb-boss",
       "wait_patterns": [
         { "match": "SIM GO", "clear": "GO GIVEN", "label": "waits for SIM GO", "after_min": 15 }
       ]
@@ -22,10 +15,10 @@
   "usage_file": null,
   "alerts": {
     "context_below_pct": 10,
-    "stall_minutes": 60,
     "usage_warn_pct": 80,
     "usage_danger_pct": 90,
-    "factory_down_minutes": 5
+    "factory_down_minutes": 5,
+    "stale_minutes": 3
   },
   "context_pattern": "ctx (\\d+)% left",
   "machines": "auto",

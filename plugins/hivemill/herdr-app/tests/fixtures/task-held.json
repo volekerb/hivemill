@@ -1,0 +1,24 @@
+{
+ "task": "T-0110",
+ "goal": "G-001",
+ "project": "app",
+ "total_usd": 6.15,
+ "steps": [
+  {
+   "ts": "2026-11-14T09:00:00Z",
+   "kind": "pr.opened",
+   "summary": "PR opened",
+   "links": {
+    "pr": "https://example.com/acme/app/pull/17"
+   }
+  },
+  {
+   "ts": "2026-11-14T09:28:00Z",
+   "kind": "run.held",
+   "summary": "held: tier T3 is above T2; the owner merges",
+   "links": {
+    "pr": "https://example.com/acme/app/pull/17"
+   }
+  }
+ ]
+}

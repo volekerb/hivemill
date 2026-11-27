@@ -55,7 +55,7 @@ func TestNoPushTarUnzipRuleE(t *testing.T) {
 	}
 	a.expect(t, noPushRolesList, s, 2, gap...)
 	a.expect(t, []string{"coder"}, s, 0, gap...)
-	// refused in Go itself (grammar, env, target, stdin), before any delegation
+	// refused before the member list (grammar, env, target, stdin)
 	a.expect(t, noPushRolesList, s, 2,
 		"tar -xf a.tar -C "+o+" -C "+o, "tar -xf a.tar f -C "+o, "tar -xf a.tar -- -C "+o, "tar -xf a.tar -C "+o+" --strip-components=1",
 		"TAR_OPTIONS=x tar -xf a.tar -C "+o, "tar -xf a.tar -f b.tar -C "+o, "tar -xfC a.tar "+o, "tar -xf/tmp/a.tar -C "+o,
@@ -63,12 +63,13 @@ func TestNoPushTarUnzipRuleE(t *testing.T) {
 		"tar --get -f a.tar -C "+o, "touch n.tar; tar -xf n.tar -C "+o, "tar -xf - -C "+o, "tar -xf $A -C "+o)
 	for _, role := range noPushRolesList {
 		for _, c := range gap {
-			if err := a.check(c, s, role); err == nil || IsDelegate(err) {
-				t.Errorf("role %s: %q must be refused in Go, got %v", role, c, err)
+			if err := a.check(c, s, role); err == nil {
+				t.Errorf("role %s: %q must be refused, got %v", role, c, err)
 			}
 		}
 	}
-	// listings are allowed in Go; a clean extraction passes every Go check and is delegated, not decided
+	// listings are allowed; an extraction that passes every check before the list reaches the member list, and a
+	// missing archive in the first file-creating command extracts nothing, so it is allowed (worker-guard.py does the same)
 	a.expect(t, noPushRolesList, s, 0,
 		"tar -tf a.tar", "tar --list -f a.tar", "tar tvf a.tar", "unzip -l a.zip", "tar --diff -f a.tar")
 	for _, role := range noPushRolesList {
@@ -78,8 +79,8 @@ func TestNoPushTarUnzipRuleE(t *testing.T) {
 			"unzip a -d " + o, "tar -xf gone.tar -C " + o, "tar -xf bad.tar -C " + o,
 			"unzip bare.zip -d " + o, "tar -xJf x.txz -C " + o, "noglob cat ok.tar; tar -xf n.tar -C " + o,
 		} {
-			if err := a.check(c, s, role); !IsDelegate(err) {
-				t.Errorf("role %s: %q: want a Delegate, got %v", role, c, err)
+			if err := a.check(c, s, role); err != nil {
+				t.Errorf("role %s: %q: a missing archive must be allowed, got %v", role, c, err)
 			}
 		}
 	}
