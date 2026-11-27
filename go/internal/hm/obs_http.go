@@ -82,6 +82,12 @@ type obsServer struct {
 
 	probeMu sync.Mutex
 	probed  map[string]machineProbe // the Machines page's reading of each session machine
+
+	sumMu sync.Mutex
+	sumAt time.Time
+	sum   *Summary // the last /api/obs/v1/summary, served for summaryTTL
+
+	hub *Hub // set when config obs_peers lists other factories
 }
 
 // coreTTL is how long one `hc server status` answer, a failure too, serves the page.
@@ -150,6 +156,10 @@ func (r *Runner) obsHandler(wide bool) (http.Handler, error) {
 		return nil, err
 	}
 	s := &obsServer{r: r, tmpl: t, now: time.Now, wide: wide}
+	// A bad obs_peers entry is not fatal: the factory's own pages must still come up.
+	if peers, err := ParsePeers(r.Store.Cfg("obs_peers")); err == nil && len(peers) > 0 {
+		s.hub = NewHub(peers)
+	}
 	return s, nil
 }
 
@@ -176,6 +186,11 @@ func (r *Runner) ServeObs(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
+	return serveObs(ctx, addr, h)
+}
+
+// serveObs serves h on addr until ctx ends.
+func serveObs(ctx context.Context, addr string, h http.Handler) error {
 	l, err := obsSocket(addr)
 	if err != nil {
 		return err
@@ -234,6 +249,11 @@ type obsPage struct {
 	SpendPg   *SpendPage
 	FlowPg    *FlowPage
 	MachPg    *MachinesPage
+	HubPg     *HubPage
+	HubOnly   bool   // a hub with no factory behind it: no factory pages to link
+	HasHub    bool   // this server has the All factories page
+	HubURL    string // another server's All factories page (config obs_hub_url)
+	Label     string // this factory's display name (config obs_label)
 	Title     string
 	Crumbs    []crumb
 	F         ObsFilter
@@ -357,6 +377,24 @@ var obsFuncs = template.FuncMap{
 		}
 		return ""
 	},
+	"peerHref": peerHref,
+	"taskHref": taskHref,
+	"needClass": func(kind string) string {
+		switch kind {
+		case "question", "held":
+			return "warn"
+		case "failed":
+			return "bad"
+		}
+		return ""
+	},
+	"ago": func(ts string) string {
+		t := parseTS(ts)
+		if t.IsZero() || time.Since(t) < 0 {
+			return "0s"
+		}
+		return dur(int64(time.Since(t).Seconds()))
+	},
 	"safeURL": func(s string) template.URL {
 		if strings.HasPrefix(s, "https://") {
 			return template.URL(s)
@@ -390,7 +428,9 @@ func eventSummary(e Event) string {
 	return truncate(strings.Join(parts, " "), 400)
 }
 
-func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+// obsGuard sets the headers of every answer and refuses what obs never serves: a method that is not GET or HEAD, and
+// a Host that is not loopback (or, bound wide, an IP literal). false: the answer is written.
+func obsGuard(w http.ResponseWriter, req *http.Request, wide bool) bool {
 	h := w.Header()
 	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	h.Set("X-Content-Type-Options", "nosniff")
@@ -399,27 +439,107 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/api/obs/task" && req.Method != http.MethodGet {
 		h.Set("Allow", "GET")
 		http.Error(w, "read-only", http.StatusMethodNotAllowed)
-		return
+		return false
 	}
 	if req.Method != http.MethodGet && req.Method != http.MethodHead {
 		h.Set("Allow", "GET, HEAD")
 		http.Error(w, "read-only", http.StatusMethodNotAllowed)
+		return false
+	}
+	if !loopbackHost(req.Host) && !(wide && ipHost(req.Host)) {
+		http.Error(w, "host refused", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+func serveObsCSS(w http.ResponseWriter, req *http.Request) {
+	b, err := obsFS.ReadFile("assets/obs/app.css")
+	if err != nil {
+		http.NotFound(w, req)
 		return
 	}
-	if !loopbackHost(req.Host) && !(s.wide && ipHost(req.Host)) {
-		http.Error(w, "host refused", http.StatusForbidden)
+	w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	if req.Method == http.MethodGet {
+		_, _ = w.Write(b)
+	}
+}
+
+// renderObs writes one page of the shell.
+func renderObs(w http.ResponseWriter, req *http.Request, t *template.Template, p *obsPage, code int) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(code)
+	if req.Method == http.MethodHead {
+		return
+	}
+	if err := t.Execute(w, p); err != nil {
+		fmt.Fprintf(w, "<p>render: %s</p>", template.HTMLEscapeString(err.Error()))
+	}
+}
+
+// redactSources drops what another machine has no use for: where the logs lie on disk and where they were pulled
+// from. A pulled source keeps the word "pulled", so the page still tells it from a session machine.
+func redactSources(srcs []ObsSource) {
+	for i := range srcs {
+		if srcs[i].Path != "" && !srcs[i].Own {
+			srcs[i].Path = "pulled"
+		} else {
+			srcs[i].Path = ""
+		}
+		srcs[i].From = ""
+	}
+}
+
+func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if !obsGuard(w, req, s.wide) {
 		return
 	}
 	if req.URL.Path == "/assets/obs/app.css" {
-		b, err := obsFS.ReadFile("assets/obs/app.css")
+		serveObsCSS(w, req)
+		return
+	}
+	jsonOut := func(v any) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(v)
+	}
+	switch req.URL.Path { // answers that need no page model
+	case "/api/obs/v1/summary":
+		sum, err := s.summary()
 		if err != nil {
-			http.NotFound(w, req)
+			http.Error(w, "obs: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		h.Set("Content-Type", "text/css; charset=utf-8")
-		if req.Method == http.MethodGet {
-			_, _ = w.Write(b)
+		jsonOut(sum)
+		return
+	case "/api/obs/v1/board", "/api/obs/v1/task":
+		o, _, err := s.load(ObsFilter{})
+		if err != nil {
+			http.Error(w, "obs: "+err.Error(), http.StatusInternalServerError)
+			return
 		}
+		if req.URL.Path == "/api/obs/v1/board" {
+			jsonOut(s.buildBoard(o, req.URL.Query().Get("project")))
+			return
+		}
+		t := o.Tasks[req.URL.Query().Get("k")]
+		if t == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "no task " + req.URL.Query().Get("k")})
+			return
+		}
+		jsonOut(s.traceV1(o, t))
+		return
+	case "/api/obs/v1/factories":
+		if s.hub == nil {
+			break
+		}
+		sum, err := s.summary()
+		if err != nil {
+			http.Error(w, "obs: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeFactories(w, s.hub.Factories(req.Context(), sum), s.now())
 		return
 	}
 	q := req.URL.Query()
@@ -433,8 +553,15 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "obs: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if s.wide {
+		redactSources(srcs)
+	}
 	p := &obsPage{F: f, Days: days, Machines: o.Machines, Harnesses: o.Harnesses, Now: o.Now.Format("2006-01-02 15:04 MST"),
-		Me: s.r.Machine(), obs: o, path: req.URL.Path, Section: "now", PFilter: q.Get("project"), Sel: q}
+		Me: s.r.Machine(), obs: o, path: req.URL.Path, Section: "now", PFilter: q.Get("project"), Sel: q,
+		HasHub: s.hub != nil, Label: strings.TrimSpace(s.r.Store.Cfg("obs_label"))}
+	if hu := strings.TrimSpace(s.r.Store.Cfg("obs_hub_url")); !p.HasHub && (strings.HasPrefix(hu, "http://") || strings.HasPrefix(hu, "https://")) {
+		p.HubURL = strings.TrimRight(hu, "/") + "/all"
+	}
 	if th := q.Get("theme"); th == "light" || th == "dark" {
 		p.Theme = th
 	}
@@ -448,11 +575,19 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	p.Crumbs = []crumb{{"now", p.Q("/")}}
 	code := http.StatusOK
-	jsonOut := func(v any) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(v)
-	}
 	switch req.URL.Path {
+	case "/all":
+		if s.hub == nil {
+			p.Kind, p.NotFound, code = "missing", "no page /all (set obs_peers to list other factories)", http.StatusNotFound
+			break
+		}
+		sum, err := s.summary()
+		if err != nil {
+			http.Error(w, "obs: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		p.Kind, p.Section, p.Title = "hub", "hub", "All factories"
+		p.HubPg = BuildHubPage(s.hub.Factories(req.Context(), sum))
 	case "/spend", "/api/obs/spend":
 		p.Kind, p.Section, p.Title = "spend", "spend", "Spend"
 		p.SpendPg = o.BuildSpend(days, p.PFilter, q.Get("by"))
@@ -569,14 +704,7 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	default:
 		p.Kind, p.NotFound, code = "missing", "no page "+req.URL.Path, http.StatusNotFound
 	}
-	h.Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(code)
-	if req.Method == http.MethodHead {
-		return
-	}
-	if err := s.tmpl.Execute(w, p); err != nil {
-		fmt.Fprintf(w, "<p>render: %s</p>", template.HTMLEscapeString(err.Error()))
-	}
+	renderObs(w, req, s.tmpl, p, code)
 }
 
 // projectKey maps the page's label for tasks without a project back to "".

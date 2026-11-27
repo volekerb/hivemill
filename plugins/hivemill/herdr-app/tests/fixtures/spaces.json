@@ -1,5 +1,23 @@
 [
-  { "id": "s1", "name": "hivemill", "machine": null, "active": true },
-  { "id": "sp-d", "name": "teamb", "machine": "macmini" },
-  { "id": "sp-o", "name": "other", "machine": "macmini" }
+ {
+  "id": "s1",
+  "name": "hivemill",
+  "machine": null,
+  "active": true
+ },
+ {
+  "id": "sp-d",
+  "name": "teamb",
+  "machine": "macmini"
+ },
+ {
+  "id": "sp-o",
+  "name": "other",
+  "machine": "macmini"
+ },
+ {
+  "id": "hivemill",
+  "name": "Lenovo \u00b7 hivemill",
+  "machine": "buildbox"
+ }
 ]
