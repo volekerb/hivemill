@@ -11,7 +11,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -814,6 +813,11 @@ const gateHookTimeout = 1800 * time.Second
 // noPRProblem starts the gate problem of a run whose PR the gate did not find.
 const noPRProblem = "pr: no open PR for "
 
+// onlyNoPR: the gate missed the PR and nothing else. A gate with any other failure is not rescued.
+func onlyNoPR(problems []string) bool {
+	return len(problems) == 1 && strings.HasPrefix(problems[0], noPRProblem)
+}
+
 // rescueOpenPR moves a run that is about to fail (why) to evaluation when its branch has an open PR: the gated state,
 // so CI, the judge and the merge decide about the PR. It returns false, and the caller fails the run, for an eval run,
 // with no open non-draft PR, when the worktree is not at the PR head (the judge reads the diff there), for a head the
@@ -836,15 +840,21 @@ func (r *Runner) rescueOpenPR(run *Run, why string) bool {
 	if rc, head, _ := r.at(run).git(run.Worktree, "rev-parse", "HEAD"); rc != 0 || head != pr.HeadRefOid {
 		return false
 	}
-	// the judge's packet says that no gate passed on this head
-	note := "gate: no pass on this head, the runner took the open PR to evaluation (" + truncate(why, 600) + "); no proof was re-run"
-	if run.LastBlock != "" {
-		note += "; last gate problems: " + truncate(strings.ReplaceAll(run.LastBlock, "\n", "; "), 600)
+	tier := run.Tier
+	if !run.cloned() || r.syncMirror(run, pr.HeadRefOid) == nil {
+		tier = or(r.tierOf(run.Project, run.coordWT(), run.Base, pr.HeadRefOid), tier)
 	}
 	run.State, run.PRURL, run.Head, run.RescuedHead, run.Gated = Gated, url, pr.HeadRefOid, pr.HeadRefOid, nowISO()
-	run.LastGate = &GateRecord{PRURL: url, Head: pr.HeadRefOid, Tier: run.Tier, Checks: map[string]string{}, Problems: []string{note}}
+	// the judge packet prints Checks (cut at 200 characters), so it must say there that nothing was verified
+	checks := map[string]string{
+		"gate":     "FAIL no pass on this head: no proof, test or review was verified; judge the PR on its diff",
+		"gate-why": "the runner took the open PR to evaluation instead of failing the run: " + why,
+	}
+	run.Tier = tier
+	run.LastGate = &GateRecord{PRURL: url, Head: pr.HeadRefOid, Tier: tier, Checks: checks,
+		Problems: []string{"gate: " + checks["gate"]}}
 	run.IdleSince, run.HookStarted = "", ""
-	_ = r.Store.TaskPR(run.Task, url, run.Tier)
+	_ = r.Store.TaskPR(run.Task, url, tier)
 	_ = r.Store.TaskStatus(run.Task, "in_review", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-rescue", truncate(url+": "+why, 900))
 	_ = r.Log.Emit("run.rescued", run, Event{Data: map[string]any{"pr": url, "head": pr.HeadRefOid, "why": truncate(why, 900)}})
@@ -955,8 +965,7 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		"problems": rec.Problems}})
 	if run.GateBlocks >= limit {
 		why := fmt.Sprintf("gate blocked %d times in round %d: %s", run.GateBlocks, run.Round, truncate(strings.Join(rec.Problems, "; "), 600))
-		noPR := slices.ContainsFunc(rec.Problems, func(p string) bool { return strings.HasPrefix(p, noPRProblem) })
-		if !noPR || !r.rescueOpenPR(run, why) {
+		if !onlyNoPR(rec.Problems) || !r.rescueOpenPR(run, why) {
 			r.fail(run, why)
 		}
 		return nil

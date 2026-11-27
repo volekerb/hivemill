@@ -117,7 +117,7 @@ func atCap(t *testing.T, r *Runner, s *SQLite, run *Run) *Run {
 	return got
 }
 
-func TestRescueOpenPRGateFoundNoPR(t *testing.T) {
+func TestRescueOpenPRNotWithMoreGateProblems(t *testing.T) {
 	r, s, run := landRunner(t, "OPEN", landHead)
 	gh, lists := r.Tools.GH, 0
 	r.Tools.GH = func(in string, args ...string) (int, string, string) {
@@ -129,9 +129,27 @@ func TestRescueOpenPRGateFoundNoPR(t *testing.T) {
 		}
 		return gh(in, args...)
 	}
-	got := atCap(t, r, s, run)
-	if got.State != Gated || got.PRURL != landPR || got.HookStarted != "" {
-		t.Errorf("run %s %q %q (%d lookups)", got.State, got.FailReason, got.PRURL, lists)
+	// the worktree is dirty in this fixture too: a gate with another failure is not rescued
+	if got := atCap(t, r, s, run); got.State != Failed || got.HookStarted != "" {
+		t.Errorf("run %s %q (%d lookups)", got.State, got.PRURL, lists)
+	}
+}
+
+func TestRescueOpenPROnlyNoPR(t *testing.T) {
+	noPR := noPRProblem + "factory/t-0001: push"
+	if !onlyNoPR([]string{noPR}) || onlyNoPR(nil) || onlyNoPR([]string{noPR, "affected: tests failed"}) ||
+		onlyNoPR([]string{"pr: the PR is CLOSED"}) {
+		t.Error("onlyNoPR")
+	}
+}
+
+func TestRescueOpenPRJudgePacket(t *testing.T) {
+	r, _, run := landRunner(t, "OPEN", landHead)
+	stall(r, run)
+	r.Tools.Git = func(string, ...string) (int, string, string) { return 0, "", "" }
+	packet, err := r.Packet(run)
+	if err != nil || !strings.Contains(packet, "no proof, test or review was verified") || !strings.Contains(packet, "stalled:") {
+		t.Errorf("%v\n%s", err, packet)
 	}
 }
 
@@ -202,6 +220,7 @@ func held(t *testing.T, head, answer string) (*Runner, *SQLite, *Run) {
 	if err != nil || len(asks) != 1 {
 		t.Fatalf("asks %v %v", asks, err)
 	}
+	r.Env.Actor = "" // the owner answers
 	if err := r.AskClose(asks[0].ID, true, answer); err != nil {
 		t.Fatal(err)
 	}
@@ -237,6 +256,17 @@ func TestApprovedHoldMergeNotWithoutApproval(t *testing.T) {
 		if d := decide(t, s, run, landHead); run.State != Held || d.Why != "the judge rejected this head" {
 			t.Errorf("%q: run %s %+v", answer, run.State, d)
 		}
+	}
+}
+
+func TestApprovedHoldMergeOnlyFromTheOwner(t *testing.T) {
+	r, s, run := held(t, landHead, "not yet")
+	if _, err := s.db.Exec(`UPDATE hm_asks SET answer='approved', answered_by='claude-director'`); err != nil {
+		t.Fatal(err)
+	}
+	r.checkHeld(run)
+	if run.State != Held {
+		t.Errorf("run %s", run.State)
 	}
 }
 

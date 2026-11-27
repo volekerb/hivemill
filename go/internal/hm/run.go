@@ -798,11 +798,15 @@ func (r *Runner) budgetEvent(why string) {
 	_ = r.Log.Emit(kind, nil, Event{Data: map[string]any{"why": why}})
 }
 
-// failUnlessRescued fails a stalled or timed out run, unless an open PR takes it to evaluation (rescueOpenPR).
+// failUnlessRescued fails a stalled or timed out run, unless an open PR takes it to evaluation (rescueOpenPR). The
+// task session of a rescued run is closed, so that it does not change the worktree under the judge; a later round
+// relaunches it.
 func (r *Runner) failUnlessRescued(run *Run, reason string) {
 	if !r.rescueOpenPR(run, reason) {
 		r.fail(run, reason)
+		return
 	}
+	r.Close(run.Agent)
 }
 
 // idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a
@@ -815,19 +819,21 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 			idle = t.Status == "idle" || t.Status == "done"
 		}
 	}
-	if started, err := time.Parse(time.RFC3339, run.HookStarted); err == nil {
-		if time.Since(started) < gateHookTimeout {
-			run.IdleSince = ""
-			return
-		}
-		if idle { // a session that went on working after a killed hook stops again, with a new start
-			run.HookStarted, run.IdleSince = "", ""
-			r.failUnlessRescued(run, fmt.Sprintf("gate hook timed out: no result after %d seconds", int(gateHookTimeout/time.Second)))
-			return
-		}
+	if !idle { // a session that works on has left its hook behind; its next stop records a new start
+		run.HookStarted = ""
+	}
+	started, err := time.Parse(time.RFC3339, run.HookStarted)
+	if err == nil && time.Since(started) < gateHookTimeout {
+		run.IdleSince = ""
+		return
 	}
 	if !idle || r.workflowBusy(run, time.Now().Add(-15*time.Minute)) {
 		run.IdleSince = ""
+		return
+	}
+	if err == nil { // the hook passed its timeout without a result
+		run.HookStarted, run.IdleSince = "", ""
+		r.failUnlessRescued(run, fmt.Sprintf("gate hook timed out: no result after %d seconds", int(gateHookTimeout/time.Second)))
 		return
 	}
 	if run.IdleSince == "" {
