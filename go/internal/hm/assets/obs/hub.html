@@ -1,0 +1,31 @@
+{{define "hub"}}{{with .HubPg}}
+<p class="summary">{{.NeedsCount}} need{{if eq .NeedsCount 1}}s{{end}} you, over {{len .Rows}} factor{{if eq (len .Rows) 1}}y{{else}}ies{{end}}. <a href="#factories">Factories</a></p>
+<h2 id="needs">Needs you</h2>
+{{if .Needs}}<div class="scroll" tabindex="0" role="region" aria-label="Needs you"><table>
+<tr><th scope="col">kind</th><th scope="col">factory</th><th scope="col">task</th><th scope="col">what</th><th scope="col" class="num">for</th><th scope="col">go to</th></tr>
+{{range .Needs}}<tr><td{{if needClass .Kind}} class="{{needClass .Kind}}"{{end}}>{{.Kind}}</td><td>{{.Factory}}</td>
+  <td>{{if .Key}}<a href="{{peerHref .Base (taskHref .Key)}}">{{.Task}}</a>{{else if .Task}}{{.Task}}{{else}}-{{end}}</td>
+  <td class="wrap">{{.Text}}{{if .Title}} <span class="muted">{{.Title}}</span>{{end}}</td>
+  <td class="num">{{if .AgeSec}}{{dur .AgeSec}}{{else}}-{{end}}</td>
+  <td><a href="{{peerHref .Base .Href}}">{{if .PR}}PR{{else if eq .Kind "question"}}question{{else if .Key}}trace{{else}}factory{{end}}</a></td></tr>
+{{end}}</table></div>
+<p class="muted">Questions and held runs wait for you and are counted. Failed and stuck runs and system lines are listed for a look. A factory that does not answer lists nothing but that.</p>
+{{else}}<p class="muted">Nothing needs you.</p>{{end}}
+<h2 id="factories">Factories</h2>
+<div class="scroll" tabindex="0" role="region" aria-label="Factories"><table>
+<tr><th scope="col">factory</th><th scope="col" class="num">working</th><th scope="col" class="num">in CI</th><th scope="col" class="num">to merge</th><th scope="col" class="num">held</th><th scope="col" class="num">needs you</th><th scope="col">planner</th><th scope="col" class="num">merged today</th><th scope="col" class="num">$ today</th><th scope="col" class="num">$ 7d</th><th scope="col">budget</th><th scope="col">machines</th><th scope="col">data</th></tr>
+{{range .Rows}}{{if .Summary}}{{$b := .URL}}<tr{{if .State}} class="stale"{{end}}>
+  <td><a href="{{peerHref $b "/"}}">{{.Label}}</a>{{if .Self}} <span class="muted">this one</span>{{end}}</td>
+  {{with .Summary}}<td class="num">{{.Counts.Working}}</td><td class="num">{{.Counts.CI}}</td><td class="num">{{.Counts.Merge}}</td><td class="num">{{.Counts.Held}}</td>
+  <td class="num">{{if .NeedsCount}}<a href="{{peerHref $b "/"}}">{{.NeedsCount}}</a>{{else}}0{{end}}</td>
+  <td>{{if .Planner.LostSince}}<span class="bad">lost</span>{{else if .Planner.On}}on{{else}}<span class="warn">off</span>{{end}}{{if .Planner.LastWake}} <span class="muted">woke {{ago .Planner.LastWake}} ago</span>{{end}}</td>
+  <td class="num"><a href="{{peerHref $b "/flow"}}">{{.Merged.Today}}</a></td>
+  <td class="num"><a href="{{peerHref $b "/spend"}}">{{usd .Spend.TodayUSD}}</a></td><td class="num">{{usd .Spend.WeekUSD}}</td>
+  <td>{{if .Budget.WeeklyCapUSD}}{{usd .Spend.WeekUSD}} of ${{fp .Budget.WeeklyCapUSD}} a week{{else}}<span class="muted">no $ cap</span>{{end}}{{if .Budget.Usage7dPct}}, 7-day usage {{fp .Budget.Usage7dPct}}% of {{.Budget.Usage7dCapPct}}%{{end}}</td>
+  <td><a href="{{peerHref $b "/machines"}}">{{len .Machines}}</a>{{end}}{{if .Down}}, <span class="bad">{{.Down}} down</span>{{end}}</td>
+  <td>{{if .Note}}<span class="{{if eq .State "stale"}}warn{{else}}bad{{end}}">{{.Note}}</span>{{else}}fresh{{end}}</td>
+</tr>{{else}}<tr><td>{{.Label}}</td><td colspan="12" class="bad">{{.Note}}</td></tr>{{end}}
+{{else}}<tr><td colspan="13" class="muted">no factory listed: set <code>obs_peers</code></td></tr>{{end}}
+</table></div>
+<p class="muted">Each factory computes its own numbers; this page lays them side by side and links into each factory's own pages. Working is building, in the gate or with the judge. A stale row keeps its last numbers.</p>
+{{end}}{{end}}

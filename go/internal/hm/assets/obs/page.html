@@ -3,16 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>hivemill obs: {{or .Title "not found"}}</title>
+<title>hivemill obs{{if .Label}} {{.Label}}{{end}}: {{or .Title "not found"}}</title>
 <link rel="stylesheet" href="/assets/obs/app.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <div class="app">
 <aside class="side">
-  <div class="brand">hivemill</div>
+  <div class="brand">hivemill{{if .Label}} <span class="label">{{.Label}}</span>{{end}}</div>
   <nav aria-label="Sections">
-    <div class="grp">Now</div>
+    {{if .HasHub}}<div class="grp">All</div>
+    <a href="{{.Q "/all"}}"{{if .Current "hub"}} class="on" aria-current="page"{{end}}>All factories</a>
+    {{else if .HubURL}}<div class="grp">All</div>
+    <a href="{{.HubURL}}">All factories</a>{{end}}
+    {{if .HubOnly}}<div class="grp">System</div>
+    <a href="/api/obs/v1/factories">JSON</a>
+    {{else}}<div class="grp">Now</div>
     <a href="{{.Q "/"}}"{{if .Current "now"}} class="on" aria-current="page"{{end}}>Now</a>
     <div class="grp">Analyze</div>
     <a href="{{.Q "/spend"}}"{{if .Current "spend"}} class="on" aria-current="page"{{end}}>Spend</a>
@@ -21,12 +27,14 @@
     <span class="off">not built yet</span>
     <div class="grp">System</div>
     <a href="{{.Q "/machines"}}"{{if .Current "machines"}} class="on" aria-current="page"{{end}}>Machines</a>
-    <a href="{{.Q "/api/obs/now"}}">JSON</a>
+    <a href="{{.Q "/api/obs/now"}}">JSON</a>{{end}}
   </nav>
 </aside>
 <main id="main" tabindex="-1">
 <header class="top">
-  {{if eq .Kind "machines"}}<div class="where"><strong>all machines, now</strong> <span class="rendered">rendered {{.Now}}</span></div>
+  {{if or (eq .Kind "hub") .HubOnly}}<div class="where"><strong>all factories, now</strong> <span class="rendered">rendered {{.Now}}</span></div>
+  <span class="theme"><a href="{{.ThemeQ "light"}}">light</a> <a href="{{.ThemeQ "dark"}}">dark</a></span>
+  {{else if eq .Kind "machines"}}<div class="where"><strong>all machines, now</strong> <span class="rendered">rendered {{.Now}}</span></div>
   <span class="theme"><a href="{{.ThemeQ "light"}}">light</a> <a href="{{.ThemeQ "dark"}}">dark</a></span>
   {{else}}<div class="where"><strong>{{or .PFilter "all projects"}}, last {{.Days}} days</strong> <span class="rendered">rendered {{.Now}}</span></div>
   <form class="filters" method="get" action="{{.Path}}">
@@ -46,13 +54,14 @@
 </header>
 <h1>{{or .Title "Not found"}}</h1>
 {{if and (not .Top) (gt (len .Crumbs) 1)}}<nav class="crumbs" aria-label="Breadcrumb">{{range $i, $c := .Crumbs}}{{if $i}} / {{end}}{{if $c.Href}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{else}}<span>{{$c.Label}}</span>{{end}}{{end}}</nav>{{end}}
-{{if .NotFound}}<p class="bad notfound">{{.NotFound}}. <a href="{{.Q "/"}}">Back to Now</a></p>{{end}}
+{{if .NotFound}}<p class="bad notfound">{{.NotFound}}. {{if .HubOnly}}<a href="{{.Q "/all"}}">Back to All factories</a>{{else}}<a href="{{.Q "/"}}">Back to Now</a>{{end}}</p>{{end}}
+{{if eq .Kind "hub"}}{{template "hub" .}}{{end}}
 {{if eq .Kind "now"}}{{template "now" .}}{{end}}
 {{if eq .Kind "spend"}}{{template "spend" .}}{{end}}
 {{if eq .Kind "flow"}}{{template "flow" .}}{{end}}
 {{if eq .Kind "machines"}}{{template "machines" .}}{{end}}
 {{if or (eq .Kind "project") (eq .Kind "goal") (eq .Kind "task") (eq .Kind "session")}}{{template "drill" .}}{{end}}
-<footer>hivemill obs on {{.Me}}, read-only. Docs: docs/hivemill-observability.md.</footer>
+<footer>{{if .HubOnly}}hivemill obs hub{{else}}hivemill obs on {{.Me}}{{end}}, read-only. Docs: docs/hivemill-observability.md.</footer>
 </main>
 </div>
 </body>

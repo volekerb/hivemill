@@ -21,6 +21,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A summary API and a hub for several factories.** `GET /api/obs/v1/summary` gives one factory's identity (`obs_label`), run counts, one "needs you" list (questions with their text, held runs with reason and PR, failures that were not re-filed, runs over a per-stage limit, system lines), planner state, merges, spend, budget and machines. With `obs_peers` set, a factory's obs serves the All factories page at `/all`; `hivemill obs --hub --peers ...` serves it on a machine with no factory. Bound beyond loopback, obs no longer names file paths or pull sources. See [docs/hivemill-observability.md](docs/hivemill-observability.md#several-factories-the-summary-api-and-the-hub).
+
 - **The Go guard no longer runs python3.** It lists tar/zip archive members itself and treats a DB value with no export row as absent; `--py-hook` is accepted and only locates the checkout (T-2112). Where it cannot follow Python it refuses: xz, a gzip FEXTRA field, a second bzip2 stream, and any non-zero data after the first gzip member, which `gzip -d` would also extract (T-2132).
 
 - **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).

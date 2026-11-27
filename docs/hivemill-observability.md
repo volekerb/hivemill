@@ -62,6 +62,43 @@ hivemill obs sources             # the logs it reads
 - **Filters.** `machine`, `harness` and `days` are query parameters, and every link keeps them. `GET /api/portfolio` returns the same filters' portfolio as JSON.
 - **Open owner questions.** This machine's come from its `hm_asks` table. A pulled machine's are counted from its log: `ask.added` minus `ask.answered` and `ask.withdrawn` (same id).
 
+## Several factories: the summary API and the hub
+
+A factory is one runner with its own database and obs server. Two factories never share an event log: their task and goal ids are their own. What joins them is a small API and a page that lays the factories side by side.
+
+**`GET /api/obs/v1/summary`** is everything one card of a factory needs. Every `v1` answer carries `"api": 1`; within a version a field is only ever added.
+
+| Field | Meaning |
+|---|---|
+| `runner` | `id` (stable, says nothing about the machine), `label` (config `obs_label`), `version` (the build's commit), `projects`, `hub` (config `obs_hub_url`) |
+| `counts` | open runs: `working` (building, in the gate, with the judge), `ci`, `merge`, `held` |
+| `needs_you` | one list, in this order: `question` (an open owner question, with its text), `held` (with the hold's reason and PR), `failed` (in the last 24 h and not re-filed), `stuck` (longer in a stage than `obs_stuck_<stage>_min`), `system` (planner off or lost, a machine down, the weekly budget reached). `act` is true for questions and held runs. |
+| `needs_you_count` | the `act` rows: the number a bar or a card shows |
+| `planner` | `on`, `last_wake`, `pending`, `lost_since`, from the runner's own record |
+| `merged`, `spend` | merged PRs today and per day (7 days); spend today, 7 days, per merged PR |
+| `budget` | each cap that is set (`weekly_cap_usd`, `project_daily_cap_usd`, `task_cap_usd`) and the account's usage reading with its caps |
+| `machines` | name, `label` (config `obs_machine_labels`), coordinator, down, running, free slots, memory, last seen |
+
+The answer is built at most every 10 seconds, however many clients ask.
+
+**The hub** is the All factories page: what needs you over every factory, then one row per factory, each linking into that factory's own pages. It keeps no data of its own.
+
+```
+hivemill config obs_peers http://HOST2:7461,http://HOST3:7461   # on one factory: its obs now serves /all, itself first
+hivemill obs --hub --peers http://HOST1:7461,http://HOST2:7461  # on a machine with no factory: only the hub
+```
+
+![The All factories page, light theme](img/obs-hub-light.png)
+![The All factories page, dark theme](img/obs-hub-dark.png)
+
+- Every peer is asked at once, with a 3 second limit each, and at most every 15 seconds. `GET /api/obs/v1/factories` returns each factory's `summary` with `fetched_at`, `age_sec`, `stale` and `error`.
+- A factory that stops answering keeps its row and its last numbers, marked stale or unreachable with their age. Its needs are no longer listed; one line says it does not answer.
+- Peer addresses come only from this config or the command line, never from a request. The hub is read-only like the rest of obs, with the same headers and the same `Host` rule, so peers are named by IP address.
+- The browser follows the links itself, so it must reach each factory's obs. Set `obs_listen` on each factory for that.
+- A factory that is not the hub shows an "All factories" link when its `obs_hub_url` names the hub.
+
+When obs listens beyond loopback, the pages and the API name no file path and no pull source.
+
 ## Several machines: `hivemill obs pull`
 
 ```
@@ -126,6 +163,11 @@ Any OTLP/HTTP receiver works: an OpenTelemetry Collector (`otlphttp` receiver on
 | `machine_name` | empty | the `machine` of every event; empty means the short hostname |
 | `obs_listen` | `127.0.0.1` | `hivemill obs` bind address (IP or `localhost`); `--listen` overrides it |
 | `obs_port` | `7461` | `hivemill obs` port |
+| `obs_label` | empty | this factory's display name in the API, the page title and the hub |
+| `obs_machine_labels` | empty | display names of machines, `name=Label,name2=Label 2`; task keys and links keep the names |
+| `obs_peers` | empty | other factories' obs URLs, comma-separated; turns on the All factories page at `/all` |
+| `obs_hub_url` | empty | the hub's URL, for the "All factories" link on a factory that is not the hub |
+| `obs_stuck_<stage>_min` | 120, 15, 45, 15, 120 | minutes a run may stay in `dispatched`, `gate`, `ci`, `judge`, `merge` before the summary lists it as stuck |
 | `otel_endpoint` | empty | OTLP/HTTP base URL for the daemon tail; empty or `off` means no export |
 
 ## Limits
