@@ -201,8 +201,8 @@ func (r *Runner) waitStable() {
 	r.stableWG.Wait()
 }
 
-// keepAlive pings the watchdog and the heartbeat while waitStable blocks a daemon pass: the stable passes may take
-// longer than both allow, and StablePassLimit bounds them.
+// keepAlive pings the watchdog while a pass run by hand waits for its stable passes (the daemon never waits for them),
+// which StablePassLimit bounds. The heartbeat is written only inside the daemon.
 func (r *Runner) keepAlive(every time.Duration) (stop func()) {
 	done, ended := make(chan struct{}), make(chan struct{})
 	go func() {
