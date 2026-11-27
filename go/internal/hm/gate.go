@@ -595,13 +595,20 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	} else if none && strings.TrimSpace(cmd) == "" {
 		add("affected", false, "ci_gate none and the project has no gate_cmd: never merged untested")
 	} else if none {
-		// gate_cmd is the only CI here, so it runs for every tier, on a clean checkout of HEAD
-		ok, note, err := r.waitLocalCI(run, rec.Head, cmd, limit, logdir)
-		if err != nil {
-			note = err.Error()
+		// gate_cmd is the only CI here, so it runs for every tier, on a clean checkout of HEAD. The gate only queues it:
+		// waiting here held the session's Stop hook until its 30-minute timeout whenever jobs were queued (2026-11-27,
+		// most sessions idle with no gate decision). A result already in is used; otherwise the merge step waits for it,
+		// never merges without a green result on this head, and a red one resumes the session (redCI).
+		note, err := r.requestCIJob(run, rec.Head, cmd, limit, logdir, false)
+		switch {
+		case err == nil:
+			add("affected", run.LocalCI != nil && run.LocalCI.Head == rec.Head && run.LocalCI.RC == 0, note)
+		case errors.Is(err, errLocalCIRunning):
+			rec.Checks["affected"] = fmt.Sprintf("local CI queued or running for %.12s: the merge step waits for its result", rec.Head)
+		default:
 			lost = lost || errors.Is(err, errLocalCIMachine)
+			add("affected", false, err.Error())
 		}
-		add("affected", ok, note)
 	} else if rec.Tier == "T0" {
 		rec.Checks["affected"] = "n/a: docs only (T0)"
 	} else if cmd != "" {
