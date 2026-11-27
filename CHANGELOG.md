@@ -17,6 +17,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **The Go guard no longer runs python3.** It lists tar/zip archive members itself and treats a DB value with no export row as absent; `--py-hook` is accepted and only locates the checkout (T-2112). Where it cannot follow Python it refuses: xz, a gzip FEXTRA field, a second bzip2 stream, and any non-zero data after the first gzip member, which `gzip -d` would also extract (T-2132).
+
 - **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).
 
 - **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
@@ -48,6 +50,8 @@ v0.1.0 summarises the changes merged during private development.
 - Old-chain delete step 1: the `factory-forward` ssh forwarder, the `factory-go-version` command and their packages (`internal/forward`, `internal/buildinfo`) are gone, with the tests that built or exercised the forwarder (T-1932).
 
 ### Fixed
+
+- **A lost local CI job on this machine no longer leaves its `gate_cmd` running.** With the wrapper dead but not yet reaped, the restart skipped the group kill; it now waits for the reap (T-2183).
 
 - **Gate proofs over 60 s no longer fail on a worker machine.** `hc exec` ended them at its own default of 60 s. A remote proof now has `--timeout 600`, one cut at that limit runs again on the local core, and the timeout note names the limit that applied (T-2040).
 

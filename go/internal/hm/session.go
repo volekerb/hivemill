@@ -260,6 +260,7 @@ func (r *Runner) recordPrompt(run *Run, role, kind, text string) {
 	if run == nil {
 		return
 	}
+	text = ScrubSecrets(text) // the file, chars and sha256 all describe the scrubbed text
 	rel, err := r.savePrompt(run.Task, kind, text)
 	if err != nil {
 		_ = r.Log.Emit("prompt.record_failed", run, Event{Role: role, Data: map[string]any{"kind": kind, "error": err.Error()}})

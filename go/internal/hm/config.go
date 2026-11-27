@@ -67,6 +67,11 @@ var Defaults = map[string]string{
 	"machine_mem_floor_mb": "2500", // a listed machine needs this much MemAvailable to take a new task session
 	// `hivemill obs` bind host (obs_http.go): an IP address or localhost; beyond loopback that network can read the page
 	"obs_listen": "127.0.0.1",
+	// disk cleanup (clean.go): `hivemill clean` and the daemon's step
+	"clean_every_min":   "60", // the daemon cleans this often; 0 or off = only `hivemill clean`
+	"worktree_keep_h":   "24", // a done or cancelled task keeps its worktree this long
+	"disk_trim_pct":     "80", // above this disk use of the home, Go build caches idle for 7 days are emptied
+	"transcript_keep_d": "30", // transcripts of runs ended longer ago are gzipped
 }
 
 // DefaultKeys returns the config keys, sorted.
