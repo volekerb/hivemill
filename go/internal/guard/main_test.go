@@ -36,6 +36,7 @@ func TestMain(m *testing.M) {
 	testBinDir, err = os.MkdirTemp("", "guard-test-bin-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		os.RemoveAll(dir)
 		os.Exit(1)
 	}
 	code := m.Run()
