@@ -185,8 +185,12 @@ func (r *Runner) idleCheck(s *SQLite, now time.Time) *OwnerAlert {
 	if _, waits := r.runCounts(); waits >= cfgInt(r.Store, "max_waiting") {
 		causes = append(causes, fmt.Sprintf("dispatch paused: %d runs wait, max_waiting=%d (see why they wait: CI, a red main or held PRs)", waits, cfgInt(r.Store, "max_waiting")))
 	}
-	if len(projects) > 0 {
-		if ready, blocked, err := r.Queue(projects); err == nil && len(ready) == 0 {
+	open := r.undrained(projects)
+	if len(open) < len(projects) {
+		causes = append(causes, "projects in drain mode: "+strings.Join(r.DrainedProjects(), ", ")+" (`hivemill resume --project ID`)")
+	}
+	if len(open) > 0 {
+		if ready, blocked, err := r.Queue(open); err == nil && len(ready) == 0 {
 			cause := "0 startable tasks in the dispatched projects"
 			if len(blocked) > 0 {
 				n := blockedCounts(blocked)

@@ -109,6 +109,9 @@ func blockedCounts(blocked []BlockedTask) map[string]int {
 // is startable and todo tasks exist ("" otherwise, and while drain or max_waiting holds dispatch). Once the planner heard
 // it, it holds with every slot busy too, so a slot that fills and frees again is not news. No spaces, as every level.
 func (r *Runner) noneStartable(ready []Task, blocked []BlockedTask) string {
+	// a drained project's tasks are neither startable nor news
+	ready = slices.DeleteFunc(slices.Clone(ready), func(t Task) bool { return r.ProjectDraining(t.Project) })
+	blocked = slices.DeleteFunc(slices.Clone(blocked), func(b BlockedTask) bool { return r.ProjectDraining(b.Task.Project) })
 	if len(ready) > 0 || len(blocked) == 0 {
 		return ""
 	}

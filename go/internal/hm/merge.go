@@ -667,7 +667,10 @@ func (r *Runner) GoalCheck(run *Run) {
 // RevertCheck (auto_revert=on): a runner merge that is the head of a failed main push run, and the newest runner merge
 // in its repo, is reverted through a PR named the red-main fix task. Anything else stays with the bisect task the
 // factory's red-main monitor files.
-func (r *Runner) RevertCheck() error {
+func (r *Runner) RevertCheck() error { return r.revertCheck(func(string) bool { return true }) }
+
+// revertCheck is RevertCheck over the runs of the projects mine accepts.
+func (r *Runner) revertCheck(mine func(project string) bool) error {
 	if r.Store.Cfg("auto_revert") != "on" {
 		return nil
 	}
@@ -677,7 +680,7 @@ func (r *Runner) RevertCheck() error {
 	}
 	for i := range runs {
 		x := &runs[i]
-		if x.State != Merged || x.MergeSHA == "" || x.RevertedBy != "" {
+		if !mine(x.Project) || x.State != Merged || x.MergeSHA == "" || x.RevertedBy != "" {
 			continue
 		}
 		st, red := r.Store.RedMain(strings.ToLower(x.Repo))
@@ -697,6 +700,9 @@ func (r *Runner) RevertCheck() error {
 		}
 		x.State, x.Outcome, x.RevertedBy = Reverted, "reverted", id
 		_ = r.Store.PutRun(x)
+		if r.stableFor(x.Project) == "" {
+			r.edgeDirty() // an auto-revert: the edge build starts its clean time over before a promote
+		}
 		_ = r.Log.Emit("pr.reverted", x, Event{Data: map[string]any{"revert_task": id, "merge_sha": x.MergeSHA}})
 	}
 	return nil

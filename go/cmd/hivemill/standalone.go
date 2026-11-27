@@ -345,8 +345,17 @@ func cmdConfig(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 		for _, k := range hm.FactoryKeyNames() {
 			fmt.Fprintf(stdout, "%s=%s\n", k, r.Store.FactoryCfg(k))
 		}
+		ids, err := r.Store.ProjectIDs()
+		if err != nil {
+			return fail(stderr, err)
+		}
+		for _, id := range ids {
+			fmt.Fprintf(stdout, "project.%s.channel=%s\n", id, r.Channel(id))
+		}
 	case len(args) == 1 && factoryKey:
 		fmt.Fprintln(stdout, r.Store.FactoryCfg(args[0]))
+	case len(args) == 1 && strings.HasPrefix(args[0], "project.") && strings.HasSuffix(args[0], ".channel"):
+		fmt.Fprintln(stdout, r.Channel(strings.TrimSuffix(strings.TrimPrefix(args[0], "project."), ".channel")))
 	case len(args) == 1:
 		fmt.Fprintln(stdout, r.Store.Cfg(args[0]))
 	case len(args) == 2 && factoryKey:

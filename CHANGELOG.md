@@ -23,6 +23,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **Stable runner channel per project and per-project drain.** `project.<id>.channel` is `edge` or `stable`; a stable project's pass runs through the stable binary, which `hivemill release promote` updates only after 24 hours clean on edge. `hivemill drain --project` and `resume --project` stop and restart starts for one project. The stable binary dir is a guard protected tree (T-2085).
+
 - **A PR flow controller keeps runner PRs moving.** Each pass reads all open runner PRs with one batched GraphQL query, gives every flow state a time budget with a fixed action when it runs out, merges a train of PRs that share no file, and emits `pr.stale` for a PR that stops changing. New config keys: `ci_queue_max_min`, `merge_train`, `stale_pr_min`. See [docs/pr-flow.md](https://github.com/volekerb/hivemill/blob/main/docs/pr-flow.md) (T-2079).
 
 - **Board and Traces tabs in the Herdr app dashboard.** Board shows one factory's tasks as cards in six columns, grouped by the reason they wait; Traces shows a task's run as phases with time, cost and the start of each prompt. Both need a factory on a build with `/api/obs/v1/board`; an older one is named as such. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md).

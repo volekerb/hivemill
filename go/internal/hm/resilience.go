@@ -267,6 +267,14 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	go func() { defer close(cleaned); r.keepClean(cleanCtx) }()
 	defer func() { stopClean(); <-cleaned }() // the daemon lock is held until a running clean has stopped
 	sdNotify("READY=1")
+	self, err := SelfBinary()
+	sum := ""
+	if err == nil {
+		sum, _, err = fileSum(self) // the build this process started with
+	}
+	if err != nil {
+		r.printf("edge build record: %v\n", err)
+	}
 	for {
 		if err := r.refreshDaemonLock(host, time.Now()); errors.Is(err, ErrRefused) { // another host took over
 			sdNotify("STOPPING=1")
@@ -274,7 +282,18 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		} else if err != nil { // a full disk or a brief I/O error does not stop the runner
 			r.printf("daemon lock: %v\n", err)
 		}
-		if err := r.Pass(true); err != nil {
+		if sum != "" {
+			r.edgePassStart(self, sum, time.Now())
+		}
+		err := r.Pass(true)
+		switch {
+		case sum == "":
+		case r.passSkipped:
+			r.edgePassSkipped()
+		default:
+			r.edgePassEnd(err != nil || r.stepErrs > 0, time.Now())
+		}
+		if err != nil {
 			r.printf("pass: %v\n", err)
 		} else {
 			_ = r.Heartbeat(time.Now())

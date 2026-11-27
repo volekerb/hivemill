@@ -71,6 +71,7 @@ None of these guards changes a config key.
 | `max_concurrent` | `2` | working runs at one time (working, judging) |
 | `max_waiting` | `20` | waiting runs (gated, judged, merging, held); reached = no new run |
 | `projects` | empty | project ids a plain `hivemill run` may pick from; empty = explicit task ids only |
+| `project.<id>.channel` | `edge` | `stable`: the project is run by the promoted binary (see Release channels) |
 | `model` | `claude-sonnet-5-5` | task session and judge model |
 | `risk_model` | `claude-opus-5-5` | model when a file the task declares in scope (`FILES:` line or scope criterion) or, for the judge, a file the diff changes matches a `sensitive_paths` entry of `ci/tier_rules.json`, or the task is T3. Words in the task text never route a task |
 | `effort` | `medium` | `--effort` of every session |
@@ -134,6 +135,9 @@ hivemill daemon [--take-over]       # the pass loop (systemd/launchd run it)
 hivemill standby check --from HOST  # restore HOST's newest snapshot into a temp home and read it (standby.md)
 hivemill health [--alert]           # dead-man check, dashboard check
 hivemill drain [--status] | resume  # stop / resume new dispatch
+hivemill drain|resume --project ID  # the same for one project
+hivemill run --project ID           # one pass of one project
+hivemill release promote            # the running edge build becomes the stable one
 hivemill backup | restore <snap> [--dry-run]
 hivemill planner start|stop|status|wake  # the planner session: keeps ready queues full (hivemill-planner.md)
 hivemill ask add|list|answer|withdraw   # the owner queue
@@ -233,6 +237,8 @@ Each real clean that finishes writes `clean.done` with the MB freed and the coun
 
 `hivemill drain` stops new dispatch while active runs finish. `hivemill drain --status` lists what still runs, and `hivemill resume` lifts drain. The report header shows `DRAIN on` while it is active.
 
+`hivemill drain --project ID` holds new runs of one project only: its active runs finish and the other projects go on. `hivemill resume --project ID` lifts it. The two drains are independent: a plain `resume` leaves a drained project drained.
+
 To upgrade:
 1. `hivemill drain`, and wait until `--status` shows no active run, or leave runs active, since reconcile resumes them.
 2. `hivemill backup`.
@@ -241,6 +247,19 @@ To upgrade:
 5. `systemctl --user restart hivemill.service`.
 6. `hivemill init` (it adds the dashboard service where it is missing), then restart the dashboard: `systemctl --user restart hivemill-obs.service`, or on macOS `launchctl kickstart -k gui/$(id -u)/hivemill.obs`.
 7. `hivemill resume`.
+
+### Release channels
+
+One runner serves every project, so a bad new build must not stall all of them. A project is on the `edge` channel (default: the installed binary) or on `stable` (`hivemill config project.<id>.channel stable`).
+
+`hivemill release promote` copies the binary the daemon runs to `~/.local/lib/hivemill/stable/hivemill`. It refuses until that build has run 24 h with no failed pass and no auto-revert. A failed pass (an error from the pass, a run step, the revert check or a start that was not a refusal), a pass that never ended, a gap in the passes longer than `health_max_age_s`, an auto-revert or another build starts the 24 h again. A pass skipped because another one ran earns no time. An auto-revert of a stable-channel project does not count against edge.
+
+For a stable-channel project:
+- the daemon's pass skips it and starts `<stable> run --project ID` as a subprocess beside its own work; a failure there does not fail the edge pass, and the third in a row alerts the owner. A pass is limited to the project's `gate_timeout_s` for each of the `max_concurrent` run slots, plus 30 minutes;
+- its local task and judge sessions get settings and a `PATH` that call the stable binary;
+- `run --project ID`, the `run`, `gate`, `judge`, `merge` and `eval` calls for its tasks, and its session hooks, are handed to the stable binary. A hook whose stable binary crashes lets the session stop.
+
+Until a binary is promoted, edge runs the project; so it does when the file at the stable path is not the one `release promote` wrote. Sessions already running keep the stable binary in their hooks after the project goes back to edge, until they are relaunched. Each channel dispatches its own projects, so a free run slot goes to whichever pass reaches it first, not by priority across channels. The factory DB is shared, so a schema change must stay readable by the stable binary.
 
 ### Deployment profiles
 

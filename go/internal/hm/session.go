@@ -27,7 +27,11 @@ func uuid4() string {
 
 // RenderSettings substitutes the @FACTORY_* tokens of roles/hivemill/<role>.json.in and writes the result under the
 // state dir. A leftover token or invalid JSON refuses the launch.
-func RenderSettings(e Env, role string) (string, error) {
+func RenderSettings(e Env, role string) (string, error) { return renderSettings(e, role, "") }
+
+// renderSettings is RenderSettings; with a stable binary the hivemill hooks call it, in a file of their own
+// (<role>-stable.json), so the settings of the edge sessions stay as they are.
+func renderSettings(e Env, role, stable string) (string, error) {
 	src := filepath.Join(e.Home, "roles", "hivemill", role+".json.in")
 	b, err := readRoleFile(src) // the home's copy, else the built-in one (standalone install)
 	if err != nil {
@@ -53,6 +57,12 @@ func RenderSettings(e Env, role string) (string, error) {
 		return "", err
 	}
 	dst := filepath.Join(dir, role+".json")
+	if stable != "" {
+		edge, _ := json.Marshal(filepath.Join(e.UserHome, ".local", "bin", "hivemill"))
+		to, _ := json.Marshal(stable)
+		text = strings.ReplaceAll(text, string(edge[1:len(edge)-1])+" ", string(to[1:len(to)-1])+" ")
+		dst = filepath.Join(dir, role+"-stable.json")
+	}
 	return dst, writeFile(dst, text, 0o644)
 }
 
@@ -114,7 +124,13 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if run != nil {
 		task, goal = run.Task, run.Goal
 	}
-	settings, err := RenderSettings(r.Env, l.Role)
+	// a local session of a stable-channel project calls the stable binary; a placed one has its machine's own
+	// hivemill, which forwards here, and its hooks are handed on by the CLI
+	stable := ""
+	if run != nil && l.Machine == "" {
+		stable = r.stableFor(run.Project)
+	}
+	settings, err := renderSettings(r.Env, l.Role, stable)
 	if err != nil {
 		return "", err
 	}
@@ -147,6 +163,9 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	}
 	for k, v := range l.Env {
 		env[k] = v
+	}
+	if stable != "" { // `hivemill` in the session's shell is the stable one too
+		env["PATH"] = filepath.Dir(stable) + string(os.PathListSeparator) + env["PATH"]
 	}
 	keys := make([]string, 0, len(env))
 	for k := range env {

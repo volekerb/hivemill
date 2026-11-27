@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -52,16 +53,22 @@ type Runner struct {
 	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
 	SSH func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
 	// ObsDial dials the dashboard's address for ObsDown (nil = a TCP connect).
-	ObsDial    func(addr string) error
-	usageFiles [][]byte               // the remote usage files of this pass
-	usageRead  bool                   // usageFiles has been read in this pass
-	inDaemon   bool                   // this process runs the daemon's passes
-	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
-	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
-	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
-	loads      map[string]loadReading // CPU load per machine, see load.go
-	poll       *prPoll                // the pass's one read of the open PRs; nil outside a pass
-	queueSlow  bool                   // a PR is queued for CI over its budget: no refresh
+	ObsDial       func(addr string) error
+	usageFiles    [][]byte               // the remote usage files of this pass
+	usageRead     bool                   // usageFiles has been read in this pass
+	inDaemon      bool                   // this process runs the daemon's passes
+	stepErrs      int                    // run steps of the last pass that failed
+	passSkipped   bool                   // the last pass did not run: another one held the lock
+	outMu         sync.Mutex             // guards Out
+	stableSums    sync.Map               // path|size|mtime of the stable binary to its checksum
+	stableRunning sync.Map               // projects whose stable pass runs
+	stableWG      sync.WaitGroup         // the stable passes
+	TakeOver      bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
+	standby       chan standbyResult     // the standby check running beside the passes (standby.go)
+	takenOver     atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
+	loads         map[string]loadReading // CPU load per machine, see load.go
+	poll          *prPoll                // the pass's one read of the open PRs; nil outside a pass
+	queueSlow     bool                   // a PR is queued for CI over its budget: no refresh
 	// DiskFree is (total, available) bytes of a path's filesystem; nil = statfs. Tests replace it.
 	DiskFree func(path string) (uint64, uint64, error)
 }
@@ -83,26 +90,41 @@ func (r *Runner) actor() string {
 	return "owner"
 }
 
-func (r *Runner) printf(f string, a ...any) { fmt.Fprintf(r.Out, f, a...) }
+func (r *Runner) printf(f string, a ...any) {
+	r.outMu.Lock() // stable passes print beside the pass
+	defer r.outMu.Unlock()
+	fmt.Fprintf(r.Out, f, a...)
+}
 
 // lock takes the per-task lock file; wait=false returns nil while another process (a gate hook) holds it.
 func (r *Runner) lock(task string, wait bool) *os.File {
+	f, _ := r.lockErr(task, wait)
+	return f
+}
+
+// lockErr is lock with the reason: errLockBusy when another holder has it, else the open or flock error.
+func (r *Runner) lockErr(task string, wait bool) (*os.File, error) {
 	dir := filepath.Join(r.Env.StateDir(), "locks")
 	_ = os.MkdirAll(dir, 0o700)
 	f, err := os.OpenFile(filepath.Join(dir, task+".lock"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	how := syscall.LOCK_EX
 	if !wait {
 		how |= syscall.LOCK_NB
 	}
-	if syscall.Flock(int(f.Fd()), how) != nil {
+	if err := syscall.Flock(int(f.Fd()), how); err != nil {
 		f.Close()
-		return nil
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, errLockBusy
+		}
+		return nil, err
 	}
-	return f
+	return f, nil
 }
+
+var errLockBusy = errors.New("lock held by another process")
 
 // ModelFor picks the session model: model_task / model_task-judge override, else risk_model or model. Fable is refused.
 func (r *Runner) ModelFor(risky bool) (string, string, error) {
@@ -202,6 +224,20 @@ func (r *Runner) Start(id string) error {
 		return fmt.Errorf("%w: %s: project %s has ci_gate none and no gate_cmd, so nothing would test it; set a gate_cmd or ci_gate pr",
 			ErrRefused, id, t.Project)
 	}
+	// one dispatch at a time across processes (the edge pass, a stable pass, a start by hand): the checks below hold
+	// until the run is saved
+	dl := r.lock("dispatch", false) // no wait: a slow start in one channel must not stall the pass of the other
+	if dl == nil {
+		return fmt.Errorf("%w: another start is in progress; try again", ErrRefused)
+	}
+	dispatching := true
+	release := func() {
+		if dispatching {
+			dispatching = false
+			dl.Close()
+		}
+	}
+	defer release()
 	old, _ := r.Store.Run(id)
 	if old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
@@ -212,6 +248,9 @@ func (r *Runner) Start(id string) error {
 	}
 	if r.Draining() {
 		return fmt.Errorf("%w: drain mode is on (`hivemill resume` lifts it)", ErrRefused)
+	}
+	if r.ProjectDraining(t.Project) {
+		return fmt.Errorf("%w: project %s is in drain mode (`hivemill resume --project %s` lifts it)", ErrRefused, t.Project, t.Project)
 	}
 	caps := r.ReadCaps(time.Now())
 	if why := caps.DispatchBlock(r.Store, t.Project); why != "" {
@@ -303,6 +342,7 @@ func (r *Runner) Start(id string) error {
 		return err
 	}
 	unlock()
+	release()
 	_ = r.Log.Emit("task.dispatched", run, Event{Model: model, Effort: effort, Data: map[string]any{"risky": risky, "why": why,
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
@@ -575,20 +615,59 @@ func truncate(s string, n int) string {
 }
 
 // Pass reads every open PR with one query (prpoll.go), advances every active run once, checks for a revert, then starts
-// ready tasks.
-func (r *Runner) Pass(startNew bool) error {
+// ready tasks. A project on the stable channel is not run here: the pass starts the stable binary for it (PassProject).
+func (r *Runner) Pass(startNew bool) error { return r.pass("", startNew) }
+
+// PassProject is the pass of one project, whatever its channel (`hivemill run --project ID`).
+func (r *Runner) PassProject(project string, startNew bool) error {
+	if err := r.checkProject(project); err != nil {
+		return err
+	}
+	if err := r.pass(project, startNew); err != nil {
+		return err
+	}
+	switch {
+	case r.passSkipped:
+		return ErrPassSkipped
+	case r.stepErrs > 0:
+		return fmt.Errorf("project %s: %d steps of the pass failed", project, r.stepErrs)
+	}
+	return nil
+}
+
+// pass runs the projects of this process, or only the project `only`, which has its own pass lock.
+func (r *Runner) pass(only string, startNew bool) error {
+	r.stepErrs, r.passSkipped = 0, false
+	lockName, mine := "pass", func(p string) bool { return r.Delegate(p) == "" }
+	if only != "" && r.stableFor(only) == "" { // an edge project: never beside the full pass
+		mine = func(p string) bool { return p == only }
+	} else if only != "" {
+		lockName, mine = "pass-"+only, func(p string) bool { return p == only }
+	}
 	// the daemon reuses the Runner: each pass, a skipped one too, reads the machines again
 	r.usageFiles, r.usageRead = nil, false
-	l := r.lock("pass", false) // one pass at a time: a timer tick that finds a pass running exits at once
+	if only == "" && !r.inDaemon {
+		defer r.waitStable() // registered first, so it runs after the pass lock is released
+	}
+	l, lerr := r.lockErr(lockName, false) // one pass at a time: a timer tick that finds a pass running exits at once
+	if lerr != nil && !errors.Is(lerr, errLockBusy) {
+		return fmt.Errorf("pass lock %s: %w", lockName, lerr) // not a skip: a broken lock dir must fail the pass
+	}
 	if l == nil {
+		r.passSkipped = true
 		r.printf("another pass is running; skipped\n")
 		return nil
 	}
 	defer l.Close()
+	if only == "" {
+		r.stablePasses(startNew) // first: nothing that fails below holds a stable project back
+	}
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
-	defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
+	if only == "" {
+		defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
+	}
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {
@@ -604,6 +683,9 @@ func (r *Runner) Pass(startNew bool) error {
 	r.queueSlow = r.queuedTooLong(runs)
 	fifo(runs)
 	for _, x := range runs {
+		if !mine(x.Project) {
+			continue
+		}
 		if heldForOwner(&x) && !x.Eval {
 			if l := r.lock(x.Task, false); l != nil {
 				if run, _ := r.Store.Run(x.Task); run != nil && heldForOwner(run) {
@@ -618,16 +700,21 @@ func (r *Runner) Pass(startNew bool) error {
 			st, err := r.Advance(x.Task, list, ok)
 			if err != nil {
 				st = "error: " + firstLine(err.Error())
+				r.stepErrs++
 			}
 			r.printf("%s: %s\n", x.Task, st)
 		}
 	}
-	if err := r.RevertCheck(); err != nil {
+	if err := r.revertCheck(mine); err != nil {
+		r.stepErrs++
 		r.printf("revert check: %v\n", err)
 	}
-	r.repointRefiles() // a cancel by another tool, or a new dependency on an old id
-	if err := r.reportUnstartable(); err != nil {
-		r.printf("unstartable tasks: %v\n", err)
+	if only == "" {
+		r.repointRefiles() // a cancel by another tool, or a new dependency on an old id
+		if err := r.reportUnstartable(); err != nil {
+			r.stepErrs++
+			r.printf("unstartable tasks: %v\n", err)
+		}
 	}
 	// every pass records a waiting pause that starts or ends, also one that dispatches nothing below
 	paused := r.waitingBlock()
@@ -653,7 +740,13 @@ func (r *Runner) Pass(startNew bool) error {
 		if r.runCapBlock() != "" {
 			break
 		}
+		if !mine(t.Project) || r.ProjectDraining(t.Project) {
+			continue
+		}
 		if err := r.Start(t.ID); err != nil {
+			if !errors.Is(err, ErrRefused) {
+				r.stepErrs++
+			}
 			r.printf("%s: %v\n", t.ID, err)
 		}
 	}

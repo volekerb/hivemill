@@ -116,6 +116,7 @@ type Store interface {
 	Runs() ([]Run, error)
 	AddSession(s Session) error
 	Sessions(task string) ([]Session, error)
+	ProjectIDs() ([]string, error)
 	RedMain(slug string) (map[string]any, bool)
 	SetRedMainFix(slug, task string) error
 	Close() error
@@ -341,6 +342,16 @@ func (s *SQLite) SetCfg(key, value string) error {
 	if modeKey(key) { // machine_<name>_mode: one key per session machine (docs/machines.md)
 		if value != modeShared && value != modeClone {
 			return fmt.Errorf("%s must be %s or %s", key, modeShared, modeClone)
+		}
+	} else if id, ok := channelKey(key); ok { // project.<id>.channel: one key per project
+		if value != ChannelEdge && value != ChannelStable {
+			return fmt.Errorf("%s must be %s or %s", key, ChannelEdge, ChannelStable)
+		}
+		var n int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM projects WHERE id=?`, id).Scan(&n); err != nil {
+			return err
+		} else if n == 0 {
+			return fmt.Errorf("%s: no project %q", key, id)
 		}
 	} else if _, ok := Defaults[key]; !ok {
 		return fmt.Errorf("unknown key %s; known: %s", key, strings.Join(DefaultKeys(), ", "))
@@ -710,6 +721,24 @@ func (s *SQLite) AddProject(p Project) error {
 	_, err := s.db.Exec(`INSERT INTO projects(id,name,repo_path,gh_repo,base_branch,gate_cmd,created) VALUES(?,?,?,?,?,?,?)`,
 		p.ID, p.Name, p.RepoPath, p.GHRepo, p.Base, p.GateCmd, s.now())
 	return err
+}
+
+// ProjectIDs are the ids of the projects, in order; it needs no column an older factory DB may lack.
+func (s *SQLite) ProjectIDs() ([]string, error) {
+	rows, err := s.db.Query(`SELECT id FROM projects ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // Projects lists the projects by id.
