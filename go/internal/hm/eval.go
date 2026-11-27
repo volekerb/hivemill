@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -46,6 +47,16 @@ func (r *Runner) EvalStart(id, mode string) error {
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Branch: branch,
 		Agent: "claude-coder-" + strings.ToLower(id) + "-a7", State: Working, Round: 1, Eval: true, EvalMode: mode,
 		Dispatched: nowISO(), RoundStart: nowISO(), Criteria: len(Criteria(t.Acceptance))}
+	// an eval deletes its branch at the end: never one that holds another task's work
+	runs, err := r.Store.Runs()
+	if err != nil {
+		return err
+	}
+	if r.continuesFrom(id, branch) != "" || slices.ContainsFunc(runs, func(x Run) bool {
+		return x.Task != id && x.Repo == t.GHRepo && x.Branch == branch
+	}) {
+		return fmt.Errorf("%w: %s: %s is shared with another task, and an eval deletes its branch", ErrRefused, id, branch)
+	}
 	if run.CINone, err = r.ciMode(t.Project); err != nil {
 		return err
 	}

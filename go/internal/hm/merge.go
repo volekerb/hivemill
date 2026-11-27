@@ -626,6 +626,7 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	r.checkMergeCommit(run)
 	r.closeSessions(run)
 	r.endSessions(run)
+	r.closeSuperseded(run)
 	r.GoalCheck(run)
 }
 

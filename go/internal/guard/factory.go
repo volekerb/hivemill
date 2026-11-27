@@ -248,7 +248,7 @@ func (a *Analyzer) checkIdentity(assigns []string) error {
 			name, v = x[:k], x[k+1:]
 		}
 		name = strings.TrimRight(name, "+")
-		if !containsStr(IdentVars, name) {
+		if !containsStr(IdentVars, name) && name != PushTaskVar {
 			continue
 		}
 		if name == "FACTORY_AGENT" && own != "" && v == own && v != "owner" {

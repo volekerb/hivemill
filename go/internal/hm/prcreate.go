@@ -79,9 +79,11 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 		return "", fmt.Errorf("%w: %s: its project has no valid gh_repo (%q)", ErrRefused, tid, repo)
 	}
 	git := r.Tools.Git
-	if run, err := r.Store.Run(tid); err != nil {
+	run, err := r.Store.Run(tid)
+	if err != nil {
 		return "", err
-	} else if run.cloned() { // the call was forwarded from a clone-mode machine: the task clone is there
+	}
+	if run.cloned() { // the call was forwarded from a clone-mode machine: the task clone is there
 		git, cwd = r.at(run).git, run.Worktree
 	}
 	rc, branch, errs := git(cwd, "branch", "--show-current")
@@ -92,7 +94,11 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 	want := "factory/" + strings.ToLower(tid)
 	dbOK := t.Branch != "" && branch == t.Branch &&
 		regexp.MustCompile(`(?i)^factory/`+regexp.QuoteMeta(tid)+`(-v[0-9]+)?$`).MatchString(branch)
-	if branch != want && !dbOK {
+	old := "" // the older task whose branch and PR this run continues
+	if run != nil && branch == run.Branch {
+		old = r.continuedTask(run)
+	}
+	if branch != want && !dbOK && old == "" {
 		return "", fmt.Errorf("%w: current branch is %q, not %q or the task's recorded branch: run `hivemill pr` from your own task clone",
 			ErrRefused, branch, want)
 	}
@@ -100,7 +106,7 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 	os.Unsetenv("GH_REPO")
 	os.Unsetenv("GH_HOST")
 	var argv []string
-	input := ""
+	input, updated := "", ""
 	switch action {
 	case "create":
 		if strings.TrimSpace(title) == "" || strings.TrimSpace(body) == "" {
@@ -123,6 +129,13 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 		ghTitle, body = ScrubSecrets(ghTitle), ScrubSecrets(body)
 		argv = []string{"pr", "create", "--repo", repo, "--base", t.Base, "--head", branch, "--title", ghTitle, "--body-file", "-"}
 		input = body
+		if old != "" {
+			input = withNote(body, refileNote(tid, old))
+			if url := r.openPR(run); url != "" {
+				argv = []string{"pr", "edit", url, "--title", ghTitle, "--body-file", "-"}
+				updated = url
+			}
+		}
 	case "ready":
 		argv = []string{"pr", "ready", branch, "--repo", repo}
 	default:
@@ -139,6 +152,9 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 		return out, fmt.Errorf("gh pr %s exited %d: %s", action, rc, strings.TrimSpace(errs))
 	}
 	_ = r.Store.Event(actor, "task", tid, "pr-"+action, repo+" "+branch)
+	if updated != "" {
+		out = updated // the PR's URL, as `gh pr create` prints it
+	}
 	return out, nil
 }
 

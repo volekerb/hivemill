@@ -113,12 +113,13 @@ type PR struct {
 		Oid string `json:"oid"`
 	} `json:"mergeCommit"`
 	MergedAt string `json:"mergedAt"`
+	ClosedAt string `json:"closedAt"`
 }
 
 // PRView reads one PR (one gh call).
 func PRView(t Tools, url string) (*PR, error) {
 	rc, out, errs := t.GH("", "pr", "view", url, "--json",
-		"number,state,headRefOid,headRefName,baseRefName,mergeable,isDraft,body,title,url,statusCheckRollup,mergeCommit,mergedAt")
+		"number,state,headRefOid,headRefName,baseRefName,mergeable,isDraft,body,title,url,statusCheckRollup,mergeCommit,mergedAt,closedAt")
 	if rc != 0 {
 		return nil, fmt.Errorf("gh pr view %s: exit %d: %s", url, rc, firstLine(errs))
 	}

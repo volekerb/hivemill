@@ -43,9 +43,17 @@ func taskBranch(t *Task) string {
 	return "factory/" + strings.ToLower(t.ID)
 }
 
+// workBranch is the branch the task's run works on (a re-file's run may continue an older task's), else the task's own.
+func (r *Runner) workBranch(t *Task) string {
+	if run, _ := r.Store.Run(t.ID); run != nil && !run.Eval && run.Branch != "" {
+		return run.Branch
+	}
+	return taskBranch(t)
+}
+
 // TaskPR is the open PR of the task's branch ("": none, or gh failed).
 func (r *Runner) TaskPR(t *Task) string {
-	rc, out, _ := r.Tools.GH("", "pr", "list", "-R", t.GHRepo, "--head", taskBranch(t), "--state", "open", "--json", "url", "-q", ".[0].url")
+	rc, out, _ := r.listOpenPR(t.GHRepo, r.workBranch(t))
 	if rc != 0 {
 		return ""
 	}
@@ -110,7 +118,7 @@ func (r *Runner) Retry(id, note string) (string, error) {
 	_ = r.Log.Emit("task.retried", old, Event{Data: map[string]any{"attempt": m.N + 1, "failed": truncate(old.FailReason, 300),
 		"note": truncate(m.Note, 300)}})
 	return fmt.Sprintf("%s retried: attempt %d of %d starts on the next pass, on %s and its open PR\n", id, m.N+1, max+1,
-		taskBranch(t)), nil
+		r.workBranch(t)), nil
 }
 
 func (r *Runner) saveRetry(id string, m retryMark) error {
@@ -135,16 +143,29 @@ func retryBrief(attempt int, old *Run, branch, pr, note string) string {
 	return b.String()
 }
 
-// CloseTaskPR closes the open PR of a cancelled task with a comment, keeping the branch ("" = none was open).
+// CloseTaskPR closes the open PR of a cancelled task with a comment, keeping the branch ("" = none was closed). The
+// close is recorded as the runner's own, so a re-file reopens that PR, and a PR another run works on stays open.
 func (r *Runner) CloseTaskPR(t *Task) (string, error) {
+	if run, _ := r.Store.Run(t.ID); run != nil && !run.Eval {
+		_, closed, err := r.closePR(run, t.ID+" was cancelled.", "")
+		return closed, err
+	}
 	pr := r.TaskPR(t)
 	if pr == "" {
 		return "", nil
+	}
+	if l := r.lock(prLock, true); l != nil {
+		defer l.Close()
+	}
+	if user, err := r.branchUser(t.ID, t.GHRepo, taskBranch(t), pr); err != nil || user != "" {
+		return "", err
 	}
 	rc, _, errs := r.Tools.GH("", "pr", "close", pr, "-R", t.GHRepo, "-c",
 		"Closing: task "+t.ID+" was cancelled in hivemill, so no run will merge this PR. The branch is kept.")
 	if rc != 0 {
 		return pr, fmt.Errorf("gh pr close %s exited %d: %s", pr, rc, strings.TrimSpace(errs))
 	}
+	_ = r.Store.TaskPR(t.ID, pr, "")
+	_ = r.Store.SetMeta(prClosedKey+pr, nowISO())
 	return pr, nil
 }

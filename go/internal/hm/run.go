@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"factory/go/internal/guard"
 )
 
 // Run states.
@@ -236,9 +238,19 @@ func (r *Runner) Start(id string) error {
 	if err != nil {
 		return err
 	}
-	branch := t.Branch
-	if branch == "" {
-		branch = "factory/" + strings.ToLower(id)
+	branch, err := r.startBranch(t)
+	if err != nil {
+		return err
+	}
+	// a retry stays with the previous attempt's commits: while another run is on that branch, it waits
+	if retry && old.Branch != "" && old.Branch != branch {
+		user, err := r.branchUser(id, t.GHRepo, old.Branch, "")
+		if err != nil {
+			return err
+		}
+		if user != "" {
+			return fmt.Errorf("%w: %s: its retry waits: the run of %s works on %s", ErrRefused, id, user, old.Branch)
+		}
 	}
 	// held until the run is saved: the removal of an ended run's remote worktree takes it too
 	l := r.lock(id, false)
@@ -296,10 +308,11 @@ func (r *Runner) Start(id string) error {
 	// claude-coder-t-NNNN(-aN); the lane's own suffix -a7 keeps the name apart from old-pipeline coders.
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
-		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
+		Continues: r.continuesFrom(id, branch),
+		State:     Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
-	if err := r.Store.PutRun(run); err != nil {
+	if err := r.saveStarted(run, t); err != nil {
 		return err
 	}
 	unlock()
@@ -308,11 +321,14 @@ func (r *Runner) Start(id string) error {
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
 	kick := Kickoff(run, t)
+	if of := r.continuedTask(run); of != "" {
+		kick += continuedNote(run, of)
+	}
 	if retry {
 		m := r.retryMark(id)
-		pr := t.PRURL
-		if open := r.TaskPR(t); open != "" {
-			pr = open
+		pr := run.PRURL // adopted above; else the open one of the branch: a recorded one may be closed
+		if pr == "" {
+			pr = r.openPR(run)
 		}
 		kick = retryBrief(m.N+1, old, branch, pr, m.Note) + kick
 	}
@@ -324,9 +340,32 @@ func (r *Runner) Start(id string) error {
 	return nil
 }
 
-// taskEnv is the environment of a task session, started or relaunched: the noreply identity and the scrub terms.
-func (r *Runner) taskEnv() map[string]string {
+// saveStarted adopts the PR the new run continues and saves the run, under one lock: the sweep must not close that PR
+// in between, and of two starts on one branch only the first is saved.
+func (r *Runner) saveStarted(run *Run, t *Task) error {
+	if l := r.lock(prLock, true); l != nil {
+		defer l.Close()
+	}
+	user, err := r.branchUser(run.Task, run.Repo, run.Branch, "")
+	if err != nil {
+		return err
+	}
+	if user != "" {
+		return fmt.Errorf("%w: %s: the run of %s works on %s", ErrRefused, run.Task, user, run.Branch)
+	}
+	if err := r.adoptPR(run, t); err != nil { // before the save: a pass must not see the run without its PR
+		return err
+	}
+	return r.Store.PutRun(run)
+}
+
+// taskEnv is the environment of a task session, started or relaunched: the noreply identity, the scrub terms and,
+// for a run that continues the branch of an older task, that task for the guard's push pin.
+func (r *Runner) taskEnv(run *Run) map[string]string {
 	env := map[string]string{}
+	if old := r.continuedTask(run); old != "" {
+		env[guard.PushTaskVar] = old
+	}
 	if email := r.Store.FactoryCfg("noreply_email"); email != "" {
 		env["GIT_AUTHOR_EMAIL"], env["GIT_COMMITTER_EMAIL"] = email, email
 		env["GIT_AUTHOR_NAME"], env["GIT_COMMITTER_NAME"] = nameOf(email), nameOf(email)
@@ -340,7 +379,7 @@ func (r *Runner) taskEnv() map[string]string {
 // launchTask starts the task session of a run in its clone, with the noreply identity and the scrub terms.
 func (r *Runner) launchTask(run *Run, kickoff string) error {
 	name, wt, model, effort := run.Agent, run.Worktree, run.Model, run.Effort
-	env := r.taskEnv()
+	env := r.taskEnv(run)
 	if list, ok := Terminals(r.Tools); ok && alive(list, true, name) {
 		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
 	}
@@ -391,11 +430,13 @@ func (r *Runner) Clone(t *Task, branch string) (string, error) {
 	g := r.Tools.Git
 	wt := filepath.Join(r.Env.Home, "worktrees", t.Goal+"-"+t.ID)
 	if fi, err := os.Stat(filepath.Join(wt, ".git")); err == nil && fi.IsDir() {
+		g(wt, "fetch", "-q", "origin") // another run may have pushed to the branch; offline, the local one serves
 		if rc, _, errs := g(wt, "checkout", "-q", branch); rc != 0 {
 			if rc, _, errs2 := g(wt, "checkout", "-q", "-B", branch, "origin/"+t.Base); rc != 0 {
 				return "", fmt.Errorf("clone %s: cannot check out %s: %s %s", wt, branch, errs, errs2)
 			}
 		}
+		g(wt, "merge", "-q", "--ff-only", "origin/"+branch) // best effort: unpushed local commits stay
 	} else {
 		if _, err := os.Stat(wt); err == nil {
 			return "", fmt.Errorf("%w: %s exists but is not a clone; remove it", ErrRefused, wt)
@@ -626,6 +667,7 @@ func (r *Runner) Pass(startNew bool) error {
 		r.printf("revert check: %v\n", err)
 	}
 	r.repointRefiles() // a cancel by another tool, or a new dependency on an old id
+	r.sweepPRs()
 	if err := r.reportUnstartable(); err != nil {
 		r.printf("unstartable tasks: %v\n", err)
 	}
