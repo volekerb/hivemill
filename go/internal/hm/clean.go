@@ -1,14 +1,18 @@
 package hm
 
 import (
+	"cmp"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -18,19 +22,33 @@ import (
 	"time"
 
 	"factory/go/internal/kit/clean/fsx"
+	"factory/go/internal/shlex"
 )
 
 // `hivemill clean` (and the daemon, every clean_every_min) frees disk space without an agent: task worktrees of
-// finished tasks, idle Go build caches when the disk is full, and old session transcripts (gzipped, never deleted).
+// finished tasks (dirty or unmerged ones are saved to the attic first), Go build caches over go_cache_max_gb or idle on
+// a full disk, temp leftovers, Xcode DerivedData and simulator clones of removed worktrees, and old session transcripts
+// (gzipped, never deleted). The other session machines get the same through the DB-free `hivemill local clean`.
 // Every check fails closed: what cannot be read is kept, with the reason.
 
 const (
 	cleanWorktrees   = "worktrees"
 	cleanGoCache     = "gocache"
 	cleanTranscripts = "transcripts"
+	cleanAttic       = "attic" // a worktree saved to the attic and removed, or an expired attic entry
+	cleanTmp         = "tmp"
+	cleanDerived     = "deriveddata"
+	cleanSim         = "simulators"
 
-	goCacheIdle = 7 * 24 * time.Hour
+	goCacheIdle   = 7 * 24 * time.Hour
+	atticKeep     = 60 * 24 * time.Hour
+	tmpIdle       = 3 * time.Hour
+	userCacheIdle = 7 * 24 * time.Hour
+	diskWarnPct   = 85
+	diskUsageMeta = "disk_usage" // what the last clean saw, for `hivemill health`
 )
+
+var cleanKinds = []string{cleanWorktrees, cleanGoCache, cleanTranscripts, cleanAttic, cleanTmp, cleanDerived, cleanSim}
 
 // CleanItem is one thing clean removed (or would remove), or kept for Reason.
 type CleanItem struct {
@@ -44,7 +62,10 @@ type CleanReport struct {
 	Removed []CleanItem
 	Kept    []CleanItem
 	Errors  []string
+	Skipped []string // session machines that could not be cleaned, and why
 	Disks   []MachineDisk
+	// Sizes is the size in MB per category of each machine whose disk is above diskWarnPct.
+	Sizes map[string]map[string]int64
 }
 
 // MachineDisk is the disk use of one machine: of the factory home on this one, of the user home on a session machine.
@@ -87,13 +108,20 @@ func (c *CleanReport) Print(w io.Writer) {
 				v = "would gzip"
 			}
 		}
-		fmt.Fprintf(w, "%s %s %s (%d MB)\n", v, x.Kind, x.Path, x.Bytes>>20)
+		why := ""
+		if x.Reason != "" {
+			why = ": " + x.Reason
+		}
+		fmt.Fprintf(w, "%s %s %s (%d MB)%s\n", v, x.Kind, x.Path, x.Bytes>>20, why)
 	}
 	for _, x := range c.Kept {
 		fmt.Fprintf(w, "kept %s %s: %s\n", x.Kind, x.Path, x.Reason)
 	}
 	for _, e := range c.Errors {
 		fmt.Fprintf(w, "error: %s\n", e)
+	}
+	for _, s := range c.Skipped {
+		fmt.Fprintf(w, "not cleaned: %s\n", s)
 	}
 	for _, d := range c.Disks {
 		if d.UsedPct < 0 {
@@ -106,8 +134,11 @@ func (c *CleanReport) Print(w io.Writer) {
 	if c.DryRun {
 		freed = "to free"
 	}
-	fmt.Fprintf(w, "MB %s: worktrees %d, gocache %d, transcripts %d\n", freed,
-		c.MB(cleanWorktrees), c.MB(cleanGoCache), c.MB(cleanTranscripts))
+	totals := make([]string, len(cleanKinds))
+	for i, k := range cleanKinds {
+		totals[i] = fmt.Sprintf("%s %d", k, c.MB(k))
+	}
+	fmt.Fprintf(w, "MB %s: %s\n", freed, strings.Join(totals, ", "))
 }
 
 // Clean runs every category once. A dry run changes nothing and writes no event. Only one clean runs at a time.
@@ -121,23 +152,45 @@ func (r *Runner) Clean(ctx context.Context, dryRun bool, now time.Time) (*CleanR
 	if err := r.cleanWorktreeDirs(ctx, rep, now); err != nil {
 		rep.Errors = append(rep.Errors, "worktrees: "+err.Error())
 	}
-	r.cleanGoCaches(ctx, rep, now)
+	r.expireAttic(rep, now)
+	ended, err := r.endedTasks(now)
+	if err != nil {
+		rep.Errors = append(rep.Errors, "ended tasks: "+err.Error())
+	}
+	spec := r.machineSpec(dryRun, ended)
+	if dryRun { // the worktrees a clean would remove count as gone
+		for _, x := range rep.Removed {
+			if x.Kind == cleanWorktrees || x.Kind == cleanAttic {
+				spec.Gone = append(spec.Gone, filepath.Base(x.Path))
+			}
+		}
+	}
+	r.cleanHere(ctx, spec, r.gateHere, rep, now)
 	if err := r.cleanOldTranscripts(ctx, rep, now); err != nil {
 		rep.Errors = append(rep.Errors, "transcripts: "+err.Error())
 	}
 	if !dryRun && ctx.Err() != nil { // a clean cut short is not done: the next one is due at once
 		return rep, ctx.Err()
 	}
+	r.cleanMachines(ctx, dryRun, ended, rep, now)
+	if !dryRun && ctx.Err() != nil {
+		return rep, ctx.Err()
+	}
 	rep.Disks = r.diskPerMachine() // after the removals
 	if dryRun {
 		return rep, nil
 	}
+	r.recordDiskUsage(rep)
 	_ = r.Store.SetMeta("cleaned", strconv.FormatInt(now.Unix(), 10))
-	err := r.Log.Emit("clean.done", nil, Event{Data: map[string]any{
-		"worktrees_mb": rep.MB(cleanWorktrees), "gocache_mb": rep.MB(cleanGoCache), "transcripts_mb": rep.MB(cleanTranscripts),
-		"worktrees": rep.count(cleanWorktrees), "gocaches": rep.count(cleanGoCache), "transcripts": rep.count(cleanTranscripts),
-		"kept": len(rep.Kept), "errors": rep.Errors, "disks": rep.Disks}})
-	return rep, err
+	data := map[string]any{"gocaches": rep.count(cleanGoCache), "kept": len(rep.Kept), "errors": rep.Errors,
+		"not_cleaned": rep.Skipped, "disks": rep.Disks}
+	for _, k := range cleanKinds {
+		data[k+"_mb"] = rep.MB(k)
+		if k != cleanGoCache {
+			data[k] = rep.count(k)
+		}
+	}
+	return rep, r.Log.Emit("clean.done", nil, Event{Data: data})
 }
 
 // CleanDue reports whether clean_every_min has passed since the last clean (0 or off: never).
@@ -202,8 +255,10 @@ func (r *Runner) cleanWorktree(root *fsx.Root, wt, goal, id string, rep *CleanRe
 	keep := func(why string) { r.keepWorktree(rep, wt, why) }
 	// the lock of an unfinished task is never taken: its passes must not find it busy
 	if status, _, err := r.Store.TaskState(id); err == nil && status != "done" && status != "cancelled" {
-		keep("task is " + status)
-		return
+		if run, err := r.Store.Run(id); err != nil || !failedTask(status, run) {
+			keep("task is " + status)
+			return
+		}
 	}
 	l := r.lock(id, false)
 	if l == nil { // passing, so no event
@@ -221,13 +276,14 @@ func (r *Runner) cleanWorktree(root *fsx.Root, wt, goal, id string, rep *CleanRe
 		keep("task state: " + err.Error())
 		return
 	}
-	if status != "done" && status != "cancelled" {
-		keep("task is " + status)
-		return
-	}
 	run, err := r.Store.Run(id)
 	if err != nil {
 		keep("run: " + err.Error())
+		return
+	}
+	failed := failedTask(status, run)
+	if status != "done" && status != "cancelled" && !failed {
+		keep("task is " + status)
 		return
 	}
 	if run != nil && Active(run.State) {
@@ -244,6 +300,11 @@ func (r *Runner) cleanWorktree(root *fsx.Root, wt, goal, id string, rep *CleanRe
 		keep(fmt.Sprintf("%s less than %d hours ago", status, hours))
 		return
 	}
+	aged := r.atticAged(run, updated, now)
+	if failed && !aged {
+		keep("the run failed less than clean_attic_after_d days ago")
+		return
+	}
 	fi, err := os.Lstat(filepath.Join(wt, ".git"))
 	if err != nil {
 		keep("not a git worktree: no .git")
@@ -255,13 +316,12 @@ func (r *Runner) cleanWorktree(root *fsx.Root, wt, goal, id string, rep *CleanRe
 		keep("git status failed: " + firstLine(errs))
 		return
 	}
-	if strings.TrimSpace(out) != "" {
-		keep("uncommitted changes")
-		return
+	mergedHead, unsaved := "", "uncommitted changes"
+	if strings.TrimSpace(out) == "" {
+		mergedHead, unsaved = r.worktreeSaved(wt, t, run, linked)
 	}
-	mergedHead, why := r.worktreeSaved(wt, t, run, linked)
-	if why != "" {
-		keep(why)
+	if unsaved != "" && !aged {
+		keep(unsaved)
 		return
 	}
 	if why := r.cwdBusy(wt); why != "" {
@@ -275,6 +335,9 @@ func (r *Runner) cleanWorktree(root *fsx.Root, wt, goal, id string, rep *CleanRe
 		return
 	}
 	item := CleanItem{Kind: cleanWorktrees, Path: wt, Bytes: size.Bytes}
+	if unsaved != "" {
+		item.Kind, item.Reason = cleanAttic, "saved to the attic first: "+unsaved
+	}
 	if rep.DryRun {
 		rep.Removed = append(rep.Removed, item)
 		return
@@ -288,9 +351,20 @@ func (r *Runner) cleanWorktree(root *fsx.Root, wt, goal, id string, rep *CleanRe
 			}
 		}
 	}
+	if unsaved != "" {
+		if err := r.atticSave(wt, id, t.Base, linked); err != nil {
+			keep("attic: " + err.Error())
+			return
+		}
+		branch = ""
+	}
 	makeWritable(wt) // a read-only directory (a module cache) would stop the removal half way
 	if linked {
-		if rc, _, errs := r.Tools.Git(t.RepoPath, "worktree", "remove", wt); rc != 0 {
+		args := []string{"worktree", "remove", wt}
+		if unsaved != "" {
+			args = []string{"worktree", "remove", "--force", wt}
+		}
+		if rc, _, errs := r.Tools.Git(t.RepoPath, args...); rc != 0 {
 			keep("git worktree remove: " + firstLine(errs))
 			return
 		}
@@ -462,49 +536,75 @@ fi`
 var hiddenCwd = map[string]bool{"systemd": true, "(sd-pam)": true, "sshd": true, "sshd-session": true,
 	"ssh-agent": true, "gpg-agent": true, "fusermount3": true}
 
+// otherMachines are the session machines that are not this one.
+func (r *Runner) otherMachines() (out []string) {
+	entries := csv(r.Store.Cfg("session_machines"))
+	if len(entries) == 0 {
+		return nil
+	}
+	me, core := r.Machine(), r.coreName()
+	for _, m := range entries {
+		if m != localMachine && m != me && m != core {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
 // cwdBusy says why a process may be working in wt ("" = none does): this machine and every session machine that
 // shares the home are scanned. It scans for each worktree, right before the removal.
 func (r *Runner) cwdBusy(wt string) string {
 	machines := []string{""}
-	if entries := csv(r.Store.Cfg("session_machines")); len(entries) > 0 {
-		me, core := r.Machine(), r.coreName()
-		for _, m := range entries {
-			if m != localMachine && m != me && m != core && !r.cloneMode(m) {
-				machines = append(machines, m)
-			}
+	for _, m := range r.otherMachines() {
+		if !r.cloneMode(m) {
+			machines = append(machines, m)
 		}
 	}
 	for _, m := range machines {
-		var rc int
-		var out string
-		if m == "" {
-			rc, out = r.Tools.Sh("/", 2*time.Minute, nil, "sh", "-c", cwdScript)
-		} else if validMachine(m) {
-			rc, out, _ = r.Tools.HC("exec", "--on", m, "sh", "-c", cwdScript)
-		} else {
-			rc = 127
+		cwds, why := r.processCwds(m)
+		if why != "" {
+			return why
 		}
-		label := machineLabel(m)
-		lines := strings.Split(strings.TrimSpace(out), "\n")
-		if rc != 0 || lines[len(lines)-1] != "done" {
-			return "cannot check the processes on " + label
-		}
-		for _, line := range lines {
-			k, v, _ := strings.Cut(line, " ")
-			switch k {
-			case "cwd":
-				v = strings.TrimSuffix(v, " (deleted)")
-				if v == wt || strings.HasPrefix(v, wt+"/") {
-					return "a process on " + label + " has its cwd inside"
-				}
-			case "unread":
-				if !hiddenCwd[v] {
-					return "cannot read the cwd of process " + v + " on " + label
-				}
-			}
+		if inside(cwds, wt) {
+			return "a process on " + machineLabel(m) + " has its cwd inside"
 		}
 	}
 	return ""
+}
+
+// inside reports whether one of cwds is dir or below it.
+func inside(cwds []string, dir string) bool {
+	return slices.ContainsFunc(cwds, func(v string) bool { return v == dir || strings.HasPrefix(v, dir+"/") })
+}
+
+// processCwds lists the cwd of every process of machine ("" = this one); why is set when the list is not complete.
+func (r *Runner) processCwds(m string) (cwds []string, why string) {
+	var rc int
+	var out string
+	if m == "" {
+		rc, out = r.Tools.Sh("/", 2*time.Minute, nil, "sh", "-c", cwdScript)
+	} else if validMachine(m) {
+		rc, out, _ = r.Tools.HC("exec", "--on", m, "sh", "-c", cwdScript)
+	} else {
+		rc = 127
+	}
+	label := machineLabel(m)
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if rc != 0 || lines[len(lines)-1] != "done" {
+		return nil, "cannot check the processes on " + label
+	}
+	for _, line := range lines {
+		k, v, _ := strings.Cut(line, " ")
+		switch k {
+		case "cwd":
+			cwds = append(cwds, strings.TrimSuffix(v, " (deleted)"))
+		case "unread":
+			if !hiddenCwd[v] {
+				return nil, "cannot read the cwd of process " + v + " on " + label
+			}
+		}
+	}
+	return cwds, ""
 }
 
 // diskUse is (total, available) bytes of the filesystem of path, as df counts them: total leaves out the blocks only
@@ -531,15 +631,7 @@ func (r *Runner) diskPerMachine() []MachineDisk {
 		local.UsedPct = usedPct(total, free)
 	}
 	disks := []MachineDisk{local}
-	entries := csv(r.Store.Cfg("session_machines"))
-	if len(entries) == 0 {
-		return disks
-	}
-	core := r.coreName()
-	for _, m := range entries {
-		if m == localMachine || m == me || m == core {
-			continue
-		}
+	for _, m := range r.otherMachines() {
 		d := MachineDisk{Machine: m, UsedPct: -1}
 		if validMachine(m) {
 			if rc, out, _ := r.Tools.HC("exec", "--on", m, "sh", "-c", probeScript, "sh", "/nonexistent", "-"); rc == 0 {
@@ -564,7 +656,8 @@ func usedPct(total, free uint64) int {
 func (r *Runner) goCacheDirs() []string {
 	h := r.Env.UserHome
 	dirs := []string{filepath.Join(h, ".cache", "go-build"), filepath.Join(h, ".cache", "go", "build"),
-		filepath.Join(h, ".cache", "go", "worker-build")}
+		filepath.Join(h, ".cache", "go", "worker-build"), filepath.Join(h, ".cache", "hivemill", "go", "build"),
+		filepath.Join(h, ".cache", "factory-gate", "go-build")}
 	if GOOS == "darwin" {
 		dirs = append(dirs, filepath.Join(h, "Library", "Caches", "go-build"))
 	}
@@ -610,26 +703,47 @@ func dirSize(dir string) (n int64) {
 	return n
 }
 
-// cleanGoCaches empties the build caches idle for goCacheIdle while the disk of the home is above disk_trim_pct.
-func (r *Runner) cleanGoCaches(ctx context.Context, rep *CleanReport, now time.Time) {
-	total, free, err := r.diskUse(r.Env.Home)
-	if err != nil {
-		rep.Errors = append(rep.Errors, "disk use of "+r.Env.Home+": "+err.Error())
-		return
+// cleanGoCaches empties each build cache over spec.GoCacheMaxGB while no CI job or gate runs (gate says which one
+// does), and the ones idle for goCacheIdle while the disk of the home is above spec.DiskTrimPct.
+func (r *Runner) cleanGoCaches(ctx context.Context, spec MachineSpec, gate func() string, rep *CleanReport, now time.Time) {
+	home := r.Env.Home
+	if _, err := os.Stat(home); errors.Is(err, fs.ErrNotExist) {
+		home = r.Env.UserHome
 	}
-	if usedPct(total, free) <= cfgInt(r.Store, "disk_trim_pct") {
-		return
+	full := false
+	if total, free, err := r.diskUse(home); err != nil {
+		rep.Errors = append(rep.Errors, "disk use of "+home+": "+err.Error())
+	} else {
+		full = usedPct(total, free) > spec.DiskTrimPct
 	}
 	for _, dir := range r.goCacheDirs() {
 		used, ok := goCacheUsed(dir)
 		if !ok || ctx.Err() != nil {
 			continue
 		}
-		if now.Sub(used) < goCacheIdle {
-			rep.Kept = append(rep.Kept, CleanItem{Kind: cleanGoCache, Path: dir, Reason: "used in the last 7 days"})
+		idle := full && now.Sub(used) >= goCacheIdle
+		var before int64
+		over := false
+		if spec.GoCacheMaxGB > 0 {
+			before = dirSize(dir)
+			over = before > int64(spec.GoCacheMaxGB)<<30
+		}
+		if !idle && over {
+			if why := gate(); why != "" {
+				rep.Kept = append(rep.Kept, CleanItem{Kind: cleanGoCache, Path: dir,
+					Reason: fmt.Sprintf("over %d GB, but %s", spec.GoCacheMaxGB, why)})
+				continue
+			}
+		}
+		if !idle && !over {
+			if full {
+				rep.Kept = append(rep.Kept, CleanItem{Kind: cleanGoCache, Path: dir, Reason: "used in the last 7 days"})
+			}
 			continue
 		}
-		before := dirSize(dir)
+		if before == 0 {
+			before = dirSize(dir)
+		}
 		if rep.DryRun {
 			rep.Removed = append(rep.Removed, CleanItem{Kind: cleanGoCache, Path: dir, Bytes: before})
 			continue
@@ -703,47 +817,52 @@ func (r *Runner) cleanOldTranscripts(ctx context.Context, rep *CleanReport, now 
 			continue
 		}
 		if run, err := r.Store.Run(x.Task); err == nil && run != nil && !Active(run.State) {
-			for _, d := range dirs {
-				_ = filepath.WalkDir(filepath.Join(projects, d), func(path string, e fs.DirEntry, err error) error {
-					if ctx.Err() != nil {
-						return ctx.Err()
-					}
-					if err != nil || !e.Type().IsRegular() || !strings.HasSuffix(path, ".jsonl") {
-						return nil
-					}
-					fi, err := e.Info()
-					if err != nil || !fi.ModTime().Before(cutoff) {
-						return nil
-					}
-					freed := fi.Size()
-					if _, err := os.Lstat(path + ".gz"); err == nil {
-						// never overwrite an earlier archive; a clean cut short left the plain copy of the same content
-						if !sameAsArchive(path, path+".gz") {
-							return nil
-						}
-						if !rep.DryRun {
-							if err := os.Remove(path); err != nil {
-								rep.Errors = append(rep.Errors, "remove "+path+": "+err.Error())
-								return nil
-							}
-						}
-						rep.Removed = append(rep.Removed, CleanItem{Kind: cleanTranscripts, Path: path, Bytes: freed})
-						return nil
-					}
-					if !rep.DryRun {
-						if freed, err = gzipFile(path, fi); err != nil {
-							rep.Errors = append(rep.Errors, "gzip "+path+": "+err.Error())
-							return nil
-						}
-					}
-					rep.Removed = append(rep.Removed, CleanItem{Kind: cleanTranscripts, Path: path, Bytes: freed})
-					return nil
-				})
-			}
+			gzipTranscripts(ctx, projects, dirs, cutoff, rep)
 		}
 		l.Close()
 	}
 	return nil
+}
+
+// gzipTranscripts gzips the transcripts in dirs (of projects) that were not written since cutoff.
+func gzipTranscripts(ctx context.Context, projects string, dirs []string, cutoff time.Time, rep *CleanReport) {
+	for _, d := range dirs {
+		_ = filepath.WalkDir(filepath.Join(projects, d), func(path string, e fs.DirEntry, err error) error {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if err != nil || !e.Type().IsRegular() || !strings.HasSuffix(path, ".jsonl") {
+				return nil
+			}
+			fi, err := e.Info()
+			if err != nil || !fi.ModTime().Before(cutoff) {
+				return nil
+			}
+			freed := fi.Size()
+			if _, err := os.Lstat(path + ".gz"); err == nil {
+				// never overwrite an earlier archive; a clean cut short left the plain copy of the same content
+				if !sameAsArchive(path, path+".gz") {
+					return nil
+				}
+				if !rep.DryRun {
+					if err := os.Remove(path); err != nil {
+						rep.Errors = append(rep.Errors, "remove "+path+": "+err.Error())
+						return nil
+					}
+				}
+				rep.Removed = append(rep.Removed, CleanItem{Kind: cleanTranscripts, Path: path, Bytes: freed})
+				return nil
+			}
+			if !rep.DryRun {
+				if freed, err = gzipFile(path, fi); err != nil {
+					rep.Errors = append(rep.Errors, "gzip "+path+": "+err.Error())
+					return nil
+				}
+			}
+			rep.Removed = append(rep.Removed, CleanItem{Kind: cleanTranscripts, Path: path, Bytes: freed})
+			return nil
+		})
+	}
 }
 
 // sameAsArchive reports whether the gzip file gz holds exactly the content of path.
@@ -811,4 +930,822 @@ func gzipFile(path string, fi fs.FileInfo) (int64, error) {
 		return 0, err
 	}
 	return max(0, fi.Size()-st.Size()), nil
+}
+
+// failedTask: the task's run failed and nobody queued it again (it waits for the owner as blocked).
+func failedTask(status string, run *Run) bool {
+	return status == "blocked" && run != nil && run.State == Failed
+}
+
+// atticAged reports whether a finished task ended more than clean_attic_after_d days ago ("off" = never). A task
+// without a run ended at its last change.
+func (r *Runner) atticAged(run *Run, updated string, now time.Time) bool {
+	if strings.TrimSpace(r.Store.Cfg("clean_attic_after_d")) == "off" {
+		return false
+	}
+	ended := parseTS(updated)
+	if run != nil && run.Ended != "" {
+		ended = parseTS(run.Ended)
+	}
+	return !ended.IsZero() && now.Sub(ended) > time.Duration(cfgInt(r.Store, "clean_attic_after_d"))*24*time.Hour
+}
+
+func (r *Runner) atticDir() string { return filepath.Join(r.Env.StateDir(), "attic") }
+
+// atticSave writes what removing wt would lose: <task>.patch (`git diff HEAD` with the untracked files) and
+// <task>.bundle (the local commits not on origin/<base>; of a clone also its other branches and stashes). Ignored files
+// are not saved. Any error means the worktree stays. An earlier entry of the task is never overwritten.
+func (r *Runner) atticSave(wt, task, base string, linked bool) (err error) {
+	git := func(args ...string) (string, error) {
+		rc, out, errs := r.Tools.Git(wt, args...)
+		if rc != 0 {
+			return "", fmt.Errorf("git %s: %s", args[0], firstLine(errs))
+		}
+		return strings.TrimSpace(out), nil
+	}
+	dir := r.atticDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	name := task
+	for i := 2; exists1(filepath.Join(dir, name+".patch")) || exists1(filepath.Join(dir, name+".bundle")); i++ {
+		name = fmt.Sprintf("%s-%d", task, i)
+	}
+	patch, bundle := filepath.Join(dir, name+".patch"), filepath.Join(dir, name+".bundle")
+	defer func() {
+		if err != nil {
+			_ = os.Remove(patch)
+			_ = os.Remove(bundle)
+		}
+	}()
+	untracked, err := git("ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return err
+	}
+	for _, p := range strings.Split(untracked, "\x00") {
+		if strings.HasSuffix(p, "/") {
+			return errors.New("an untracked git repository inside: " + p)
+		}
+	}
+	if untracked != "" { // the diff then holds their content
+		if _, err := git("add", "--intent-to-add", "--", "."); err != nil {
+			return err
+		}
+	}
+	if _, err := git("diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--src-prefix=a/",
+		"--dst-prefix=b/", "--output="+patch, "HEAD"); err != nil {
+		return err
+	}
+	if fi, err := os.Stat(patch); err != nil {
+		return err
+	} else if fi.Size() == 0 {
+		if err := os.Remove(patch); err != nil {
+			return err
+		}
+	}
+	refs := []string{"HEAD"}
+	if !linked { // the branches and stashes of a linked worktree stay in the repository
+		if rc, _, _ := r.Tools.Git(wt, "rev-parse", "--verify", "-q", "refs/stash"); rc == 0 {
+			stashes, err := git("stash", "list", "--format=%H")
+			if err != nil {
+				return err
+			}
+			for i, sha := range strings.Fields(stashes) {
+				if _, err := git("update-ref", fmt.Sprintf("refs/attic/stash-%d", i), sha); err != nil {
+					return err
+				}
+			}
+		}
+		refs = append(refs, "--branches", "--glob=refs/attic/*")
+	}
+	if rc, _, _ := r.Tools.Git(wt, "rev-parse", "--verify", "-q", "refs/remotes/origin/"+base); rc == 0 {
+		refs = append(refs, "--not", "refs/remotes/origin/"+base)
+	}
+	n, err := git(append([]string{"rev-list", "--count"}, refs...)...)
+	if err != nil {
+		return err
+	}
+	if n == "0" {
+		return nil
+	}
+	if _, err := git(append([]string{"bundle", "create", bundle}, refs...)...); err != nil {
+		return err
+	}
+	_, err = git("bundle", "verify", bundle)
+	return err
+}
+
+func exists1(path string) bool {
+	_, err := os.Lstat(path)
+	return !errors.Is(err, fs.ErrNotExist)
+}
+
+// expireAttic deletes attic entries older than atticKeep.
+func (r *Runner) expireAttic(rep *CleanReport, now time.Time) {
+	ents, err := os.ReadDir(r.atticDir())
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			rep.Errors = append(rep.Errors, "attic: "+err.Error())
+		}
+		return
+	}
+	for _, e := range ents {
+		fi, err := e.Info()
+		if err != nil || !fi.Mode().IsRegular() || now.Sub(fi.ModTime()) < atticKeep {
+			continue
+		}
+		path := filepath.Join(r.atticDir(), e.Name())
+		if !rep.DryRun {
+			if err := os.Remove(path); err != nil {
+				rep.Errors = append(rep.Errors, "attic: "+err.Error())
+				continue
+			}
+		}
+		rep.Removed = append(rep.Removed, CleanItem{Kind: cleanAttic, Path: path, Bytes: fi.Size(), Reason: "older than 60 days"})
+	}
+}
+
+// MachineSpec is what the coordinator tells a machine to clean: everything the factory DB knows, so the machine never
+// opens it.
+type MachineSpec struct {
+	Home         string // the factory home on that machine
+	DryRun       bool
+	GoCacheMaxGB int // 0 = no cap
+	DiskTrimPct  int
+	Gate         string          // the CI job or gate that runs there ("" = none)
+	Ended        []string        // task ids that ended: done, cancelled, or failed long ago
+	Gone         []string        // worktree names a dry run counts as removed
+	Attic        []AtticWorktree // clone mode: ended worktrees to save and remove
+	Transcripts  []string        // worktree names whose old transcripts are gzipped
+	TranscriptD  int
+}
+
+// AtticWorktree is one ended worktree of a clone-mode machine.
+type AtticWorktree struct{ Name, Base string }
+
+func (r *Runner) machineSpec(dryRun bool, ended []string) MachineSpec {
+	maxGB := cfgInt(r.Store, "go_cache_max_gb")
+	if strings.TrimSpace(r.Store.Cfg("go_cache_max_gb")) == "off" {
+		maxGB = 0
+	}
+	return MachineSpec{Home: r.Env.Home, DryRun: dryRun, GoCacheMaxGB: maxGB, DiskTrimPct: cfgInt(r.Store, "disk_trim_pct"),
+		Ended: ended, TranscriptD: cfgInt(r.Store, "transcript_keep_d")}
+}
+
+// endedTasks lists the ids of the tasks that are done or cancelled, or whose run failed long enough ago.
+func (r *Runner) endedTasks(now time.Time) ([]string, error) {
+	s, err := r.sq()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(`SELECT id, status, updated FROM tasks WHERE status IN ('done','cancelled','blocked')`)
+	if err != nil {
+		return nil, err
+	}
+	var all [][3]string
+	for rows.Next() {
+		var x [3]string
+		if err := rows.Scan(&x[0], &x[1], &x[2]); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		all = append(all, x)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, x := range all {
+		run, err := r.Store.Run(x[0])
+		if err != nil || (run != nil && Active(run.State)) {
+			continue
+		}
+		if x[1] != "blocked" || (failedTask(x[1], run) && r.atticAged(run, x[2], now)) {
+			out = append(out, x[0])
+		}
+	}
+	return out, nil
+}
+
+// sameMachine maps every name of this machine to "".
+func (r *Runner) sameMachine(m string) string {
+	if m == "" || m == localMachine || m == r.Machine() || m == r.coreName() {
+		return ""
+	}
+	return m
+}
+
+// gateRunning says which CI job or gate runs on machine ("" = this one) right now ("" = none).
+func (r *Runner) gateRunning(machine string) string {
+	for _, j := range r.ciJobs() {
+		if r.sameMachine(j.Machine) != machine || j.Started.IsZero() || j.Failed != "" {
+			continue
+		}
+		if state, _, err := r.ciJobState(j); err != nil || state == jobRunning {
+			return "the CI job of " + j.Task + " may be running"
+		}
+	}
+	runs, err := r.Store.Runs()
+	if err != nil {
+		return "the runs cannot be read"
+	}
+	for _, x := range runs {
+		on := ""
+		if x.cloned() {
+			on = r.sameMachine(x.Machine)
+		}
+		// HookStarted outlives a killed hook; the task lock does not
+		if on == machine && Active(x.State) && x.HookStarted != "" &&
+			lockHeld(filepath.Join(r.Env.StateDir(), "locks", x.Task+".lock")) {
+			return "the gate of " + x.Task + " runs"
+		}
+	}
+	return ""
+}
+
+// gateHere says which CI job or gate uses the caches of this machine: its own, or one of a machine sharing the home.
+func (r *Runner) gateHere() string {
+	why := r.gateRunning("")
+	for _, m := range r.otherMachines() {
+		if why == "" && !r.cloneMode(m) {
+			why = r.gateRunning(m)
+		}
+	}
+	return why
+}
+
+// cleanHere runs the categories that belong to a machine rather than to the factory DB.
+func (r *Runner) cleanHere(ctx context.Context, spec MachineSpec, gate func() string, rep *CleanReport, now time.Time) {
+	r.cleanGoCaches(ctx, spec, gate, rep, now)
+	r.cleanTmpLeftovers(ctx, rep, now)
+	if GOOS == "darwin" {
+		r.cleanDerivedData(ctx, spec, rep)
+		r.cleanSimulators(ctx, spec, rep)
+	}
+}
+
+var tmpPatterns = []string{"wg-bin-*", "ci-tool-test-*", "docker-prune-bin-*", "zz-test-factory-*", "lg-*", "go-build*", "hm-*"}
+
+func (r *Runner) tmpRoots() []string {
+	if r.TmpRoots != nil {
+		return r.TmpRoots
+	}
+	return []string{"/tmp", "/var/tmp"}
+}
+
+// cleanTmpLeftovers removes this user's build and test leftovers in the temp directories after tmpIdle, and entries of
+// the factory's cache directories after userCacheIdle. Go build caches are left to cleanGoCaches.
+func (r *Runner) cleanTmpLeftovers(ctx context.Context, rep *CleanReport, now time.Time) {
+	var cwds []string
+	why, scanned := "", false
+	busy := func(path string) string {
+		if !scanned {
+			scanned = true
+			cwds, why = r.processCwds("")
+		}
+		if why != "" {
+			return why
+		}
+		if inside(cwds, path) {
+			return "a process has its cwd inside"
+		}
+		return ""
+	}
+	for _, dir := range r.tmpRoots() {
+		removeStale(ctx, rep, now, dir, tmpIdle, busy, func(name string) bool {
+			return slices.ContainsFunc(tmpPatterns, func(p string) bool { ok, _ := filepath.Match(p, name); return ok })
+		})
+	}
+	// the containers themselves stay: sessions point TMPDIR and GOTMPDIR into them
+	keep := []string{"tmp", "go", "build", "go-build", "mod"}
+	other := func(name string) bool { return !slices.Contains(keep, name) }
+	cache := filepath.Join(r.Env.UserHome, ".cache")
+	for _, dir := range []string{"hivemill", "hivemill/tmp", "hivemill/go", "hivemill/go/tmp", "factory-gate"} {
+		removeStale(ctx, rep, now, filepath.Join(cache, dir), userCacheIdle, busy, other)
+	}
+}
+
+// removeStale removes the matching files and directories of dir that this user owns and nothing wrote for idle.
+func removeStale(ctx context.Context, rep *CleanReport, now time.Time, dir string, idle time.Duration,
+	busy func(string) string, match func(string) bool) {
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return
+	}
+	root, err := fsx.OpenRoot(real)
+	if err != nil {
+		rep.Errors = append(rep.Errors, "tmp: "+err.Error())
+		return
+	}
+	defer root.Close()
+	ents, err := os.ReadDir(real)
+	if err != nil {
+		rep.Errors = append(rep.Errors, "tmp: "+err.Error())
+		return
+	}
+	for _, e := range ents {
+		if ctx.Err() != nil {
+			return
+		}
+		if !match(e.Name()) || !(e.IsDir() || e.Type().IsRegular()) {
+			continue
+		}
+		path := filepath.Join(real, e.Name())
+		fi, err := os.Lstat(path)
+		if err != nil || now.Sub(fi.ModTime()) < idle {
+			continue
+		}
+		if st, ok := fi.Sys().(*syscall.Stat_t); !ok || int(st.Uid) != os.Getuid() {
+			continue
+		}
+		size, err := fsx.Size(root, e.Name())
+		if err != nil || (!size.Newest.IsZero() && now.Sub(size.Newest) < idle) {
+			continue
+		}
+		item := CleanItem{Kind: cleanTmp, Path: path, Bytes: size.Bytes}
+		if why := busy(path); why != "" {
+			rep.Kept = append(rep.Kept, CleanItem{Kind: cleanTmp, Path: path, Reason: why})
+			continue
+		}
+		if !rep.DryRun {
+			if e.IsDir() {
+				makeWritable(path)
+			}
+			ident, err := root.Identity(e.Name())
+			if err == nil {
+				_, err = fsx.Remove(root, e.Name(), ident)
+			}
+			if err != nil {
+				rep.Errors = append(rep.Errors, "remove "+path+": "+err.Error())
+				continue
+			}
+		}
+		rep.Removed = append(rep.Removed, item)
+	}
+}
+
+var (
+	workspacePath = regexp.MustCompile(`<key>WorkspacePath</key>\s*<string>([^<]*)</string>`)
+	worktreePath  = regexp.MustCompile(`^(.*/worktrees)/(G-\d+-T-\d+)(/|$)`)
+	taskInName    = regexp.MustCompile(`(?:^|[^A-Za-z0-9])(T-\d+)(?:$|[^0-9])`)
+)
+
+// cleanDerivedData removes the Xcode DerivedData of a task worktree that no longer exists (info.plist WorkspacePath).
+func (r *Runner) cleanDerivedData(ctx context.Context, spec MachineSpec, rep *CleanReport) {
+	dir, err := filepath.EvalSymlinks(filepath.Join(r.Env.UserHome, "Library", "Developer", "Xcode", "DerivedData"))
+	if err != nil {
+		return
+	}
+	root, err := fsx.OpenRoot(dir)
+	if err != nil {
+		rep.Errors = append(rep.Errors, "deriveddata: "+err.Error())
+		return
+	}
+	defer root.Close()
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		rep.Errors = append(rep.Errors, "deriveddata: "+err.Error())
+		return
+	}
+	for _, e := range ents {
+		if ctx.Err() != nil || !e.IsDir() {
+			continue
+		}
+		plist, err := os.ReadFile(filepath.Join(dir, e.Name(), "info.plist"))
+		if err != nil {
+			continue
+		}
+		m := workspacePath.FindSubmatch(plist)
+		if m == nil {
+			continue
+		}
+		w := worktreePath.FindStringSubmatch(html.UnescapeString(string(m[1])))
+		if w == nil {
+			continue
+		}
+		// the worktrees directory must be there: an unmounted volume says nothing about a worktree
+		if _, err := os.Stat(w[1]); err != nil {
+			continue
+		}
+		if _, err := os.Lstat(filepath.Join(w[1], w[2])); !errors.Is(err, fs.ErrNotExist) && !slices.Contains(spec.Gone, w[2]) {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		size, err := fsx.Size(root, e.Name())
+		if err != nil {
+			continue
+		}
+		if !rep.DryRun {
+			makeWritable(path)
+			ident, err := root.Identity(e.Name())
+			if err == nil {
+				_, err = fsx.Remove(root, e.Name(), ident)
+			}
+			if err != nil {
+				rep.Errors = append(rep.Errors, "remove "+path+": "+err.Error())
+				continue
+			}
+		}
+		rep.Removed = append(rep.Removed, CleanItem{Kind: cleanDerived, Path: path, Bytes: size.Bytes})
+	}
+}
+
+// cleanSimulators deletes the simulator devices cloned for an ended task whose worktree is gone (the device name holds
+// the task id) and then the unavailable ones. A booted device stays.
+func (r *Runner) cleanSimulators(ctx context.Context, spec MachineSpec, rep *CleanReport) {
+	if _, err := os.Stat(filepath.Join(r.Env.UserHome, "Library", "Developer", "CoreSimulator")); err != nil {
+		return
+	}
+	simctl := func(args ...string) (int, string) {
+		return r.Tools.Sh("/", 5*time.Minute, nil, append([]string{"xcrun", "simctl"}, args...)...)
+	}
+	rc, out := simctl("list", "-j")
+	var list struct {
+		Devices map[string][]struct{ Name, UDID, State, DataPath string }
+	}
+	if i := strings.Index(out, "{"); rc != 0 || i < 0 || json.NewDecoder(strings.NewReader(out[i:])).Decode(&list) != nil {
+		rep.Errors = append(rep.Errors, "simctl list: "+firstLine(out))
+		return
+	}
+	worktrees := filepath.Join(r.Env.Home, "worktrees")
+	ents, err := os.ReadDir(worktrees)
+	if err != nil {
+		return // without the worktrees directory nothing says which worktrees are gone
+	}
+	present := map[string]bool{}
+	for _, e := range ents {
+		if m := worktreeName.FindStringSubmatch(e.Name()); m != nil && !slices.Contains(spec.Gone, e.Name()) {
+			present[m[2]] = true
+		}
+	}
+	for _, devices := range list.Devices {
+		for _, d := range devices {
+			m := taskInName.FindStringSubmatch(d.Name)
+			if ctx.Err() != nil || m == nil || !slices.Contains(spec.Ended, m[1]) || present[m[1]] || d.UDID == "" {
+				continue
+			}
+			path := d.Name + " " + d.UDID
+			if d.State == "Booted" {
+				rep.Kept = append(rep.Kept, CleanItem{Kind: cleanSim, Path: path, Reason: "booted"})
+				continue
+			}
+			var size int64
+			if d.DataPath != "" {
+				size = dirSize(d.DataPath)
+			}
+			if !rep.DryRun {
+				if rc, out := simctl("delete", d.UDID); rc != 0 {
+					rep.Errors = append(rep.Errors, "simctl delete "+path+": "+firstLine(out))
+					continue
+				}
+			}
+			rep.Removed = append(rep.Removed, CleanItem{Kind: cleanSim, Path: path, Bytes: size})
+		}
+	}
+	if !rep.DryRun {
+		if rc, out := simctl("delete", "unavailable"); rc != 0 {
+			rep.Errors = append(rep.Errors, "simctl delete unavailable: "+firstLine(out))
+		}
+	}
+}
+
+// categorySizes is the size in MB of what each category covers on this machine, empty ones left out.
+func (r *Runner) categorySizes() map[string]int64 {
+	h := r.Env.UserHome
+	dirs := map[string][]string{
+		cleanWorktrees:   {filepath.Join(r.Env.Home, "worktrees")},
+		cleanGoCache:     r.goCacheDirs(),
+		cleanTranscripts: {filepath.Join(h, ".claude", "projects")},
+		cleanAttic:       {r.atticDir()},
+		cleanTmp:         {filepath.Join(h, ".cache", "hivemill", "tmp"), filepath.Join(h, ".cache", "hivemill", "go", "tmp")},
+		cleanDerived:     {filepath.Join(h, "Library", "Developer", "Xcode", "DerivedData")},
+		cleanSim:         {filepath.Join(h, "Library", "Developer", "CoreSimulator")},
+	}
+	for _, root := range r.tmpRoots() {
+		if real, err := filepath.EvalSymlinks(root); err == nil {
+			dirs[cleanTmp] = append(dirs[cleanTmp], real)
+		}
+	}
+	out := map[string]int64{}
+	for kind, list := range dirs {
+		var n int64
+		for _, d := range list {
+			n += dirSize(d)
+		}
+		if n >= 1<<20 {
+			out[kind] = n >> 20
+		}
+	}
+	return out
+}
+
+func (r *Runner) fullDisk(path string) bool {
+	total, free, err := r.diskUse(path)
+	return err == nil && total > 0 && usedPct(total, free) > diskWarnPct
+}
+
+// LocalClean is `hivemill local clean`: it cleans this machine as the coordinator's spec says and opens no DB.
+func (r *Runner) LocalClean(ctx context.Context, spec MachineSpec, now time.Time) (*CleanReport, error) {
+	if !filepath.IsAbs(spec.Home) || filepath.Clean(spec.Home) == "/" {
+		return nil, fmt.Errorf("%w: not a factory home: %q", ErrRefused, spec.Home)
+	}
+	r.Env.Home = filepath.Clean(spec.Home)
+	rep := &CleanReport{DryRun: spec.DryRun}
+	if len(spec.Attic) > 0 { // a call of its own: the coordinator holds the task locks for it
+		for _, a := range spec.Attic {
+			r.atticRemote(a, rep)
+		}
+		return rep, nil
+	}
+	r.expireAttic(rep, now)
+	r.cleanHere(ctx, spec, func() string { return spec.Gate }, rep, now)
+	projects := filepath.Join(r.Env.UserHome, ".claude", "projects")
+	if ents, err := os.ReadDir(projects); err == nil {
+		var names []string
+		for _, e := range ents {
+			if e.IsDir() {
+				names = append(names, e.Name())
+			}
+		}
+		cutoff := now.Add(-time.Duration(spec.TranscriptD) * 24 * time.Hour)
+		for _, wt := range spec.Transcripts {
+			if m := worktreeName.FindStringSubmatch(wt); m != nil && spec.TranscriptD > 0 {
+				gzipTranscripts(ctx, projects, r.transcriptDirs(names, m[1], m[2]), cutoff, rep)
+			}
+		}
+	}
+	disk := r.Env.Home
+	if _, err := os.Stat(disk); err != nil {
+		disk = r.Env.UserHome
+	}
+	if r.fullDisk(disk) {
+		rep.Sizes = map[string]map[string]int64{"": r.categorySizes()}
+	}
+	return rep, ctx.Err()
+}
+
+// atticRemote saves and removes one ended worktree of a clone-mode machine. Its Path in the report is the name.
+func (r *Runner) atticRemote(a AtticWorktree, rep *CleanReport) {
+	m := worktreeName.FindStringSubmatch(a.Name)
+	if m == nil {
+		return
+	}
+	wt := filepath.Join(r.Env.Home, "worktrees", a.Name)
+	keep := func(why string) {
+		rep.Kept = append(rep.Kept, CleanItem{Kind: cleanWorktrees, Path: a.Name, Reason: why})
+	}
+	if fi, err := os.Lstat(filepath.Join(wt, ".git")); errors.Is(err, fs.ErrNotExist) {
+		return
+	} else if err != nil || !fi.IsDir() {
+		keep("not a task clone")
+		return
+	}
+	cwds, why := r.processCwds("")
+	if why == "" && inside(cwds, wt) {
+		why = "a process has its cwd inside"
+	}
+	if why != "" {
+		keep(why)
+		return
+	}
+	root, err := fsx.OpenRoot(filepath.Dir(wt))
+	if err != nil {
+		keep(err.Error())
+		return
+	}
+	defer root.Close()
+	size, err := fsx.Size(root, a.Name)
+	if err != nil {
+		keep("cannot measure: " + err.Error())
+		return
+	}
+	if !rep.DryRun {
+		if err := r.atticSave(wt, m[2], a.Base, false); err != nil {
+			keep("attic: " + err.Error())
+			return
+		}
+		makeWritable(wt)
+		ident, err := root.Identity(a.Name)
+		if err == nil {
+			_, err = fsx.Remove(root, a.Name, ident)
+		}
+		if err != nil {
+			keep("remove: " + err.Error())
+			return
+		}
+	}
+	rep.Removed = append(rep.Removed, CleanItem{Kind: cleanAttic, Path: a.Name, Bytes: size.Bytes, Reason: "saved to the attic first"})
+}
+
+// askMachine runs `hivemill local clean` on a session machine over its runner command.
+func (r *Runner) askMachine(machine string, spec MachineSpec) (*CleanReport, error) {
+	if !validMachine(machine) {
+		return nil, errors.New("not a machine name")
+	}
+	b, err := json.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+	var rc int
+	var out string
+	if r.cloneMode(machine) {
+		home := path.Dir(spec.Home)
+		var errs string
+		rc, out, errs = r.rsh(machine, "", 20*time.Minute, "exec "+shlex.Quote(remoteBin(home))+" local clean "+shlex.Quote(string(b)))
+		if rc != 0 {
+			out += errs
+		}
+	} else {
+		rc, out = r.Tools.Sh("/", 20*time.Minute, nil, "hc", "exec", "--on", machine, "--timeout", "1200",
+			"sh", "-c", `PATH="`+remotePATH+`"; export PATH; exec hivemill local clean "$1"`, "sh", string(b))
+	}
+	for _, line := range strings.Split(out, "\n") {
+		var rep CleanReport
+		if rest, ok := strings.CutPrefix(line, cleanReportLine); ok && rc == 0 && json.Unmarshal([]byte(rest), &rep) == nil {
+			return &rep, nil
+		}
+	}
+	return nil, fmt.Errorf("exit %d: %s", rc, firstLine(out))
+}
+
+// cleanReportLine marks the report in the output of `hivemill local clean`.
+const cleanReportLine = "clean-report "
+
+// WriteLine writes the report for the coordinator that asked.
+func (c *CleanReport) WriteLine(w io.Writer) error {
+	b, err := json.Marshal(c)
+	if err == nil {
+		_, err = fmt.Fprintf(w, "%s%s\n", cleanReportLine, b)
+	}
+	return err
+}
+
+// cleanMachines has every other session machine clean itself.
+func (r *Runner) cleanMachines(ctx context.Context, dryRun bool, ended []string, rep *CleanReport, now time.Time) {
+	machines := r.otherMachines()
+	if len(machines) == 0 {
+		return
+	}
+	runs, err := r.Store.Runs()
+	if err != nil {
+		rep.Errors = append(rep.Errors, "machines: "+err.Error())
+		return
+	}
+	cutoff := now.Add(-time.Duration(cfgInt(r.Store, "transcript_keep_d")) * 24 * time.Hour)
+	for _, m := range machines {
+		if ctx.Err() != nil {
+			return
+		}
+		spec := r.machineSpec(dryRun, ended)
+		clone := r.cloneMode(m)
+		if clone {
+			home, err := r.remoteHomeOf(m)
+			if err != nil {
+				rep.Skipped = append(rep.Skipped, m+": "+err.Error())
+				continue
+			}
+			spec.Home = remoteBase(home)
+			r.atticMachine(m, spec, runs, rep, now)
+		}
+		spec.Gate = r.gateRunning(m)
+		if !clone && spec.Gate == "" { // it shares the caches with this machine
+			spec.Gate = r.gateHere()
+		}
+		for _, x := range runs {
+			if t := parseTS(x.Ended); !Active(x.State) && !t.IsZero() && t.Before(cutoff) {
+				spec.Transcripts = append(spec.Transcripts, x.Goal+"-"+x.Task)
+			}
+		}
+		got, err := r.askMachine(m, spec)
+		if err != nil {
+			rep.Skipped = append(rep.Skipped, m+": "+err.Error())
+			continue
+		}
+		rep.merge(m, got)
+	}
+}
+
+// merge adds the report of a session machine, with its name in front of the paths.
+func (c *CleanReport) merge(machine string, got *CleanReport) {
+	for _, x := range got.Removed {
+		x.Path = machine + ":" + x.Path
+		c.Removed = append(c.Removed, x)
+	}
+	for _, x := range got.Kept {
+		x.Path = machine + ":" + x.Path
+		c.Kept = append(c.Kept, x)
+	}
+	for _, e := range got.Errors {
+		c.Errors = append(c.Errors, machine+": "+e)
+	}
+	if s := got.Sizes[""]; s != nil {
+		c.sizes(machine, s)
+	}
+}
+
+func (c *CleanReport) sizes(machine string, s map[string]int64) {
+	if c.Sizes == nil {
+		c.Sizes = map[string]map[string]int64{}
+	}
+	c.Sizes[machine] = s
+}
+
+// atticMachine saves and removes the ended worktrees a clone-mode machine still holds (removeRemoteWorktrees keeps the
+// dirty and unpushed ones). Their task locks are held meanwhile, so no run can start on them.
+func (r *Runner) atticMachine(machine string, spec MachineSpec, runs []Run, rep *CleanReport, now time.Time) {
+	var locks []*os.File
+	defer func() {
+		for _, l := range locks {
+			l.Close()
+		}
+	}()
+	byName := map[string]string{} // worktree name -> task
+	for _, x := range runs {
+		name := x.Goal + "-" + x.Task
+		under := path.Join(spec.Home, "worktrees", name)
+		if !x.cloned() || x.RemoteDone || x.Machine != machine || x.Worktree != under || !slices.Contains(spec.Ended, x.Task) {
+			continue
+		}
+		l := r.lock(x.Task, false)
+		if l == nil {
+			continue
+		}
+		locks = append(locks, l)
+		run, err := r.Store.Run(x.Task)
+		status, updated, serr := r.Store.TaskState(x.Task)
+		if err != nil || serr != nil || run == nil || Active(run.State) || run.RemoteDone || run.Worktree != under ||
+			(status != "done" && status != "cancelled" && !failedTask(status, run)) || !r.atticAged(run, updated, now) {
+			continue
+		}
+		spec.Attic = append(spec.Attic, AtticWorktree{Name: name, Base: run.Base})
+		byName[name] = x.Task
+	}
+	if len(spec.Attic) == 0 {
+		return
+	}
+	got, err := r.askMachine(machine, spec)
+	if err != nil {
+		rep.Skipped = append(rep.Skipped, machine+": attic: "+err.Error())
+		return
+	}
+	if !spec.DryRun {
+		for _, x := range got.Removed {
+			if run, err := r.Store.Run(byName[x.Path]); err == nil && run != nil {
+				run.RemoteDone = true
+				if err := r.Store.PutRun(run); err != nil {
+					rep.Errors = append(rep.Errors, run.Task+": "+err.Error())
+				}
+			}
+		}
+	}
+	rep.merge(machine, got)
+}
+
+// diskUsage is what the last clean saw of the machines' disks.
+type diskUsage struct {
+	Disks []MachineDisk               `json:"disks"`
+	Sizes map[string]map[string]int64 `json:"sizes_mb"`
+}
+
+func (r *Runner) recordDiskUsage(rep *CleanReport) {
+	if r.fullDisk(r.Env.Home) {
+		rep.sizes(r.Machine(), r.categorySizes())
+	}
+	if b, err := json.Marshal(diskUsage{Disks: rep.Disks, Sizes: rep.Sizes}); err == nil {
+		_ = r.Store.SetMeta(diskUsageMeta, string(b))
+	}
+}
+
+// diskCheck is the health warning for machines whose disk the last clean saw above diskWarnPct.
+func (r *Runner) diskCheck() *OwnerAlert {
+	var u diskUsage
+	if json.Unmarshal([]byte(r.Store.Meta(diskUsageMeta)), &u) != nil {
+		return nil
+	}
+	var names, lines []string
+	for _, d := range u.Disks {
+		if d.UsedPct <= diskWarnPct {
+			continue
+		}
+		sizes := u.Sizes[d.Machine]
+		kinds := slices.Clone(cleanKinds)
+		slices.SortStableFunc(kinds, func(a, b string) int { return cmp.Compare(sizes[b], sizes[a]) })
+		var top []string
+		for _, k := range kinds[:3] {
+			if sizes[k] > 0 {
+				top = append(top, fmt.Sprintf("%s %.1f GB", k, float64(sizes[k])/1024))
+			}
+		}
+		biggest := "sizes unknown"
+		if len(top) > 0 {
+			biggest = "biggest: " + strings.Join(top, ", ")
+		}
+		names = append(names, d.Machine)
+		lines = append(lines, fmt.Sprintf("  %s: %d%% used; %s", d.Machine, d.UsedPct, biggest))
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return &OwnerAlert{Kind: "hivemill-disk", Ref: fmt.Sprintf("disk above %d%% on %s", diskWarnPct, strings.Join(names, ", ")),
+		Text: fmt.Sprintf("disk above %d%% (see `hivemill clean --dry-run`):\n%s", diskWarnPct, strings.Join(lines, "\n"))}
 }

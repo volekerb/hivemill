@@ -9,6 +9,8 @@ package main
 // subcommands of runsHere.
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +20,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"factory/go/internal/hm"
 	"factory/go/internal/shlex"
@@ -115,7 +118,8 @@ func preMain(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int
 }
 
 // cmdLocal: `local coordinator` prints where this machine forwards (exit 1 when it does not); `local trust <dir>` adds
-// workspace trust for a task clone to this machine's ~/.claude.json (the runner calls it on a worker before a session).
+// workspace trust for a task clone to this machine's ~/.claude.json (the runner calls it on a worker before a session);
+// `local clean <spec json>` cleans this machine's disk as the coordinator's clean says, and opens no factory DB.
 func cmdLocal(args []string, userHome string, stdout, stderr io.Writer) int {
 	switch {
 	case len(args) == 1 && args[0] == "coordinator":
@@ -132,7 +136,29 @@ func cmdLocal(args []string, userHome string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		return 0
+	case len(args) == 2 && args[0] == "clean":
+		var spec hm.MachineSpec
+		if err := json.Unmarshal([]byte(args[1]), &spec); err != nil {
+			fmt.Fprintln(stderr, "hivemill: clean spec:", err)
+			return 2
+		}
+		env := hm.LoadEnv()
+		env.UserHome = userHome
+		if env.Actor != "" && env.Actor != "owner" { // it deletes: only the owner and the coordinator's clean
+			fmt.Fprintln(stderr, "hivemill: refused: local clean is not for", env.Actor)
+			return 1
+		}
+		r := &hm.Runner{Env: env, Tools: hm.RealTools(env), Out: io.Discard}
+		rep, err := r.LocalClean(context.Background(), spec, time.Now())
+		if err == nil {
+			err = rep.WriteLine(stdout)
+		}
+		if err != nil {
+			fmt.Fprintln(stderr, "hivemill:", err)
+			return 1
+		}
+		return 0
 	}
-	fmt.Fprintln(stderr, "usage: hivemill local coordinator | local trust <clone dir>")
+	fmt.Fprintln(stderr, "usage: hivemill local coordinator | local trust <clone dir> | local clean <spec json>")
 	return 2
 }

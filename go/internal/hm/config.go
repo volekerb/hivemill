@@ -68,10 +68,12 @@ var Defaults = map[string]string{
 	// `hivemill obs` bind host (obs_http.go): an IP address or localhost; beyond loopback that network can read the page
 	"obs_listen": "127.0.0.1",
 	// disk cleanup (clean.go): `hivemill clean` and the daemon's step
-	"clean_every_min":   "60", // the daemon cleans this often; 0 or off = only `hivemill clean`
-	"worktree_keep_h":   "24", // a done or cancelled task keeps its worktree this long
-	"disk_trim_pct":     "80", // above this disk use of the home, Go build caches idle for 7 days are emptied
-	"transcript_keep_d": "30", // transcripts of runs ended longer ago are gzipped
+	"clean_every_min":     "60", // the daemon cleans this often; 0 or off = only `hivemill clean`
+	"worktree_keep_h":     "24", // a done or cancelled task keeps its worktree this long
+	"disk_trim_pct":       "80", // above this disk use of the home, Go build caches idle for 7 days are emptied
+	"clean_attic_after_d": "3",  // an ended task's dirty or unmerged worktree is saved to the attic after this; off = never
+	"go_cache_max_gb":     "12", // a Go build cache over this is emptied while no CI job or gate runs; off = no cap
+	"transcript_keep_d":   "30", // transcripts of runs ended longer ago are gzipped
 }
 
 // DefaultKeys returns the config keys, sorted.

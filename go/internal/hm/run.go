@@ -60,6 +60,8 @@ type Runner struct {
 	loads      map[string]loadReading // CPU load per machine, see load.go
 	// DiskFree is (total, available) bytes of a path's filesystem; nil = statfs. Tests replace it.
 	DiskFree func(path string) (uint64, uint64, error)
+	// TmpRoots are the temp directories clean looks into; nil = /tmp and /var/tmp. Tests replace them.
+	TmpRoots []string
 }
 
 // NewRunner opens the factory DB of the environment.
