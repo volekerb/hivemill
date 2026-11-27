@@ -82,6 +82,26 @@ type TouchedRun struct {
 	GOOS               string // empty: runtime.GOOS
 }
 
+// checkIOSDir reports an error unless every element of IOSDir is a directory under root with exactly that name. The
+// names come from reading the parent, so a case-insensitive filesystem still catches a wrong case.
+func (t TouchedRun) checkIOSDir(root string) error {
+	dir := root
+	for _, name := range strings.Split(filepath.ToSlash(filepath.Clean(t.IOSDir)), "/") {
+		if name == "." {
+			continue
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return err
+		}
+		if !slices.ContainsFunc(entries, func(e os.DirEntry) bool { return e.Name() == name && e.IsDir() }) {
+			return fmt.Errorf("no directory named exactly %q in %s", name, dir)
+		}
+		dir = filepath.Join(dir, name)
+	}
+	return nil
+}
+
 // iosChanged reports whether a changed path is IOSDir or under it.
 func (t TouchedRun) iosChanged(changed []string) bool {
 	dir := filepath.ToSlash(filepath.Clean(t.IOSDir))
@@ -138,6 +158,12 @@ func (t TouchedRun) Run() int {
 	if err != nil {
 		fmt.Fprintln(t.Out, "proofs touched:", err)
 		return 2
+	}
+	if t.IOSDir != "" {
+		if err := t.checkIOSDir(root); err != nil {
+			fmt.Fprintf(t.Out, "proofs touched: bad iOS directory %q: %v\n", t.IOSDir, err)
+			return 2
+		}
 	}
 	// --relative: paths relative to root also when it is below the repository top. -z: no quoting of odd names.
 	// --no-renames: a file moved between packages touches both.

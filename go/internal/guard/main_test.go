@@ -11,10 +11,13 @@ import (
 	"time"
 )
 
+var testBinDir string
+
 // TestMain points FACTORY_HOME at an empty temp directory for the whole package: the rules that read the factory DB
 // (own goal, test_sandbox, public-text repos, the coder's task worktree) then take Python's "no DB file" branch
 // without delegating, and no test touches the live home (C6). The tests of the delegation create a DB file in
-// their own temp FACTORY_HOME.
+// their own temp FACTORY_HOME. It also owns testBinDir, where the helpers that build a binary once per run put it: a
+// test's t.TempDir would remove it under the later tests.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "guard-test-home-")
 	if err != nil {
@@ -30,7 +33,14 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	os.Setenv("HOME", u.HomeDir)
+	testBinDir, err = os.MkdirTemp("", "guard-test-bin-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.RemoveAll(dir)
+		os.Exit(1)
+	}
 	code := m.Run()
+	os.RemoveAll(testBinDir)
 	os.RemoveAll(dir)
 	os.Exit(code)
 }

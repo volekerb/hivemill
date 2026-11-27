@@ -1,9 +1,62 @@
 package hm
 
 import (
+	"encoding/json"
+	"net/http"
+	"os"
+	"path"
 	"strings"
 	"testing"
+	"time"
 )
+
+// Each registered skill's install command links the directory the entry names. With HM_NET_TESTS set, that directory
+// also holds a SKILL.md at the pinned commit upstream.
+func TestSkillsRegistryPathsHaveSkillMd(t *testing.T) {
+	raw, err := Asset("skills.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reg struct {
+		Skills []struct {
+			Name, Repo, Commit, Path, Install string
+		}
+	}
+	if err := json.Unmarshal(raw, &reg); err != nil {
+		t.Fatal(err)
+	}
+	checked := 0
+	client := &http.Client{Timeout: 30 * time.Second}
+	for _, s := range reg.Skills {
+		if s.Repo == "" {
+			continue // a kit plugin has no install command
+		}
+		checked++
+		if path.Base(s.Path) != s.Name {
+			t.Errorf("%s: path %q does not end in the skill name", s.Name, s.Path)
+		}
+		if link := "ln -sn $d/" + s.Path + " ~/.claude/skills/" + s.Name; !strings.HasSuffix(s.Install, link) {
+			t.Errorf("%s: install does not end with %q: %s", s.Name, link, s.Install)
+		}
+		if os.Getenv("HM_NET_TESTS") == "" {
+			continue
+		}
+		url := strings.Replace(s.Repo, "https://github.com/", "https://raw.githubusercontent.com/", 1) +
+			"/" + s.Commit + "/" + s.Path + "/SKILL.md"
+		resp, err := client.Head(url)
+		if err != nil {
+			t.Errorf("%s: %v", s.Name, err)
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: %s: %s", s.Name, url, resp.Status)
+		}
+	}
+	if checked == 0 {
+		t.Error("the registry has no external skill")
+	}
+}
 
 func TestKickoffNamesTheUISkillsForAUIScopedSpec(t *testing.T) {
 	run := &Run{Agent: "a", Branch: "b", Base: "main"}
