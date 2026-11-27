@@ -441,6 +441,20 @@ func (r *Runner) prepareClone(wt string) error {
 }
 
 func (r *Runner) fail(run *Run, reason string) {
+	// A task that ends on its gate (the block cap, or idle after a block) with a proof that cannot pass is the planner's
+	// to re-file. Budget, a closed PR and other failures are not about the proof, whatever the last block said.
+	defect := ""
+	if strings.HasPrefix(reason, "gate blocked ") || strings.HasPrefix(reason, "stalled: ") {
+		for _, line := range strings.Split(run.LastBlock, "\n") {
+			if strings.HasPrefix(line, specDefect) {
+				defect = line
+				break
+			}
+		}
+	}
+	if defect != "" && !strings.Contains(reason, specDefect) {
+		reason += "; " + defect // a stall's reason does not quote the block
+	}
 	run.State, run.Outcome, run.FailReason, run.Ended = Failed, "failed", reason, nowISO()
 	run.HookStarted = ""
 	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
@@ -449,10 +463,7 @@ func (r *Runner) fail(run *Run, reason string) {
 		r.endSessions(run) // the $ and tokens of a failed run reach the event log too (evalFinish writes its own)
 	}
 	data := map[string]any{"reason": truncate(reason, 900)}
-	// A task that ends on its gate (the block cap, or idle after a block) with a proof that cannot pass is the planner's
-	// to re-file. Budget, a closed PR and other failures are not about the proof, whatever the last block said.
-	onGate := strings.HasPrefix(reason, "gate blocked ") || strings.HasPrefix(reason, "stalled: ")
-	if onGate && (strings.HasPrefix(run.LastBlock, specDefect) || strings.Contains(run.LastBlock, "\n"+specDefect)) {
+	if defect != "" {
 		data["reason_kind"] = reasonSpecDefect
 	}
 	_ = r.Log.Emit("task.failed", run, Event{Data: data})

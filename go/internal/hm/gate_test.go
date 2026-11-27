@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A proof that cannot pass is marked as the spec's fault: it exits 2 or 127, or fails the same way on the base commit.
@@ -137,5 +138,21 @@ func TestGateSpecDefect(t *testing.T) {
 		if k := failedKind(); k != c.want {
 			t.Errorf("%q after %q: reason_kind %v, want %v", c.reason, c.block, k, c.want)
 		}
+		evs, _ := r.Log.Read()
+		if reason, _ := evs[len(evs)-1].Data["reason"].(string); strings.Contains(reason, "; spec defect: x") != (c.want != nil) {
+			t.Errorf("a tagged reason names the defect: %q", reason)
+		}
+	}
+
+	// a proof that hangs on the base commit is cut there, and is then not a spec defect
+	oldSlack := baseSlack
+	baseSlack = time.Second
+	defer func() { baseSlack = oldSlack }()
+	began := time.Now()
+	crit := []Criterion{{ID: 1, Kind: "cmd", Proof: "grep -q head state || sleep 60; exit 1", Expect: "exit 0"}}
+	logs := t.TempDir()
+	head := r.rerunProofs(r.at(run), run, crit, logs)
+	if why := r.specDefects(r.at(run), run, crit, head, git("rev-parse", "HEAD~1"), logs); len(why) != 0 || time.Since(began) > 30*time.Second {
+		t.Errorf("hang on the base: %v after %s", why, time.Since(began))
 	}
 }

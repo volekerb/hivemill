@@ -45,6 +45,9 @@ type Rerun struct {
 // inside the Stop hook's timeout.
 var baseRunBudget = 5 * time.Minute
 
+// baseSlack and twice its head run time is what a proof gets on the base commit: one that hangs there is cut.
+var baseSlack = time.Minute
+
 // specDefect starts the problem of a proof that cannot pass as written; reasonSpecDefect is the reason_kind of a task
 // that fails with one.
 const (
@@ -316,8 +319,8 @@ func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun 
 }
 
 // rerunProofs is RerunProofs with the place of the worktree: a clone-mode run's proofs run there over ssh, and the logs
-// are written here.
-func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string) []Rerun {
+// are written here. limits, by criterion id, ends a proof sooner than proofTimeout (exit 124).
+func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string, limits ...map[int]time.Duration) []Rerun {
 	var out []Rerun
 	wt := run.Worktree
 	proofs := &proofRunner{r: r, run: run}
@@ -340,6 +343,9 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 			}
 		default:
 			argv = []string{"bash", "-c", c.Proof}
+		}
+		if len(limits) > 0 && limits[0][c.ID] > 0 {
+			argv = append([]string{"timeout", "-k", "10", strconv.Itoa(int(limits[0][c.ID].Seconds()))}, argv...)
 		}
 		var rc int
 		var text string
@@ -403,7 +409,7 @@ func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Reru
 	}
 	wt := run.Worktree
 	dir := baseCheckout(wt)
-	if rc, _, errs := at.git(wt, "worktree", "add", "-q", "--detach", dir, mb); rc != 0 {
+	if rc, _, errs := at.git(wt, "worktree", "add", "-f", "-q", "--detach", dir, mb); rc != 0 { // -f: also over a stale registration
 		r.printf("%s: no checkout of the base commit: %s\n", run.Task, errs)
 		return out
 	}
@@ -413,7 +419,11 @@ func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Reru
 	logs := filepath.Join(logdir, "base")
 	_ = os.MkdirAll(logs, 0o700)
 	same := func(s string) string { return durationRe.ReplaceAllString(strings.ReplaceAll(s, dir, wt), "T") }
-	for _, x := range r.rerunProofs(at, &base, onBase, logs) {
+	limits := map[int]time.Duration{}
+	for id, head := range failed {
+		limits[id] = 2*head.took + baseSlack
+	}
+	for _, x := range r.rerunProofs(at, &base, onBase, logs, limits) {
 		head := failed[x.ID]
 		if x.OK != nil && !*x.OK && x.Log != "" && x.rc == head.rc && same(x.out) == same(head.out) {
 			out[x.ID] = fmt.Sprintf("it fails the same way on the base commit %.9s", mb)
