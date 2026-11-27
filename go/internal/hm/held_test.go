@@ -179,7 +179,16 @@ func TestChangeAnswerResumesHeldRun(t *testing.T) {
 }
 
 func TestHeldConflictingResumes(t *testing.T) {
-	r, s, _ := heldRunner(t, "CONFLICTING")
+	r, s, run := heldRunner(t, "CONFLICTING")
+	// a run with no session (a revert) stays with the owner
+	agent := run.Agent
+	run.Agent = ""
+	_ = s.PutRun(run)
+	if got := pass(t, r, s); got.State != Held {
+		t.Fatalf("no session to resume: %s %q", got.State, got.FailReason)
+	}
+	run.Agent = agent
+	_ = s.PutRun(run)
 	got := pass(t, r, s)
 	if got.State != Working || got.Round != 2 {
 		t.Fatalf("conflicting held run: %s round %d", got.State, got.Round)

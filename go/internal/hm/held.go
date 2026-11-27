@@ -47,14 +47,17 @@ func (r *Runner) actHeld(run *Run, pr *PR, listed bool) {
 		return
 	}
 	approved := ask != nil && pr != nil && approves(ask.Answer) // with no PR there is nothing to merge
-	if !approved {
-		if !listed || (run.Machine != "" && machineDown(r.Tools, run.Machine)) {
-			return
-		}
-		if err := r.remakeWorktree(run); err != nil {
-			r.printf("%s: held: %v\n", run.Task, err)
-			return
-		}
+	// a run with no session (a revert) has nothing to resume: it stays with the owner
+	if !approved && (!listed || run.Agent == "") {
+		return
+	}
+	// the merge path needs the worktree too: a rejudge reads it and a refresh moves it
+	if run.Machine != "" && machineDown(r.Tools, run.Machine) {
+		return
+	}
+	if err := r.remakeWorktree(run); err != nil {
+		r.printf("%s: held: %v\n", run.Task, err)
+		return
 	}
 	// one answer acts once: a run held again in the same round gets a new question
 	if ask != nil {
@@ -70,6 +73,7 @@ func (r *Runner) actHeld(run *Run, pr *PR, listed bool) {
 		run.State, run.Approved = Merging, or(run.JudgeHead, run.Head)
 		_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	case ask != nil:
+		run.Approved = "" // the owner asked for a change: an earlier approval no longer holds
 		run.History = append(run.History, fmt.Sprintf("round %d: held, answered: %s", run.Round, truncate(ask.Answer, 300)))
 		r.resumeAs(run, "answer", "Your PR was held for the owner, who answered:\n"+ask.Answer+"\nDo what the answer says, "+
 			r.pushAndStop(run.Project)+".")
