@@ -84,8 +84,7 @@ class HerdrAppDashboardTest(unittest.TestCase):
             with open(os.path.join(MOD, f)) as a, open(os.path.join(self.app, "mods", "hivemill", f)) as b:
                 self.assertEqual(a.read(), b.read(), f)
         cfg = self.load(self.cfg)
-        self.assertEqual(cfg["factory"]["url"], "http://127.0.0.1:8765")
-        self.assertEqual(cfg["orgs"], "auto")
+        self.assertEqual(cfg["factories"], [{"url": "http://127.0.0.1:7461"}])
         self.assertEqual(cfg["projects"], [])
         lay = self.load(self.layout)
         status = lay["children"][1]["children"][1]
@@ -96,27 +95,42 @@ class HerdrAppDashboardTest(unittest.TestCase):
         self.assertEqual(self.load(os.path.join(self.app, "layouts", "main.json")), MAIN)
         self.assertEqual(self.host.calls, [["herdr-app", "do", "layout.switch", '{"name": "hivemill"}']])
 
-    def test_rerun_keeps_projects_and_changes_only_given_flags(self):
+    def test_rerun_keeps_projects_and_factories(self):
         os.makedirs(os.path.dirname(self.cfg))
+        facs = [{"label": "Workshop", "url": "http://192.0.2.10:7461", "space": "box/hivemill"}]
         with open(self.cfg, "w") as f:
-            json.dump({"factory": {"url": "http://127.0.0.1:9000", "web_url": "http://box:9000"}, "orgs": "auto",
-                       "projects": [{"name": "App", "github": "o/app", "space": "app"}], "usage_file": "~/u.json"}, f)
-        rc, out = self.run_installer("--herdr-app", "--yes", "--no-switch", "--orgs", "claude", "--factory-machine", "box")
+            json.dump({"factories": facs, "projects": [{"name": "App", "space": "app"}], "usage_file": "~/u.json"}, f)
+        rc, out = self.run_installer("--herdr-app", "--yes", "--no-switch")
         self.assertEqual(rc, 0, out)
         cfg = self.load(self.cfg)
-        self.assertEqual(cfg["orgs"], ["claude"])
-        self.assertEqual(cfg["factory"], {"url": "http://127.0.0.1:9000", "web_url": "http://box:9000", "machine": "box"})
-        self.assertEqual(cfg["projects"], [{"name": "App", "github": "o/app", "space": "app"}])
+        self.assertEqual(cfg["factories"], facs)
+        self.assertEqual(cfg["projects"], [{"name": "App", "space": "app"}])
         self.assertEqual(cfg["usage_file"], "~/u.json")
         self.assertEqual(self.host.calls, [])
 
-    def test_empty_machine_clears_it(self):
+    def test_factory_flags_replace_the_list_and_keep_fields_of_a_kept_url(self):
         os.makedirs(os.path.dirname(self.cfg))
         with open(self.cfg, "w") as f:
-            json.dump({"factory": {"url": "http://127.0.0.1:8765", "machine": "box"}}, f)
-        rc, out = self.run_installer("--herdr-app", "--yes", "--no-switch", "--factory-machine", "")
+            json.dump({"factories": [{"label": "Old", "url": "http://192.0.2.10:7461", "space": "box/hivemill"},
+                                     {"label": "Gone", "url": "http://192.0.2.11:7461"}]}, f)
+        rc, out = self.run_installer("--herdr-app", "--yes", "--no-switch", "--factory", "Workshop=http://192.0.2.10:7461/",
+                                     "--factory", "http://192.0.2.12:7461")
         self.assertEqual(rc, 0, out)
-        self.assertIsNone(self.load(self.cfg)["factory"]["machine"])
+        self.assertEqual(self.load(self.cfg)["factories"], [
+            {"label": "Workshop", "url": "http://192.0.2.10:7461", "space": "box/hivemill"}, {"url": "http://192.0.2.12:7461"}])
+        self.assertIn("2 factories", out)
+
+    def test_old_dashboard_settings_are_dropped_with_a_note(self):
+        os.makedirs(os.path.dirname(self.cfg))
+        with open(self.cfg, "w") as f:
+            json.dump({"factory": {"url": "http://127.0.0.1:8765", "machine": "box"}, "teams": [{"machine": "box"}], "orgs": "auto",
+                       "projects": [{"name": "App", "space": "app"}]}, f)
+        rc, out = self.run_installer("--herdr-app", "--yes", "--no-switch")
+        self.assertEqual(rc, 0, out)
+        cfg = self.load(self.cfg)
+        self.assertEqual(set(cfg), {"factories", "projects"})
+        self.assertEqual(cfg["factories"], [{"url": "http://127.0.0.1:7461"}])
+        self.assertIn("dropped the old dashboard's settings (factory, teams, orgs)", out)
 
     def test_layout_without_a_status_bar_gets_one_under_the_work_area(self):
         main = json.loads(json.dumps(MAIN))
@@ -157,12 +171,11 @@ class HerdrAppDashboardTest(unittest.TestCase):
 
     def test_usage_errors(self):
         for argv in (["--herdr-app", "--check"],
-                     ["--dry-run", "--orgs", "claude"],
-                     ["--yes", "--factory-url", "http://x"],
+                     ["--yes", "--factory", "http://x"],
                      ["--dry-run", "--no-sidebar"],
-                     ["--herdr-app", "--yes", "--orgs", "openai"],
-                     ["--herdr-app", "--yes", "--factory-url", "ftp://x"],
-                     ["--herdr-app", "--yes", "--factory-machine", "-oProxy=x"]):
+                     ["--herdr-app", "--yes", "--factory", "ftp://x"],
+                     ["--herdr-app", "--yes", "--factory", "=http://x"],
+                     ["--herdr-app", "--yes", "--factory", "Name=not a url"]):
             rc, out = self.run_installer(*argv)
             self.assertEqual(rc, 2, argv)
         self.assertFalse(os.path.exists(self.cfg))
@@ -172,7 +185,7 @@ class HerdrAppDashboardTest(unittest.TestCase):
             self.assertEqual(json.load(f)["place"], "none")
         with open(os.path.join(ROOT, "plugins", "hivemill", "herdr-app", "dashboard.example.json")) as f:
             example = json.load(f)
-        self.assertEqual(set(example), {"factory", "teams", "orgs", "projects", "usage_file", "alerts", "context_pattern", "machines", "machine_labels", "demo"})
+        self.assertEqual(set(example), {"factories", "projects", "usage_file", "alerts", "context_pattern", "machines", "machine_labels", "demo"})
         with open(os.path.join(MOD, "data.js")) as f:
             src = f.read()
         for key in example:

@@ -16,7 +16,7 @@ import (
 	"factory/go/internal/install"
 )
 
-// Port of tests/test_herdr_app_dashboard.py (11 cases; see ../ported_cursor.txt).
+// Port of tests/test_herdr_app_dashboard.py (12 cases; see ../ported_cursor.txt).
 // The Python test imports plugins/hivemill/scripts/install.py and calls main(); here the real installer entry point
 // is install.Main (the Go port, internal/install) over a Host that records herdr-app calls instead of running them.
 // It runs against a throwaway home with a minimal Herdr app folder and never touches the real ~/.config.
@@ -108,8 +108,9 @@ func TestHerdrAppDashboardInstallCopiesModWritesConfigAndLayout(t *testing.T) {
 		eq(t, f, readFile(t, filepath.Join(d.app, "mods", "hivemill", f)), readFile(t, filepath.Join(mod, f)))
 	}
 	cfg := d.load(d.cfg)
-	eq(t, "factory.url", sub(t, cfg, "factory")["url"], any("http://127.0.0.1:8765"))
-	eq(t, "orgs", cfg["orgs"], any("auto"))
+	if !reflect.DeepEqual(cfg["factories"], []any{map[string]any{"url": "http://127.0.0.1:7461"}}) {
+		t.Fatalf("factories = %v", cfg["factories"])
+	}
 	if p, isList := cfg["projects"].([]any); !isList || len(p) != 0 {
 		t.Fatalf("projects = %v", cfg["projects"])
 	}
@@ -137,38 +138,59 @@ func TestHerdrAppDashboardInstallCopiesModWritesConfigAndLayout(t *testing.T) {
 	}
 }
 
-func TestHerdrAppDashboardRerunKeepsProjectsAndChangesOnlyGivenFlags(t *testing.T) {
+func TestHerdrAppDashboardRerunKeepsProjectsAndFactories(t *testing.T) {
 	d := newDash(t)
-	writeFile(t, d.cfg, `{"factory": {"url": "http://127.0.0.1:9000", "web_url": "http://box:9000"}, "orgs": "auto",
- "projects": [{"name": "App", "github": "o/app", "space": "app"}], "usage_file": "~/u.json"}`, 0o644)
-	rc, out := d.run("--herdr-app", "--yes", "--no-switch", "--orgs", "claude", "--factory-machine", "box")
+	writeFile(t, d.cfg, `{"factories": [{"label": "Workshop", "url": "http://192.0.2.10:7461", "space": "box/hivemill"}],
+ "projects": [{"name": "App", "space": "app"}], "usage_file": "~/u.json"}`, 0o644)
+	rc, out := d.run("--herdr-app", "--yes", "--no-switch")
 	if rc != 0 {
 		t.Fatalf("rc = %d\n%s", rc, out)
 	}
 	cfg := d.load(d.cfg)
-	if !reflect.DeepEqual(cfg["orgs"], []any{"claude"}) {
-		t.Fatalf("orgs = %v", cfg["orgs"])
+	if !reflect.DeepEqual(cfg["factories"], []any{map[string]any{"label": "Workshop", "url": "http://192.0.2.10:7461", "space": "box/hivemill"}}) {
+		t.Fatalf("factories = %v", cfg["factories"])
 	}
-	if !reflect.DeepEqual(cfg["factory"], map[string]any{"url": "http://127.0.0.1:9000", "web_url": "http://box:9000", "machine": "box"}) {
-		t.Fatalf("factory = %v", cfg["factory"])
-	}
-	if !reflect.DeepEqual(cfg["projects"], []any{map[string]any{"name": "App", "github": "o/app", "space": "app"}}) {
+	if !reflect.DeepEqual(cfg["projects"], []any{map[string]any{"name": "App", "space": "app"}}) {
 		t.Fatalf("projects = %v", cfg["projects"])
 	}
 	eq(t, "usage_file", cfg["usage_file"], any("~/u.json"))
 	eq(t, "calls", len(d.host.calls), 0)
 }
 
-func TestHerdrAppDashboardEmptyMachineClearsIt(t *testing.T) {
+func TestHerdrAppDashboardFactoryFlagsReplaceTheListAndKeepFieldsOfAKeptURL(t *testing.T) {
 	d := newDash(t)
-	writeFile(t, d.cfg, `{"factory": {"url": "http://127.0.0.1:8765", "machine": "box"}}`, 0o644)
-	rc, out := d.run("--herdr-app", "--yes", "--no-switch", "--factory-machine", "")
+	writeFile(t, d.cfg, `{"factories": [{"label": "Old", "url": "http://192.0.2.10:7461", "space": "box/hivemill"},
+ {"label": "Gone", "url": "http://192.0.2.11:7461"}]}`, 0o644)
+	rc, out := d.run("--herdr-app", "--yes", "--no-switch", "--factory", "Workshop=http://192.0.2.10:7461/", "--factory", "http://192.0.2.12:7461")
 	if rc != 0 {
 		t.Fatalf("rc = %d\n%s", rc, out)
 	}
-	if m, present := sub(t, d.load(d.cfg), "factory")["machine"]; !present || m != nil {
-		t.Fatalf("machine = %v (present %v), want null", m, present)
+	want := []any{map[string]any{"label": "Workshop", "url": "http://192.0.2.10:7461", "space": "box/hivemill"}, map[string]any{"url": "http://192.0.2.12:7461"}}
+	if got := d.load(d.cfg)["factories"]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("factories = %v", got)
 	}
+	contains(t, "out", out, "2 factories")
+}
+
+func TestHerdrAppDashboardOldDashboardSettingsAreDroppedWithANote(t *testing.T) {
+	d := newDash(t)
+	writeFile(t, d.cfg, `{"factory": {"url": "http://127.0.0.1:8765", "machine": "box"}, "teams": [{"machine": "box"}], "orgs": "auto",
+ "projects": [{"name": "App", "space": "app"}]}`, 0o644)
+	rc, out := d.run("--herdr-app", "--yes", "--no-switch")
+	if rc != 0 {
+		t.Fatalf("rc = %d\n%s", rc, out)
+	}
+	cfg := d.load(d.cfg)
+	var keys []string
+	for k := range cfg {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	eq(t, "keys", strings.Join(keys, ","), "factories,projects")
+	if !reflect.DeepEqual(cfg["factories"], []any{map[string]any{"url": "http://127.0.0.1:7461"}}) {
+		t.Fatalf("factories = %v", cfg["factories"])
+	}
+	contains(t, "out", out, "dropped the old dashboard's settings (factory, teams, orgs)")
 }
 
 func TestHerdrAppDashboardLayoutWithoutAStatusBarGetsOneUnderTheWorkArea(t *testing.T) {
@@ -237,12 +259,11 @@ func TestHerdrAppDashboardUsageErrors(t *testing.T) {
 	d := newDash(t)
 	for _, argv := range [][]string{
 		{"--herdr-app", "--check"},
-		{"--dry-run", "--orgs", "claude"},
-		{"--yes", "--factory-url", "http://x"},
+		{"--yes", "--factory", "http://x"},
 		{"--dry-run", "--no-sidebar"},
-		{"--herdr-app", "--yes", "--orgs", "openai"},
-		{"--herdr-app", "--yes", "--factory-url", "ftp://x"},
-		{"--herdr-app", "--yes", "--factory-machine", "-oProxy=x"},
+		{"--herdr-app", "--yes", "--factory", "ftp://x"},
+		{"--herdr-app", "--yes", "--factory", "=http://x"},
+		{"--herdr-app", "--yes", "--factory", "Name=not a url"},
 	} {
 		if rc, out := d.run(argv...); rc != 2 {
 			t.Errorf("%v: rc = %d, want 2\n%s", argv, rc, out)
@@ -264,7 +285,7 @@ func TestHerdrAppDashboardShippedModFiles(t *testing.T) {
 	}
 	sort.Strings(keys)
 	eq(t, "example keys", strings.Join(keys, ","),
-		"alerts,context_pattern,demo,factory,machine_labels,machines,orgs,projects,teams,usage_file")
+		"alerts,context_pattern,demo,factories,machine_labels,machines,projects,usage_file")
 	src := readFile(t, filepath.Join(app, "mods", "hivemill", "data.js"))
 	for _, k := range keys {
 		if !strings.Contains(src, k+":") {

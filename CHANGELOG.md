@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Herdr app dashboard reads each factory's obs API.** One headline for the runs that wait for you, the factories as one table, a Resources table per machine, and a Spend view, and no number shown as live after its source stopped answering. The spawn gate, lanes and the old server's address are gone. `install.py --herdr-app` takes `--factory [LABEL=]URL` in place of `--factory-url`, `--factory-machine`, `--factory-web-url` and `--orgs`, and drops the old settings keys with a note. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md) and [docs/design/multi-factory.md](docs/design/multi-factory.md).
+
 ### Fixed
 
 - **Runs with a finished PR land by themselves.** A run that would fail as stalled, timed out or with the gate finding no PR goes to CI and the judge when its branch has an open PR; a running Stop gate hook no longer counts as an idle session (a hook past its timeout fails as `gate hook timed out`); and answering a held run's question with `approved` or `merge it` counts as the judge's MERGE for the held head (T-2188).
