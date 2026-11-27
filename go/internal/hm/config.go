@@ -12,6 +12,8 @@ import (
 // Defaults are the runner's own config keys (table hm_config). They are independent of the old pipeline's caps
 // (max_live_agents, max_total_claude, dispatch_max_per_tick are never read).
 var Defaults = map[string]string{
+	// the PR flow controller (docs/pr-flow.md)
+	"ci_queue_max_min": "40", "merge_train": "3", "stale_pr_min": "90",
 	"max_concurrent": "2",                 // working runs at one time (working, judging)
 	"max_waiting":    "20",                // waiting runs (CI, merge, held for the owner): reached = no new run
 	"projects":       "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
@@ -89,6 +91,8 @@ type Env struct {
 	Home     string // factory home (FACTORY_HOME, default ~/factory)
 	UserHome string
 	Actor    string // FACTORY_AGENT of the caller, "" for the owner
+	// AgentSession is true inside a Claude Code session (CLAUDECODE is set).
+	AgentSession bool
 }
 
 // LoadEnv reads the environment.
@@ -98,7 +102,7 @@ func LoadEnv() Env {
 	if home == "" {
 		home = filepath.Join(uh, "factory")
 	}
-	return Env{Home: home, UserHome: uh, Actor: os.Getenv("FACTORY_AGENT")}
+	return Env{Home: home, UserHome: uh, Actor: os.Getenv("FACTORY_AGENT"), AgentSession: os.Getenv("CLAUDECODE") != ""}
 }
 
 // DBPath is the factory DB (db/factory.db, else the legacy file).
