@@ -21,7 +21,7 @@
 <h2>Time per stage</h2>
 <p class="muted">dispatched: the agent builds. gate: it fixes what the gate blocked. ci: gate passed, the PR waits for or repairs CI. judge: the judge session runs. merge: judged MERGE, waiting for the merge. Times come from events.jsonl.</p>
 {{if .Tasks -}}
-<div class="scroll" tabindex="0" role="region" aria-label="time per stage"><table rules="groups" bordercolor="#85857d">
+<div class="scroll" tabindex="0" role="region" aria-label="time per stage"><table rules="groups">
 <colgroup><col><col><col>{{range .Stages}}<col>{{end}}</colgroup><colgroup class="rule"><col><col></colgroup>
 <tr><th scope="col">task</th><th scope="col">machine</th><th scope="col">outcome</th>{{range .Stages}}<th scope="col" class="num">{{.}}</th>{{end}}<th scope="col" class="num">held</th><th scope="col" class="num">total</th></tr>
 {{range $t := .Tasks}}<tr><td><a href="{{$.Q "/task" "k" $t.Key}}">{{$t.Task}}</a></td><td>{{$t.Machine}}</td><td class="{{outcomeClass $t.Outcome}}">{{$t.Outcome}}</td>{{range $s := $.FlowPg.Stages}}<td class="num">{{dur (index $t.Seconds $s)}}</td>{{end}}<td class="num">{{dur (index $t.Seconds "held")}}</td><td class="num">{{dur $t.Total}}</td></tr>
