@@ -48,6 +48,8 @@ A task that ran once is never started again. For a failed run, read why (`hivemi
 
 On every re-file (split or spec fix) pass `--refile-of T-x` to `hivemill task add`: the tasks that depend on T-x then move to the new id. On a split, flag exactly one piece, the one they need, and give the other pieces neither the flag nor a `(re-file of T-x` title.
 
+A proof that cannot pass is a spec defect, not a task failure and not a broken gate. When a task failed with `spec_defect` (the `task.failed` reason kind; the failure reason has `spec defect:`), re-file it with a corrected proof and run `hivemill task lint` on the new task. Never ask the owner about a spec defect, and never hold re-filing for an owner answer when you can fix the spec yourself.
+
 Never cancel a held run's task: the owner merges or closes its PR. Its question is already in the owner queue.
 
 ## Owner questions

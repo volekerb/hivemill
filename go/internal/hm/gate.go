@@ -36,7 +36,18 @@ type Rerun struct {
 	OK   *bool  `json:"ok"` // nil = not re-run (flow, manual)
 	Note string `json:"note"`
 	Log  string `json:"log,omitempty"`
+	rc   int    // of the proof's command; with out, what a run on the base commit is compared with
+	out  string
 }
+
+// specDefect starts the problem of a proof that cannot pass as written; reasonSpecDefect is the reason_kind of a task
+// that fails with one.
+const (
+	specDefect       = "spec defect:"
+	reasonSpecDefect = "spec_defect"
+)
+
+var durationRe = regexp.MustCompile(`\b\d+(\.\d+)?(ns|µs|ms|s)\b`)
 
 // GateRecord is what one gate run found (kept on the run for the judge packet and the report).
 type GateRecord struct {
@@ -333,6 +344,7 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 		} else {
 			rc, text, limit = proofs.sh(c.ID, dir, argv)
 		}
+		x.rc, x.out = rc, text
 		x.Log = filepath.Join(logdir, fmt.Sprintf("proof-%d.log", c.ID))
 		_ = os.WriteFile(x.Log, []byte(text), 0o600)
 		ok := rc == 0
@@ -345,6 +357,52 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 		}
 		x.OK = &ok
 		out = append(out, x)
+	}
+	return out
+}
+
+// specDefects says which failed proofs are the spec's fault, by criterion id, and why: the command exits 2 or 127 (usage
+// error, command not found), or it fails with the same exit code and output on the base commit mb, checked out under
+// .hivemill for this. A proof that timed out or never ran is not judged.
+func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Rerun, mb, logdir string) map[int]string {
+	out := map[int]string{}
+	failed := map[int]Rerun{}
+	var onBase []Criterion
+	for i, x := range reruns { // reruns[i] is the run of crit[i]
+		switch {
+		case x.OK == nil || *x.OK || x.Log == "" || x.rc == 124:
+		case x.rc == 2 || x.rc == 127:
+			out[x.ID] = fmt.Sprintf("exit %d: a usage error or a command that does not exist", x.rc)
+		default:
+			failed[x.ID] = x
+			onBase = append(onBase, crit[i])
+		}
+	}
+	if len(onBase) == 0 || !commitRe.MatchString(mb) {
+		return out
+	}
+	wt := run.Worktree
+	dir := filepath.Join(wt, ".hivemill", "base")
+	drop := func() {
+		at.git(wt, "worktree", "remove", "--force", dir)
+		at.git(wt, "worktree", "prune")
+	}
+	drop() // what an interrupted gate left behind
+	if rc, _, errs := at.git(wt, "worktree", "add", "-q", "--detach", dir, mb); rc != 0 {
+		r.printf("%s: no checkout of the base commit: %s\n", run.Task, errs)
+		return out
+	}
+	defer drop()
+	base := *run
+	base.Worktree = dir
+	logs := filepath.Join(logdir, "base")
+	_ = os.MkdirAll(logs, 0o700)
+	same := func(s string) string { return durationRe.ReplaceAllString(strings.ReplaceAll(s, dir, wt), "T") }
+	for _, x := range r.rerunProofs(at, &base, onBase, logs) {
+		head := failed[x.ID]
+		if x.OK != nil && !*x.OK && x.Log != "" && x.rc == head.rc && same(x.out) == same(head.out) {
+			out[x.ID] = fmt.Sprintf("it fails the same way on the base commit %.9s", mb)
+		}
 	}
 	return out
 }
@@ -631,11 +689,20 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	}
 	if len(ev) == 0 {
 		rec.Reruns = r.rerunProofs(at, run, crit, logdir)
+		defects := r.specDefects(at, run, crit, rec.Reruns, mb, logdir)
+		var first []string // spec defects lead, so a cut failure reason still names them
 		for _, x := range rec.Reruns {
-			if x.OK != nil && !*x.OK {
-				rec.Problems = append(rec.Problems, fmt.Sprintf("criterion %d (%s): the factory re-ran its proof and it failed: %s", x.ID, x.Kind, x.Note))
+			if x.OK == nil || *x.OK {
+				continue
+			}
+			p := fmt.Sprintf("criterion %d (%s): the factory re-ran its proof and it failed: %s", x.ID, x.Kind, x.Note)
+			if why := defects[x.ID]; why != "" {
+				first = append(first, fmt.Sprintf("%s %s (%s)", specDefect, p, why))
+			} else {
+				rec.Problems = append(rec.Problems, p)
 			}
 		}
+		rec.Problems = append(first, rec.Problems...)
 	}
 	if lost {
 		rec.Undecided, rec.Problems = true, []string{"machine: ssh to " + run.Machine + " failed during the checks; the gate is not decided"}
@@ -855,6 +922,7 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 	}
 	if len(rec.Problems) == 0 {
 		run.State, run.Head, run.PRURL, run.Tier, run.Gated, run.LastGate = Gated, rec.Head, rec.PRURL, rec.Tier, nowISO(), rec
+		run.LastBlock = "" // a later failure is not about an earlier block
 		fixed := 0
 		for _, f := range rec.Findings {
 			if strings.HasPrefix(strings.ToLower(f.Resolution), "fixed") {

@@ -442,7 +442,12 @@ func (r *Runner) fail(run *Run, reason string) {
 	if !run.Eval {
 		r.endSessions(run) // the $ and tokens of a failed run reach the event log too (evalFinish writes its own)
 	}
-	_ = r.Log.Emit("task.failed", run, Event{Data: map[string]any{"reason": truncate(reason, 900)}})
+	data := map[string]any{"reason": truncate(reason, 900)}
+	// the last gate block of this round found a proof that cannot pass: the planner re-files the task
+	if strings.HasPrefix(run.LastBlock, specDefect) || strings.Contains(run.LastBlock, "\n"+specDefect) {
+		data["reason_kind"] = reasonSpecDefect
+	}
+	_ = r.Log.Emit("task.failed", run, Event{Data: data})
 	if run.Eval {
 		r.evalFinish(run, Failed, "failed: "+truncate(reason, 300))
 		return
