@@ -12,6 +12,9 @@ v0.1.0 summarises the changes merged during private development.
 ### Added
 
 - **The Go guard no longer runs python3.** It lists tar/zip archive members itself and treats a DB value with no export row as absent; `--py-hook` is accepted and only locates the checkout (T-2112). Where it cannot follow Python it refuses: xz, a gzip FEXTRA field, a second bzip2 stream, and any non-zero data after the first gzip member, which `gzip -d` would also extract (T-2132).
+
+- **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).
+
 - **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
 
 - **Warm standby.** `docs/standby.md` is the failover runbook; `hivemill standby check --from HOST` restores the primary's newest snapshot into a temporary home (the daemon runs it monthly when `standby_from` is set), and a `daemon.lock` stops a second writer on another machine unless `hivemill daemon --take-over` is given (T-2086).

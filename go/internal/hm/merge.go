@@ -216,11 +216,28 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 	if len(runs) == 0 {
 		return "none"
 	}
+	// No run for main's head while tests.yml is switched off (gh workflow disable, as during the 2026-11-26 local-CI
+	// period): nothing will ever run, so it counts as a repo without the workflow, not as pending forever.
+	if workflowDisabled(r.Tools, slug, "tests.yml") {
+		return "none"
+	}
 	return "pending"
+}
+
+// workflowDisabled reports whether the repo's workflow is disabled (disabled_manually or disabled_inactivity).
+// Any error answers false: an unknown state keeps the old "pending" behaviour.
+func workflowDisabled(t Tools, slug, file string) bool {
+	rc, out, _ := t.GH("", "api", "repos/"+slug+"/actions/workflows/"+file, "--jq", ".state")
+	return rc == 0 && strings.HasPrefix(strings.TrimSpace(out), "disabled")
 }
 
 // Merge is one merge attempt of a run in state merging.
 func (r *Runner) Merge(run *Run) {
+	defer func() {
+		if run.State != Merging && run.State != Gated {
+			r.endCIWait(run) // `hivemill merge T` has no Advance around it to close the wait's alert
+		}
+	}()
 	if run.Eval {
 		run.MergeHold = "eval run: never merged"
 		r.fail(run, "eval run reached the merge step: refused, eval runs are never merged")
@@ -238,8 +255,12 @@ func (r *Runner) Merge(run *Run) {
 			// a new head (a refresh, a revert): run gate_cmd now and decide on the next pass from fresh PR data
 			if err := r.localCI(run, in.Head); err != nil {
 				run.MergeHold = err.Error()
+				r.localCIWaits(run, in.Head, time.Now())
 				return
 			}
+		}
+		if run.LocalCI != nil && run.LocalCI.Head == in.Head {
+			r.endCIWait(run) // the result is in, whoever read it
 		}
 		r.postLocalCI(run)
 		if d.Why == ciPending {
@@ -485,6 +506,8 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	if pr.MergeCommit != nil {
 		run.MergeSHA = pr.MergeCommit.Oid
 	}
+	// merged by hand while a new judge runs: JudgeHead is already the new head and the last verdict is about an old one
+	rejudging := run.State == Judging
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
@@ -493,6 +516,9 @@ func (r *Runner) finish(run *Run, pr *PR) {
 		data["unattended"] = true
 	}
 	_ = r.Log.Emit("pr.merged", run, Event{Data: data})
+	if !rejudging {
+		r.reportUnasked(run, pr.HeadRefOid)
+	}
 	r.checkMergeCommit(run)
 	r.closeSessions(run)
 	r.endSessions(run)

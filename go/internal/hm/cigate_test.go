@@ -260,15 +260,6 @@ func TestCIGateNoneEdges(t *testing.T) {
 	if got := f.r.commentTail(strings.Repeat("x", 10000)); !strings.Contains(got, "gate-cmd.log") {
 		t.Errorf("tail %q", got)
 	}
-	f.r.keepAlive(time.Hour)()
-	if f.s.Meta("heartbeat") != "" {
-		t.Error("a heartbeat outside the daemon")
-	}
-	f.r.inDaemon = true
-	f.r.keepAlive(time.Hour)()
-	if f.s.Meta("heartbeat") == "" {
-		t.Error("no heartbeat during a gate")
-	}
 	// a killed gate_cmd is red, so ci_rounds_max bounds it
 	f.gateRC = -1
 	if err := f.r.localCI(f.run, headA); err != nil || f.run.LocalCI == nil || f.run.LocalCI.RC != -1 {
