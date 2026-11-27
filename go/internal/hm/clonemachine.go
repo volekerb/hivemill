@@ -368,9 +368,14 @@ func (r *Runner) mapHome(p, remoteHome string) string {
 }
 
 // pushGuardExport writes the guard export of a clone-mode machine: the coordinator's, with this machine's paths.
-// Known gap: with no factory database under remoteHome the guard there never reads this file for its DB-backed
-// decisions (exportNeeded in internal/guard), so a missing, old or unread export does not fail closed.
+// The guard reads an export only where a file exists at the factory DB path (exportNeeded in internal/guard), and
+// otherwise leaves its DB-backed rules off. So a marker goes there first: an empty directory, which nothing can open or
+// fill as a database. With it, a missing or old export fails closed.
 func (r *Runner) pushGuardExport(machine, remoteHome string, now time.Time) error {
+	marker := shlex.Quote(path.Join(remoteBase(remoteHome), "db", "factory.db"))
+	if _, err := r.rshOK(machine, "", 30*time.Second, "[ -e "+marker+" ] || mkdir -p "+marker); err != nil {
+		return fmt.Errorf("guard database marker: %w", err)
+	}
 	s, ok := r.Store.(*SQLite)
 	if !ok {
 		return nil

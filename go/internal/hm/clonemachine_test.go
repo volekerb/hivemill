@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"factory/go/internal/guard"
 )
 
 // fakeRemote is a clone-mode machine that is a directory of this one: the fake ssh runs the command here with that
@@ -362,5 +364,45 @@ func TestCloneMachineJudgeStartIsRetried(t *testing.T) {
 	r.startJudge(x)
 	if x.State != Gated || len(x.Judges) != 0 || x.judgeStartFails() != 1 {
 		t.Errorf("state %s judges %v fails %d", x.State, x.Judges, x.judgeStartFails())
+	}
+}
+
+func TestCloneMachineActiveRunOverBudgetStops(t *testing.T) {
+	r, s, m, _ := startedClone(t)
+	sess, err := s.Sessions("T-0001")
+	if err != nil || len(sess) == 0 {
+		t.Fatal(sess, err)
+	}
+	if err := s.SetCfg("task_budget_usd", "1"); err != nil {
+		t.Fatal(err)
+	}
+	// the transcript is on the machine only, as while the session is still running
+	m.put(".claude/projects/-wt/"+sess[0].SID+".jsonl", `{"type":"assistant","timestamp":"2026-11-27T10:00:00Z","requestId":"r1",`+
+		`"message":{"id":"m1","model":"claude-sonnet-5-5","usage":{"input_tokens":10,"output_tokens":1000000}}}`+"\n", 0o600)
+	if _, err := r.Advance("T-0001", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Run("T-0001")
+	if got.State != Failed || !strings.Contains(got.FailReason, "budget") {
+		t.Errorf("state %s reason %q, want FAIL over budget", got.State, got.FailReason)
+	}
+}
+
+func TestCloneMachineGuardFailsClosed(t *testing.T) {
+	_, _, m, _ := startedClone(t)
+	base := filepath.Join(m.home, "hivemill")
+	// without a file at the DB path the guard never reads the export, and a missing one passes
+	if st, err := os.Stat(filepath.Join(base, "db", "factory.db")); err != nil || !st.IsDir() {
+		t.Fatalf("no database marker on the machine: %v", err)
+	}
+	if err := os.Remove(filepath.Join(base, "run", "guard-export.json")); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FACTORY_HOME", base)
+	var out, errs strings.Builder
+	rc := guard.HookMain([]string{"--role", "coder"},
+		strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git push origin HEAD:factory/t-0001"}}`), &out, &errs)
+	if rc != 2 || !strings.Contains(errs.String(), "export") {
+		t.Errorf("exit %d: %s", rc, errs.String())
 	}
 }

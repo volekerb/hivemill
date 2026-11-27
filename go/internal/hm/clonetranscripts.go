@@ -6,6 +6,7 @@ package hm
 import (
 	"archive/tar"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,6 +18,25 @@ import (
 )
 
 var sessionIDRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+
+// syncActiveTranscripts copies the transcripts of a running clone-mode run, so the spend caps see its cost.
+func (r *Runner) syncActiveTranscripts(run *Run) {
+	if !run.cloned() {
+		return
+	}
+	sess, err := r.Store.Sessions(run.Task)
+	if err != nil {
+		r.printf("%s: transcripts: %v\n", run.Task, err)
+		return
+	}
+	var ids []string
+	for _, s := range sess {
+		if s.Started >= run.Dispatched {
+			ids = append(ids, s.SID)
+		}
+	}
+	r.syncTranscripts(run, ids)
+}
 
 // syncTranscripts copies the run's transcripts that grew since the last copy. An unreachable machine leaves the copy as
 // it was: the next pass reads it again.
@@ -57,8 +77,11 @@ done; done; true`)
 	if len(grown) == 0 {
 		return
 	}
-	archive, err := r.rshOK(run.Machine, "./"+strings.Join(grown, "\n./")+"\n", 5*time.Minute, cd+"COPYFILE_DISABLE=1 exec tar -cf - -T -")
-	if err == nil {
+	// tar exits 1 when a file grew while it was read, which a running session does: the archive is still usable.
+	rc, archive, errs := r.rsh(run.Machine, "./"+strings.Join(grown, "\n./")+"\n", 5*time.Minute, cd+"COPYFILE_DISABLE=1 exec tar -cf - -T -")
+	if rc != 0 && rc != 1 {
+		err = fmt.Errorf("ssh %s: exit %d: %s", run.Machine, rc, firstLine(errs))
+	} else {
 		err = unpackTranscripts(root, archive, grown)
 	}
 	if err != nil {

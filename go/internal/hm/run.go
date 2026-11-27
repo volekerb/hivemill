@@ -577,7 +577,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
-	r.pushGuardExports(time.Now())  // and so does the guard on a clone-mode machine
+	r.pushGuardExports(time.Now())  // and so does the guard on a clone-mode machine (pushGuardExport)
 	defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
@@ -670,6 +670,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		}
 		_ = r.Store.PutRun(run)
 	}()
+	if Active(run.State) {
+		r.syncActiveTranscripts(run) // before overBudget here and the day and week caps read costs later in the pass
+	}
 	if Active(run.State) && run.State != Merging && r.overBudget(run) {
 		return run.State, nil
 	}
