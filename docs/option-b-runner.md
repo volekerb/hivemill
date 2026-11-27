@@ -140,6 +140,8 @@ hivemill ask add|list|answer|withdraw   # the owner queue
 hivemill digest [--date D] [--send]     # morning digest
 ```
 
+An answer to an owner question given from inside a Claude Code session without `FACTORY_AGENT` is recorded as `director`, and only an `owner` answer (from a plain shell) approves a release or a held merge.
+
 Agents other than the director, the boss and the planner may only run `task lint`, `task list`, `task show`, `report` and `health` (the planner: see [hivemill-planner.md](hivemill-planner.md)), and a task session `pr create|ready` for its own task; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
 
 ## Standalone install (no old factory CLI)
