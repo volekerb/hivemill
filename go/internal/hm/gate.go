@@ -591,9 +591,10 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		add("affected", false, "ci_gate none and the project has no gate_cmd: never merged untested")
 	} else if none {
 		// gate_cmd is the only CI here, so it runs for every tier, on a clean checkout of HEAD
-		ok, note, err := r.recordLocalCI(run, rec.Head, cmd, limit, logdir)
+		ok, note, err := r.waitLocalCI(run, rec.Head, cmd, limit, logdir)
 		if err != nil {
 			note = err.Error()
+			lost = lost || errors.Is(err, errLocalCIMachine)
 		}
 		add("affected", ok, note)
 	} else if rec.Tier == "T0" {

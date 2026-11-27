@@ -48,7 +48,9 @@ type Runner struct {
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
 	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
-	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	SSH func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	// ObsDial dials the dashboard's address for ObsDown (nil = a TCP connect).
+	ObsDial    func(addr string) error
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
@@ -508,6 +510,10 @@ func (r *Runner) Pass(startNew bool) error {
 	if err != nil {
 		return err
 	}
+	r.sweepLocalCI() // results first: they free job slots, and the runs below read them
+	if runs, err = r.Store.Runs(); err != nil {
+		return err
+	}
 	for _, x := range runs {
 		if heldForOwner(&x) && !x.Eval {
 			if l := r.lock(x.Task, false); l != nil {
@@ -576,7 +582,7 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		return "", err
 	}
 	defer func() {
-		if run.State != Gated {
+		if run.State != Gated && (run.State != Merging || !r.ciNone(run.Project)) {
 			r.endCIWait(run) // the run left the CI wait, however it did
 		}
 		_ = r.Store.PutRun(run)

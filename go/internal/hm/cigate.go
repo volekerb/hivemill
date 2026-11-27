@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // The Go port of judge_ci_gate=none (docs/judge-ci-gate.md, "Go runner"): the project has no PR checks to read, so its
@@ -61,7 +60,8 @@ func (c *LocalCI) verdict(head string) (string, []string) {
 	return "red", []string{fmt.Sprintf("gate_cmd exit %d", c.RC)}
 }
 
-// localCI makes sure gate_cmd has a result on head: it keeps the recorded one, else fetches the branch and runs it.
+// localCI makes sure gate_cmd has a result on head: it keeps the recorded one, else it looks at the background job of
+// (run, head), starting it when there is none. It never waits: without a result the error says since when it runs.
 func (r *Runner) localCI(run *Run, head string) error {
 	if run.LocalCI != nil && run.LocalCI.Head == head {
 		return nil
@@ -70,74 +70,13 @@ func (r *Runner) localCI(run *Run, head string) error {
 	if strings.TrimSpace(cmd) == "" {
 		return errors.New("ci_gate none and the project has no gate_cmd: never merged untested")
 	}
-	r.Tools.Git(run.Worktree, "fetch", "-q", "origin", run.Branch)
 	logdir := r.logDir(run)
 	_ = os.MkdirAll(logdir, 0o700)
-	stop := r.keepAlive(time.Minute)
-	defer stop()
-	if _, _, err := r.recordLocalCI(run, head, cmd, limit, logdir); err != nil {
+	if _, err := r.requestCIJob(run, head, cmd, limit, logdir, false); err != nil {
 		return err
 	}
-	_ = r.Log.Emit("ci_gate.gate_cmd", run, Event{Data: map[string]any{"head": head, "exit": run.LocalCI.RC}})
+	r.noteLocalCI(run)
 	return nil
-}
-
-// keepAlive pings the watchdog and the heartbeat while gate_cmd runs inside a pass: gate_cmd may take longer than both
-// allow, and its own time limit bounds it.
-func (r *Runner) keepAlive(every time.Duration) (stop func()) {
-	done, ended := make(chan struct{}), make(chan struct{})
-	go func() {
-		defer close(ended)
-		t := time.NewTicker(every)
-		defer t.Stop()
-		for {
-			sdNotify("WATCHDOG=1")
-			if r.inDaemon { // a command run by hand must not make a dead daemon look healthy
-				_ = r.Heartbeat(time.Now())
-			}
-			select {
-			case <-done:
-				return
-			case <-t.C:
-			}
-		}
-	}()
-	return func() { close(done); <-ended }
-}
-
-// recordLocalCI runs gate_cmd and keeps its result for head. As in the old chain (docs/local-gate.md) it runs in a fresh
-// detached worktree of exactly that commit, removed afterwards: nothing uncommitted or untracked in the task clone can
-// make it pass, and the clone itself is never touched. An error means gate_cmd did not run and nothing is recorded.
-func (r *Runner) recordLocalCI(run *Run, head, cmd string, limit time.Duration, logdir string) (bool, string, error) {
-	clone, parent := run.Worktree, filepath.Join(r.Env.StateDir(), "gate")
-	_ = os.MkdirAll(parent, 0o700)
-	// one directory per call: no other gate can remove it under this one
-	dir, err := os.MkdirTemp(parent, run.Task+"-")
-	if err != nil {
-		return false, "", fmt.Errorf("gate_cmd: %w", err)
-	}
-	defer func() {
-		r.Tools.Git(clone, "worktree", "remove", "--force", dir)
-		_ = os.RemoveAll(dir)
-		r.Tools.Git(clone, "worktree", "prune") // and what an interrupted call left behind
-	}()
-	if rc, _, errs := r.Tools.Git(clone, "worktree", "add", "-q", "--detach", dir, head); rc != 0 {
-		return false, "", fmt.Errorf("gate_cmd: cannot check out head %.12s: %s", head, firstLine(errs))
-	}
-	if _, at, _ := r.Tools.Git(dir, "rev-parse", "HEAD"); at != head {
-		return false, "", fmt.Errorf("gate_cmd: the checkout is at %.12s, not at the head %.12s", at, head)
-	}
-	rc, text, note := r.execProjectGate(dir, cmd, limit, logdir)
-	// the checkout's name differs on every call: an unchanged failure must read the same, or it looks new each time
-	text, note = strings.ReplaceAll(text, dir, "<checkout>"), strings.ReplaceAll(note, dir, "<checkout>")
-	// the whole log is checked: the tail alone may have lost the line that marks it as private
-	private := true
-	if args, why := r.guardArgs(); why == "" {
-		refused, _ := r.guardText(args, r.redactHomes(text))
-		private = refused != 0
-	}
-	run.LocalCI = &LocalCI{Head: head, RC: rc, Tail: r.commentTail(text), Private: private}
-	return rc == 0, note, nil
 }
 
 // redactHomes removes the local home paths.
