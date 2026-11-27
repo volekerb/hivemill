@@ -177,15 +177,40 @@ func gtCorpusCheck(t *testing.T, entries []gtCorpusEntry, wantBlock bool, defaul
 
 func TestGTGuardDiffCorpusMustBlock(t *testing.T) {
 	t.Setenv("FACTORY_HOME", t.TempDir())
+	fxUseHome(t, fxHome(t, fxSymlinkFactory))
 	block, _ := gtLoadCorpus(t)
+	gtCorpusMustBlock(t, block)
+}
+
+func TestGTGuardDiffCorpusMustAllow(t *testing.T) {
+	t.Setenv("FACTORY_HOME", t.TempDir())
+	fxUseHome(t, fxHome(t, fxSymlinkFactory))
+	_, allow := gtLoadCorpus(t)
+	gtCorpusMustAllow(t, allow)
+}
+
+// The corpus verdicts are the same whichever shape the home's factory CLI has (T-2153).
+func TestGuardCorpusIndependentOfHome(t *testing.T) {
+	t.Setenv("FACTORY_HOME", t.TempDir())
+	block, allow := gtLoadCorpus(t)
+	for _, factory := range []string{fxSymlinkFactory, fxForwardingFactory} {
+		t.Run(factory, func(t *testing.T) {
+			fxUseHome(t, fxHome(t, factory))
+			gtCorpusMustBlock(t, block)
+			gtCorpusMustAllow(t, allow)
+		})
+	}
+}
+
+func gtCorpusMustBlock(t *testing.T, block []gtCorpusEntry) {
+	t.Helper()
 	if n := gtCorpusCheck(t, block, true, []string{"worker"}); n < 1000 {
 		t.Fatalf("only %d must_block entries checked; the corpus or the filter is broken", n)
 	}
 }
 
-func TestGTGuardDiffCorpusMustAllow(t *testing.T) {
-	t.Setenv("FACTORY_HOME", t.TempDir())
-	_, allow := gtLoadCorpus(t)
+func gtCorpusMustAllow(t *testing.T, allow []gtCorpusEntry) {
+	t.Helper()
 	if n := gtCorpusCheck(t, allow, false, []string{"worker", "hq"}); n < 500 {
 		t.Fatalf("only %d must_allow entries checked; the corpus or the filter is broken", n)
 	}
