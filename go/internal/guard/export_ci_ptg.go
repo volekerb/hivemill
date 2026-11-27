@@ -232,8 +232,12 @@ func ciPTGParse(args []string) (*ciPTGArgs, error) {
 
 // CIPublicTextGuardMain is ci/public_text_guard.py main(): args without the program name.
 func CIPublicTextGuardMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	return ciPTGMain(args, stdin, stdout, stderr, false)
+}
+
+func ciPTGMain(args []string, stdin io.Reader, stdout, stderr io.Writer, secretsOnly bool) int {
 	out, errw := &ciOut{w: stdout}, &ciOut{w: stderr}
-	code := ciPTGRun(args, stdin, out, errw)
+	code := ciPTGRun(args, stdin, out, errw, secretsOnly)
 	if out.err != nil || errw.err != nil {
 		if _, err := fmt.Fprintln(os.Stderr, "public-text-guard: error: cannot write output:", errors.Join(out.err, errw.err)); err != nil {
 			return 2
@@ -243,14 +247,14 @@ func CIPublicTextGuardMain(args []string, stdin io.Reader, stdout, stderr io.Wri
 	return code
 }
 
-func ciPTGRun(args []string, stdin io.Reader, out, errw *ciOut) int {
+func ciPTGRun(args []string, stdin io.Reader, out, errw *ciOut, secretsOnly bool) int {
 	for _, a := range args {
 		if a == "-h" || a == "--help" {
 			out.printf("usage: public_text_guard.py [-h] [--terms-file FILE] [--no-terms] {text,ref,push} ...\n")
 			return 0
 		}
 	}
-	code, err := ciPTG(args, stdin, out, errw)
+	code, err := ciPTG(args, stdin, out, errw, secretsOnly)
 	if err == nil {
 		return code
 	}
@@ -267,28 +271,35 @@ func ciPTGRun(args []string, stdin io.Reader, out, errw *ciOut) int {
 	return 1
 }
 
-func ciPTG(args []string, stdin io.Reader, out, errw *ciOut) (int, error) {
+func ciPTG(args []string, stdin io.Reader, out, errw *ciOut, secretsOnly bool) (int, error) {
 	a, err := ciPTGParse(args)
 	if err != nil {
 		errw.printf("usage: public_text_guard.py [-h] [--terms-file FILE] [--no-terms] {text,ref,push} ...\npublic_text_guard.py: error: %s\n", err.Error())
 		return 2, nil
 	}
 	var terms []string
-	if a.noTerms {
+	blind := false
+	switch {
+	case secretsOnly || a.noTerms: // terms optional; in secretsOnly they only mask hit locations, never hit
 		files := a.termFiles
 		if v := os.Getenv(termsVar); v != "" {
 			files = append(append([]string(nil), files...), v)
 		}
-		if terms, err = ciLoadTerms(files); err != nil {
+		if terms, err = ciLoadTerms(files); err != nil && secretsOnly {
+			blind, err = true, nil // no terms are needed here, so an unreadable file hides every location instead
+		} else if err != nil {
 			return 0, err
 		}
-	} else if terms, err = ciTermsOrFail("", a.termFiles); err != nil {
-		return 0, err
+	default:
+		if terms, err = ciTermsOrFail("", a.termFiles); err != nil {
+			return 0, err
+		}
 	}
-	if len(terms) > 0 {
+	if len(terms) > 0 && !secretsOnly {
 		errw.printf("public-text-guard: %d owner term(s) loaded\n", len(terms))
 	}
-	sc := newCIScanner(terms, true)
+	sc := newCIScanner(terms, !secretsOnly) // extraRule holds identity rules only
+	sc.secretsOnly, sc.blind = secretsOnly, blind
 	var hits []ciHit
 	switch a.mode {
 	case "text":
