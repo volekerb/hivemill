@@ -9,10 +9,6 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
-### Fixed
-
-- **A lost local CI job no longer leaves its `gate_cmd` running.** When the wrapper had died but was not yet reaped, the restart skipped the group kill; it now waits for the reap first (T-2183).
-
 ### Added
 
 - **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).
@@ -46,6 +42,8 @@ v0.1.0 summarises the changes merged during private development.
 - Old-chain delete step 1: the `factory-forward` ssh forwarder, the `factory-go-version` command and their packages (`internal/forward`, `internal/buildinfo`) are gone, with the tests that built or exercised the forwarder (T-1932).
 
 ### Fixed
+
+- **A lost local CI job on this machine no longer leaves its `gate_cmd` running.** With the wrapper dead but not yet reaped, the restart skipped the group kill; it now waits for the reap (T-2183).
 
 - **Gate proofs over 60 s no longer fail on a worker machine.** `hc exec` ended them at its own default of 60 s. A remote proof now has `--timeout 600`, one cut at that limit runs again on the local core, and the timeout note names the limit that applied (T-2040).
 
