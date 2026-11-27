@@ -99,6 +99,16 @@ func (r *Runner) missingChecks(task string, checks []map[string]any) (required, 
 	return required, missing
 }
 
+// localCIWaits keeps the wait of a merging run whose local CI has no result, so the owner hears of one that never ends.
+func (r *Runner) localCIWaits(run *Run, head string, now time.Time) {
+	if run.CI == nil || run.CI.Head != head {
+		r.endCIWait(run)
+		run.CI = &CIWait{Head: head, Since: now.Unix()}
+	}
+	run.CI.Polled = now.Unix()
+	r.ciOverdue(run, now)
+}
+
 // ciOverdue alerts the owner once per wait.
 func (r *Runner) ciOverdue(run *Run, now time.Time) {
 	limit := int64(cfgInt(r.Store, "ci_timeout_s"))

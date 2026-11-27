@@ -64,7 +64,7 @@ func docsTierJobSkipErrors(text string) []string {
 			}
 		}
 		chunks := stepSplit.Split(parts[1], -1)[1:]
-		want := map[string]int{"unittest-shard": 6, "go": 8}[job]
+		want := map[string]int{"unittest-shard": 6, "go": 9}[job]
 		if len(chunks) != want {
 			errs = append(errs, fmt.Sprintf("%s: expected %d steps, got %d", job, want, len(chunks)))
 			continue
@@ -461,12 +461,37 @@ func TestCiTierJobNamesUnchanged(t *testing.T) {
 
 func TestCiTierClassifierRunsFromTheBaseCommit(t *testing.T) {
 	wf := tierWorkflow(t)
-	if n := strings.Count(wf, `git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py`); n != 4 {
+	archive := `git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier go/internal/citools/affected go/internal/citools/tier`
+	if n := strings.Count(wf, archive); n != 4 {
 		t.Fatalf("git archive count %d", n)
 	}
-	notContains(t, wf, "python ci/ci_tier.py")
-	if n := strings.Count(wf, `python "$RUNNER_TEMP/base/ci/ci_tier.py" classify`); n != 3 {
+	if n := strings.Count(wf, `(cd "$RUNNER_TEMP/base/go" && go build -o "$RUNNER_TEMP/ci-tier" ./cmd/ci-tier)`); n != 4 {
+		t.Fatalf("build count %d", n)
+	}
+	notContains(t, wf, "ci/ci_tier.py")
+	if n := strings.Count(wf, `"$RUNNER_TEMP/ci-tier" classify`); n != 3 {
 		t.Fatalf("classify count %d", n)
+	}
+	if n := strings.Count(wf, `full "base commit has no ci-tier"; exit 0`); n != 3 {
+		t.Fatalf("fallback count %d", n)
+	}
+	// ci-tier is built in the tier step, so each job's setup-go must come before it.
+	tierStep := regexp.MustCompile(`- name: Tier (\(rules from the base commit\)|tool from the base commit)`)
+	nextJob := regexp.MustCompile(`(?m)^  [A-Za-z0-9_-]+:\n`)
+	for _, job := range []string{"ci-tier", "docs-check", "unittest-shard", "go"} {
+		parts := strings.SplitN(wf, "\n  "+job+":\n", 2)
+		if len(parts) != 2 {
+			t.Fatalf("job %s: header not found in tests.yml", job)
+		}
+		body := parts[1]
+		if loc := nextJob.FindStringIndex(body); loc != nil {
+			body = body[:loc[0]]
+		}
+		tier := tierStep.FindStringIndex(body)
+		setup := strings.Index(body, "uses: actions/setup-go@v7")
+		if tier == nil || setup < 0 || setup > tier[0] {
+			t.Errorf("%s: setup-go must come before the tier step", job)
+		}
 	}
 	contains(t, wf, "  ci-tier:\n")
 }
@@ -478,7 +503,7 @@ func TestCiTierPushAndDispatchRunFull(t *testing.T) {
 func TestCiTierHeavyStepsAreGatedOnTier(t *testing.T) {
 	wf := tierWorkflow(t)
 	contains(t, wf, "steps.tier.outputs.go == 'true'")
-	if n := strings.Count(wf, "steps.tier.outputs.mode != 'docs'"); n != 3 {
+	if n := strings.Count(wf, "steps.tier.outputs.mode != 'docs'"); n != 2 {
 		t.Fatalf("mode != docs count %d", n)
 	}
 	contains(t, wf, "--only")
@@ -510,7 +535,8 @@ func TestCiTierDocsFastLaneSkipsHeavyJobs(t *testing.T) {
 	}
 	docs := strings.SplitN(strings.SplitN(wf, "  docs-check:\n", 2)[1], "\n  unittest-shard:\n", 2)[0]
 	contains(t, docs, "needs.ci-tier.outputs.mode == 'docs'")
-	contains(t, docs, `git archive "$BASE_SHA" ci/ci_tier.py ci/affected.py`)
+	contains(t, docs, `git archive "$BASE_SHA" go/go.mod go/go.sum go/cmd/ci-tier`)
+	contains(t, docs, `"$RUNNER_TEMP/ci-tier" docs-check`)
 	gate := strings.SplitN(strings.SplitN(wf, "      - name: Docs lane or every shard and guard job succeeded", 2)[1], "      - uses:", 2)[0]
 	contains(t, gate, `if [ "$MODE" = "docs" ]; then`)
 	contains(t, gate, "DOCS_CHECK_RESULT")
