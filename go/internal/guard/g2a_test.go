@@ -40,7 +40,7 @@ type g2PEnv struct {
 
 func g2NewP(t *testing.T) *g2PEnv {
 	t.Helper()
-	return &g2PEnv{t: t, home: g2RealTemp(t), pw: g2Pw(t)}
+	return &g2PEnv{t: t, home: g2RealTemp(t), pw: fxHome(t, fxSymlinkFactory)}
 }
 
 func (p *g2PEnv) hook(payload map[string]any, role string, hq bool) g2Res {
@@ -49,7 +49,8 @@ func (p *g2PEnv) hook(payload map[string]any, role string, hq bool) g2Res {
 	if hq {
 		args = []string{"--hq"}
 	}
-	return g2HookJSON(p.t, payload, g2Opts{args: args, cwd: g2RepoRoot(p.t), set: map[string]string{"FACTORY_HOME": p.home}})
+	return g2HookJSON(p.t, payload, g2Opts{args: args, cwd: g2RepoRoot(p.t),
+		set: map[string]string{"FACTORY_HOME": p.home, "HOME": p.pw}, pw: p.pw})
 }
 
 func (p *g2PEnv) bashIn(cmd, role string, hq bool, cwd string) g2Res {

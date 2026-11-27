@@ -45,11 +45,7 @@ type g2bRsEnv struct {
 
 func g2bNewRs(t *testing.T) *g2bRsEnv {
 	t.Helper()
-	u, err := user.Current()
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := &g2bRsEnv{t: t, tmp: g2RealTemp(t), home: u.HomeDir}
+	e := &g2bRsEnv{t: t, tmp: g2RealTemp(t), home: fxHome(t, fxSymlinkFactory)}
 	e.live = e.home + "/factory"
 	e.state = filepath.Join(e.tmp, "state")
 	e.rdir = filepath.Join(e.state, "factory", "research", "T-9999")
@@ -62,7 +58,8 @@ func (e *g2bRsEnv) hook(payload map[string]any, role string) g2Res {
 	e.t.Helper()
 	return g2HookJSON(e.t, payload, g2Opts{args: g2RoleArgs(role),
 		drop: []string{"WORKER_GUARD_LIVE_HOME", "FACTORY_HOME"},
-		set:  map[string]string{"WORKER_GUARD_STATE": e.state, "WORKER_GUARD_SCRATCH": e.scratch}})
+		set:  map[string]string{"WORKER_GUARD_STATE": e.state, "WORKER_GUARD_SCRATCH": e.scratch, "HOME": e.home},
+		pw:   e.home})
 }
 
 func (e *g2bRsEnv) bash(cmd, cwd, role string) g2Res {

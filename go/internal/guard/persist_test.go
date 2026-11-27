@@ -2,10 +2,8 @@ package guard
 
 import (
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -15,13 +13,10 @@ import (
 // persist cases of tests/test_worker_guard_data.py's neighbours. The command texts are verbatim; the expected exit is
 // the one the Python test asserts. Everything runs through Check / PersistEdit, the entry points of the hook.
 
+// pwHome is the home the test runs under: the fixture home after persistFix, else the one TestMain set.
 func pwHome(t *testing.T) string {
 	t.Helper()
-	u, err := user.LookupId(strconv.Itoa(os.Getuid()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return pyRealpath(u.HomeDir)
+	return pyRealpath(os.Getenv("HOME"))
 }
 
 var protectedRel = []string{".gitconfig", ".config/git/config", ".config/git/attributes", ".config/git/ignore", ".bashrc", ".zshrc",
@@ -56,6 +51,7 @@ func persistFix(t *testing.T) chk {
 	SessionID = ""
 	unsetEnv(t, "WORKER_GUARD_LIVE_HOME")
 	unsetEnv(t, "WORKER_GUARD_SCRATCH")
+	fxUseHome(t, fxHome(t, fxSymlinkFactory))
 	return chk{t}
 }
 

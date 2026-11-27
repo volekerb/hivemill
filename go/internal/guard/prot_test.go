@@ -131,6 +131,7 @@ func TestOptValues(t *testing.T) {
 // T-1498: the Go toolchain for workers (tests/test_worker_guard_prot_trees.py GoToolchainForWorkers is the contract).
 func TestGoToolchainForWorkers(t *testing.T) {
 	_, wt, _ := protFixture(t)
+	fxUseHome(t, fxHome(t, fxSymlinkFactory))
 	g := "~/.local/go/bin/"
 	allow := []string{g + "go test ./...", g + "go build ./cmd/x", g + "go version", g + "go mod verify",
 		"GOTOOLCHAIN=local GOFLAGS=-mod=mod GOPROXY=off GOMODCACHE=~/.local/lib/factory/go/mod " + g + "go vet ./...",
