@@ -41,6 +41,7 @@ var Defaults = map[string]string{
 	"mem_floor_mb":             "1024", // MemAvailable below this holds new runs
 	"usage_max_age_s":          "600",  // a usage reading older than this is unknown: dispatch is held (fail closed)
 	"usage_require_5h":         "on",   // on: an empty 5-hour field is unknown and holds dispatch
+	"retry_max":                "2",    // `hivemill task retry` attempts per task after its first run; then the owner decides
 	"task_budget_usd":          "5",    // a run whose sessions cost more (API prices) is stopped and marked FAIL "budget"; off = none
 	"project_daily_budget_usd": "off",  // per project, sessions started today; reached = no new run in that project
 	"weekly_budget_usd":        "off",  // all runs, sessions started in the last 7 days; reached = no new run
@@ -70,10 +71,12 @@ var Defaults = map[string]string{
 	// `hivemill obs` bind host (obs_http.go): an IP address or localhost; beyond loopback that network can read the page
 	"obs_listen": "127.0.0.1",
 	// disk cleanup (clean.go): `hivemill clean` and the daemon's step
-	"clean_every_min":   "60", // the daemon cleans this often; 0 or off = only `hivemill clean`
-	"worktree_keep_h":   "24", // a done or cancelled task keeps its worktree this long
-	"disk_trim_pct":     "80", // above this disk use of the home, Go build caches idle for 7 days are emptied
-	"transcript_keep_d": "30", // transcripts of runs ended longer ago are gzipped
+	"clean_every_min":     "60", // the daemon cleans this often; 0 or off = only `hivemill clean`
+	"worktree_keep_h":     "24", // a done or cancelled task keeps its worktree this long
+	"disk_trim_pct":       "80", // above this disk use of the home, Go build caches idle for 7 days are emptied
+	"clean_attic_after_d": "3",  // an ended task's dirty or unmerged worktree is saved to the attic after this; off = never
+	"go_cache_max_gb":     "12", // a Go build cache over this is emptied while no CI job or gate runs; off = no cap
+	"transcript_keep_d":   "30", // transcripts of runs ended longer ago are gzipped
 }
 
 // DefaultKeys returns the config keys, sorted.

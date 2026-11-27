@@ -22,8 +22,8 @@ type BlockedTask struct {
 }
 
 // Queue splits the todo coder tasks of the active goals of these projects into those a pass would start (deps done, spec
-// set, spec gate passing, never run: a task with any run, failed or cancelled included, is not started again, file a new
-// one) and those it skips, each with the first reason that holds: a run, then lint, then deps.
+// set, spec gate passing, never run or retried: a task with a run is started again only after `hivemill task retry`,
+// on its own branch and PR) and those it skips, each with the first reason that holds: a run, then lint, then deps.
 func (r *Runner) Queue(projects []string) (ready []Task, blocked []BlockedTask, err error) {
 	ts, err := r.Store.ReadyTasks(projects)
 	if err != nil || len(ts) == 0 {
@@ -35,8 +35,8 @@ func (r *Runner) Queue(projects []string) (ready []Task, blocked []BlockedTask, 
 	}
 	for _, t := range ts {
 		skip := func(kind, reason string) { blocked = append(blocked, BlockedTask{t, kind, reason}) }
-		if old, _ := r.Store.Run(t.ID); old != nil {
-			skip(BlockedRun, "has a run")
+		if old, _ := r.Store.Run(t.ID); old != nil && !r.retryPending(t.ID, old) {
+			skip(BlockedRun, "has a run (`hivemill task retry` starts a failed one again)")
 			continue
 		}
 		if strings.TrimSpace(t.Spec) == "" {

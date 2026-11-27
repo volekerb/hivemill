@@ -64,6 +64,8 @@ type Runner struct {
 	queueSlow  bool                   // a PR is queued for CI over its budget: no refresh
 	// DiskFree is (total, available) bytes of a path's filesystem; nil = statfs. Tests replace it.
 	DiskFree func(path string) (uint64, uint64, error)
+	// TmpRoots are the temp directories clean looks into; nil = /tmp and /var/tmp. Tests replace them.
+	TmpRoots []string
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -202,9 +204,11 @@ func (r *Runner) Start(id string) error {
 		return fmt.Errorf("%w: %s: project %s has ci_gate none and no gate_cmd, so nothing would test it; set a gate_cmd or ci_gate pr",
 			ErrRefused, id, t.Project)
 	}
-	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
+	old, _ := r.Store.Run(id)
+	if old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
+	retry := r.retryPending(id, old)
 	if why := r.runCapBlock(); why != "" {
 		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
@@ -305,7 +309,16 @@ func (r *Runner) Start(id string) error {
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
-	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, Kickoff(run, t))); err != nil {
+	kick := Kickoff(run, t)
+	if retry {
+		m := r.retryMark(id)
+		pr := t.PRURL
+		if open := r.TaskPR(t); open != "" {
+			pr = open
+		}
+		kick = retryBrief(m.N+1, old, branch, pr, m.Note) + kick
+	}
+	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, kick)); err != nil {
 		return err
 	}
 	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,
@@ -595,6 +608,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
+	r.pushGuardExports(time.Now())  // and so does the guard on a clone-mode machine (pushGuardExport)
 	defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
@@ -687,6 +701,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		}
 		_ = r.Store.PutRun(run)
 	}()
+	if Active(run.State) {
+		r.syncActiveTranscripts(run) // before overBudget here and the day and week caps read costs later in the pass
+	}
 	if Active(run.State) && run.State != Merging && r.overBudget(run) {
 		return run.State, nil
 	}
@@ -796,9 +813,7 @@ func (r *Runner) gated(run *Run) {
 				r.ciRed(run, rows)
 			}
 		case "green":
-			if err := r.StartJudge(run); err != nil {
-				r.fail(run, "the judge did not start: "+err.Error())
-			}
+			r.startJudge(run)
 		default:
 			// in a pass, running Actions checks over budget are re-run (trackFlow); the rest alert the owner, and so does
 			// a wait of twice the budget, which a series of short jobs can reach without one job running over it

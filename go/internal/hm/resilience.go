@@ -18,12 +18,25 @@ import (
 func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 	var fixed []string
 	if run.Worktree != "" && Active(run.State) {
-		if _, err := os.Stat(filepath.Join(run.Worktree, ".git")); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(run.coordWT(), ".git")); os.IsNotExist(err) {
 			if t, err := r.Store.Task(run.Task); err == nil {
 				if wt, err := r.Clone(t, run.Branch); err == nil {
-					run.Worktree = wt
+					if run.cloned() {
+						run.Mirror = wt
+					} else {
+						run.Worktree = wt
+					}
 					fixed = append(fixed, "clone recreated from "+run.Branch)
 				}
+			}
+		}
+	}
+	if run.cloned() && Active(run.State) && run.State != Merging && r.worktreeLost(run) {
+		if t, err := r.Store.Task(run.Task); err == nil {
+			if _, err := r.remoteWorktree(run.Machine, run.RemoteHome, t, run.Branch); err != nil {
+				r.printf("%s: cannot recreate %s on %s: %v\n", run.Task, run.Worktree, run.Machine, err)
+			} else {
+				fixed = append(fixed, "worktree on "+run.Machine+" recreated from "+run.Branch)
 			}
 		}
 	}
@@ -45,8 +58,9 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 	case Judging:
 		name = last(run.Judges)
 	}
-	// a task session on a worker that hc lists as disconnected is not lost: hc keeps it and lists it again on reconnect
-	down := name == run.Agent && run.Machine != "" && machineDown(r.Tools, run.Machine)
+	// a session on a worker that hc lists as disconnected is not lost: hc keeps it and lists it again on reconnect. The
+	// judge runs on the local core, except for a clone-mode run
+	down := run.Machine != "" && (name == run.Agent || run.cloned()) && machineDown(r.Tools, run.Machine)
 	if name != "" && listed && !down && !alive(list, true, name) {
 		if run.Resumes >= cfgInt(r.Store, "resume_max") {
 			r.fail(run, fmt.Sprintf("session lost: %s is gone after %d resumes", name, run.Resumes))
@@ -98,6 +112,9 @@ func (r *Runner) resumeSession(run *Run, name, text string) error {
 	var env map[string]string
 	if strings.Contains(name, "judge") {
 		role, prompt, machine = "task-judge", "task-judge.md", "" // the judge stays on the local core
+		if run.cloned() {
+			machine = run.Machine // except for a clone-mode run: its worktree is only there
+		}
 		kick = "The factory restarted your session after it was lost. Finish your verdict with the JSON block."
 	} else {
 		env = r.taskEnv()
@@ -309,4 +326,43 @@ func (r *Runner) DaemonRunning() bool {
 	}
 	l.Close()
 	return false
+}
+
+// judgeStartMax bounds the passes on which the judge of a clone-mode run may fail to start in one round.
+const judgeStartMax = 10
+
+// judgeStartFails counts the passes of this round on which the judge did not start. It is read from the run's history,
+// which is stored with the run.
+func (run *Run) judgeStartFails() (n int) {
+	for _, h := range run.History {
+		if strings.HasPrefix(h, fmt.Sprintf("round %d: the judge did not start", run.Round)) {
+			n++
+		}
+	}
+	return n
+}
+
+// startJudge starts the judge or fails the run. A clone-mode run's judge starts over ssh: while its machine is away the
+// run waits, and an error is retried on later passes.
+func (r *Runner) startJudge(run *Run) {
+	if run.cloned() && machineDown(r.Tools, run.Machine) {
+		run.MergeHold = "the judge waits for " + run.Machine + " to reconnect"
+		return
+	}
+	state, n := run.State, len(run.Judges)
+	err := r.StartJudge(run)
+	if err == nil {
+		return
+	}
+	if !run.cloned() || run.judgeStartFails()+1 >= judgeStartMax {
+		r.fail(run, "the judge did not start: "+err.Error())
+		return
+	}
+	if len(run.Judges) > n {
+		r.Close(run.Judges[n])
+		run.Judges = run.Judges[:n]
+	}
+	run.State, run.MergeHold = state, "the judge did not start (retried next pass): "+firstLine(err.Error())
+	run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, run.MergeHold))
+	r.printf("%s: %s\n", run.Task, run.MergeHold)
 }
