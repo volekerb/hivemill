@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Herdr app dashboard reads each factory's obs API.** One headline for the runs that wait for you, the factories as one table, a Resources table per machine, and a Spend view, and no number shown as live after its source stopped answering. The spawn gate, lanes and the old server's address are gone. `install.py --herdr-app` takes `--factory [LABEL=]URL` in place of `--factory-url`, `--factory-machine`, `--factory-web-url` and `--orgs`, and drops the old settings keys with a note. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md) and [docs/design/multi-factory.md](docs/design/multi-factory.md).
+
 ### Fixed
 
 - **Runs with a finished PR land by themselves.** A run that would fail as stalled, timed out or with the gate finding no PR goes to CI and the judge when its branch has an open PR; a running Stop gate hook no longer counts as an idle session (a hook past its timeout fails as `gate hook timed out`); and answering a held run's question with `approved` or `merge it` counts as the judge's MERGE for the held head (T-2188).
@@ -16,6 +20,14 @@ v0.1.0 summarises the changes merged during private development.
 - **`hivemill proofs touched --ios-dir` no longer passes on a mistyped directory.** An iOS directory that is missing under the root, or differs in letter case from the real one, is now a usage error (exit 2) that names it, not `SKIP xcodebuild: no iOS change` (T-2074).
 
 ### Added
+
+- **Board and Traces tabs in the Herdr app dashboard.** Board shows one factory's tasks as cards in six columns, grouped by the reason they wait; Traces shows a task's run as phases with time, cost and the start of each prompt. Both need a factory on a build with `/api/obs/v1/board`; an older one is named as such. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md).
+
+- **A task board and full traces in the obs API.** `GET /api/obs/v1/board` puts every task of a factory in its column (queued, working, in CI, to merge, held, done today) under the reason it waits there, with its title. `GET /api/obs/v1/task?k=<key>` is the trace with the task's title, stage, PR and the text of each prompt the runner sent (64 KB per prompt at most). Both are read-only, like the rest of the page. See [docs/hivemill-observability.md](docs/hivemill-observability.md).
+
+- **A summary API and a hub for several factories.** `GET /api/obs/v1/summary` gives one factory's identity (`obs_label`), run counts, one "needs you" list (questions with their text, held runs with reason and PR, failures that were not re-filed, runs over a per-stage limit, system lines), planner state, merges, spend, budget and machines. With `obs_peers` set, a factory's obs serves the All factories page at `/all`; `hivemill obs --hub --peers ...` serves it on a machine with no factory. Bound beyond loopback, obs no longer names file paths or pull sources. See [docs/hivemill-observability.md](docs/hivemill-observability.md#several-factories-the-summary-api-and-the-hub).
+
+- **The Go guard no longer runs python3.** It lists tar/zip archive members itself and treats a DB value with no export row as absent; `--py-hook` is accepted and only locates the checkout (T-2112). Where it cannot follow Python it refuses: xz, a gzip FEXTRA field, a second bzip2 stream, and any non-zero data after the first gzip member, which `gzip -d` would also extract (T-2132).
 
 - **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).
 

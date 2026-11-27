@@ -42,14 +42,14 @@ func herdrFixture(t *testing.T, layout string) (*fakeHost, string) {
 
 func TestHerdrAppInstallsModConfigAndLayout(t *testing.T) {
 	f, app := herdrFixture(t, mainLayout)
-	rc, out, _ := runMain(t, f, "--yes", "--herdr-app", "--factory-machine", "box1", "--orgs", "claude,cursor")
+	rc, out, _ := runMain(t, f, "--yes", "--herdr-app", "--factory", "Workshop=http://192.0.2.10:7461/", "--factory", "http://192.0.2.11:7461")
 	if rc != 0 {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
 	cfgPath := filepath.Join(f.HomeDir, ".config", "hivemill", "dashboard.json")
 	for _, want := range []string{
 		"[run] 1 mod: copy main.js, data.js, mod.json into " + app + "/mods/hivemill",
-		"[run] 2 config: write " + cfgPath + " (factory http://127.0.0.1:8765 via machine box1, orgs claude,cursor, 0 project(s))",
+		"[run] 2 config: write " + cfgPath + " (2 factories: http://192.0.2.10:7461, http://192.0.2.11:7461; 0 project(s))",
 		"[run] 3 layout: write " + app + "/layouts/hivemill.json from main.json, the status bar becomes the Hivemill bar",
 		"[run] 4 switch: show the hivemill layout if the app is running",
 		"    the app is not running or herdr-app is not on PATH; pick the Hivemill layout with ctrl-shift-l",
@@ -100,13 +100,14 @@ func TestHerdrAppInstallsModConfigAndLayout(t *testing.T) {
 		t.Errorf("layout:\n%s\nwant:\n%s", b, wantLayout)
 	}
 	wantCfg := `{
-  "factory": {
-    "url": "http://127.0.0.1:8765",
-    "machine": "box1"
-  },
-  "orgs": [
-    "claude",
-    "cursor"
+  "factories": [
+    {
+      "url": "http://192.0.2.10:7461",
+      "label": "Workshop"
+    },
+    {
+      "url": "http://192.0.2.11:7461"
+    }
   ],
   "projects": []
 }
@@ -180,9 +181,11 @@ func TestHerdrAppKeepsExistingDashboardConfig(t *testing.T) {
 	cfgDir := filepath.Join(f.HomeDir, ".config", "hivemill")
 	mustMkdir(t, cfgDir)
 	mustWrite(t, filepath.Join(cfgDir, "dashboard.json"),
-		`{"projects":[{"id":"a"}],"factory":{"web_url":"http://w","machine":"old"},"zzz":1.0e2}`)
-	rc, out, _ := runMain(t, f, "--yes", "--herdr-app", "--no-switch", "--factory-machine", "", "--factory-url", "http://127.0.0.1:9")
-	if rc != 0 || !strings.Contains(out, "2 config: update ") || !strings.Contains(out, "(factory http://127.0.0.1:9, orgs auto, 1 project(s))") {
+		`{"projects":[{"id":"a"}],"factory":{"web_url":"http://w","machine":"old"},"orgs":"auto","zzz":1.0e2,`+
+			`"factories":[{"space":"box/hivemill","url":"http://127.0.0.1:9/","label":"Old"},{"url":"http://127.0.0.1:8"},{"url":""},7]}`)
+	rc, out, _ := runMain(t, f, "--yes", "--herdr-app", "--no-switch", "--factory", "New=http://127.0.0.1:9")
+	if rc != 0 || !strings.Contains(out, "2 config: update ") || !strings.Contains(out, "(1 factory: http://127.0.0.1:9; 1 project(s))") ||
+		!strings.Contains(out, "    dropped the old dashboard's settings (factory, orgs): the dashboard now reads each factory's `hivemill obs`") {
 		t.Fatalf("rc=%d\n%s", rc, out)
 	}
 	want := `{
@@ -191,13 +194,14 @@ func TestHerdrAppKeepsExistingDashboardConfig(t *testing.T) {
       "id": "a"
     }
   ],
-  "factory": {
-    "web_url": "http://w",
-    "machine": null,
-    "url": "http://127.0.0.1:9"
-  },
   "zzz": 100.0,
-  "orgs": "auto"
+  "factories": [
+    {
+      "space": "box/hivemill",
+      "url": "http://127.0.0.1:9",
+      "label": "New"
+    }
+  ]
 }
 `
 	if got := mustReadFile(t, filepath.Join(cfgDir, "dashboard.json")); got != want {

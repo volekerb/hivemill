@@ -13,6 +13,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [hivemill-planner.md](hivemill-planner.md): the `hivemill` planner session (keeps ready queues full), the owner queue (`hivemill ask`), wakes, starvation alerts and the morning digest.
 - [hivemill-observability.md](hivemill-observability.md): `hivemill obs` (read-only local page: portfolio, project, goal, task, session), `obs pull` from other machines, and the OpenTelemetry export of tasks as traces.
 - [design/obs-ui.md](design/obs-ui.md): the design direction for the `hivemill obs` pages: tokens, per-page rules, states and accessibility.
+- [design/multi-factory.md](design/multi-factory.md): the UX and tech design for several factories: each factory's own UI, the hub over all of them, and the overview in the Herdr app.
 - [hivemill-machines.md](hivemill-machines.md): `hivemill` task sessions on other hc machines (`session_machines`), forwarding a worker's `hivemill` to the coordinator, and running on macOS.
 - [pipelines/web-sample-run.md](pipelines/web-sample-run.md): the recorded run of one planner-filed task on the hivemill-www sample web repo: steps, elapsed time, cost and the merged PR.
 - [pr-descriptions.md](pr-descriptions.md): the template every pull request body follows.
@@ -27,7 +28,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [examples/02-handling-a-rejection.md](examples/02-handling-a-rejection.md): what happens when review fails and the judge rejects.
 - [examples/03-digest-and-scorecard.md](examples/03-digest-and-scorecard.md): the morning digest and the per-team scorecard.
 - [web-ui.md](web-ui.md): the dashboard started by `factory serve` and what each panel shows.
-- [herdr-app-dashboard.md](herdr-app-dashboard.md): the Hivemill status bar and dashboard tab for the Herdr app; install, settings, Claude/Cursor choice.
+- [herdr-app-dashboard.md](herdr-app-dashboard.md): the Hivemill status bar and dashboard tab for the Herdr app, over every factory; install and settings.
 - [releases/v0.4.0-announcement.md](releases/v0.4.0-announcement.md): what's new in v0.4.0, in plain English, with two screenshots.
 - [releases/v0.5.0-announcement.md](releases/v0.5.0-announcement.md): what's new in v0.5.0, in plain English.
 - [releases/v0.5.0-linkedin.md](releases/v0.5.0-linkedin.md): draft LinkedIn post for v0.5.0, to publish after the release exists.

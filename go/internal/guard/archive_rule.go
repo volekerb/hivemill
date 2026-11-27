@@ -1,6 +1,7 @@
 package guard
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -239,15 +240,113 @@ func (a *Analyzer) archivePath(arch string) string {
 	return pyJoin(a.ccwd, arch)
 }
 
-// archiveMembers is the member-list step of rule E3. Go does not read archives: the list needs Python's tarfile and
-// zipfile (the reference the spec names), so every extraction that passes the checks above is delegated to the Python
-// hook. Delegating before any Lstat/Stat sends missing-file, FIFO and oversize cases there too; Go cannot disagree
-// with its own reference. RunPython exits 2 when python3 or the hook is missing or fails, so this never allows.
+// listingOnly is listing_only (T-0805): a command that cannot create a file (cd, plain readers, tar -t, unzip -l).
+func listingOnly(words []string) bool {
+	name, args := pyBasename(words[0]), words[1:]
+	switch name {
+	case "cd", "pushd", "popd", "ls", "cat", "echo", "printf", "true", "pwd", "test", "[", "file", "stat", "head":
+		return !anyOf(args, func(a string) bool { return a == ">" || a == ">>" })
+	case "tar", "gtar", "bsdtar":
+		return (len(args) > 0 && tarClusterHas(args[0], "t") && !tarClusterHas(args[0], "cxru")) || containsStr(args, "--list")
+	case "unzip":
+		return unzipListingOpts(args)
+	}
+	return false
+}
+
+// tarClusterHas is re.match(r"^-?[A-Za-z]*[<any>][A-Za-z]*$", a): an optional dash, then ASCII letters with one of any
+// among them ($ also matches before one final newline).
+func tarClusterHas(a, any string) bool {
+	a = strings.TrimPrefix(strings.TrimSuffix(a, "\n"), "-")
+	for i := 0; i < len(a); i++ {
+		if !isASCIILetter(a[i]) {
+			return false
+		}
+	}
+	return strings.ContainsAny(a, any)
+}
+
+// archiveMembers is a port of Analyzer.archive_members (E3): the archive is listed (archiveNames, never extracted) and
+// refused when a member has a .git path component (also as a link target) or a directory holds both config and HEAD.
+// A list that cannot be obtained fails closed, except a missing archive in the first command that may create files.
 func (a *Analyzer) archiveMembers(name, arch string) error {
 	const why = "extract an archive you have listed (tar -tf, unzip -l) that has no .git member and no config+HEAD pair"
-	if a.archivePath(arch) == "" {
+	p := a.archivePath(arch)
+	if p == "" {
 		return blockf("`" + name + "` extracting from stdin, an expansion or an unresolvable archive name cannot be listed first " +
 			"(it may carry .git/config): " + why)
 	}
-	return delegate("archive member list")
+	zipped := name == "unzip"
+	cands := []string{p}
+	if zipped { // unzip opens <name>, then <name>.zip, then <name>.ZIP: list every candidate that exists
+		cands = append(cands, p+".zip", p+".ZIP")
+	}
+	var found []string
+	for _, c := range cands {
+		if strings.Contains(c, "\x00") {
+			continue // os.path.lexists is False for a name with NUL
+		}
+		if _, err := os.Lstat(c); err == nil {
+			found = append(found, c)
+		}
+	}
+	if len(found) == 0 {
+		found = []string{p}
+	}
+	var members []archMember
+	for _, p = range found {
+		if !strings.Contains(p, "\x00") {
+			if st, err := os.Stat(p); err == nil && (!st.Mode().IsRegular() || st.Size() > archiveSizeMax) {
+				return blockf(fmt.Sprintf("`%s` archive %s is not a regular file under %d MB, so it is not listed (a FIFO or a "+
+					"bomb would hang the hook): %s", name, pyRepr(p), archiveSizeMax>>20, why))
+			}
+		}
+		ms, err := archiveNames(p, zipped)
+		if err != nil {
+			typ := pyErrType(err)
+			if typ == "FileNotFoundError" {
+				if !a.mayCreateBefore && !a.fsChanged {
+					return nil // the first command on the line and the file does not exist: it extracts nothing
+				}
+				return blockf("`" + name + "` archive " + pyRepr(p) + " does not exist yet; an earlier command on this line may " +
+					"create it, so its members cannot be listed: run the extraction in its own command, after the archive exists")
+			}
+			// Python lets TypeError/IndexError/MemoryError/RecursionError escape (the hook then fails closed): Go blocks with
+			// the listing message for every other type.
+			return blockf("`" + name + "` archive " + pyRepr(p) + " cannot be listed (" + typ + "), so a .git/config member " +
+				"cannot be ruled out: " + why)
+		}
+		members = append(members, ms...)
+	}
+	isGit := func(c string) bool { return strings.ToLower(c) == ".git" }
+	split := func(s string) []string {
+		return strings.FieldsFunc(s, func(r rune) bool { return r == '/' || r == '\\' })
+	}
+	dirs := map[string]int{}
+	for _, m := range members {
+		var parts []string
+		for _, c := range split(m.name) {
+			if c != "." {
+				parts = append(parts, c)
+			}
+		}
+		if anyOf(parts, isGit) || (m.link != "" && anyOf(split(m.link), isGit)) {
+			return blockf("`" + name + "` archive " + pyRepr(p) + " has a member " + pyReprSE(m.name) + " under a .git path: " +
+				"its config/hooks would run as git (" + persistWhy + "); " + why)
+		}
+		if n := len(parts); n > 0 && (parts[n-1] == "config" || parts[n-1] == "HEAD") {
+			bit := 1
+			if parts[n-1] == "HEAD" {
+				bit = 2
+			}
+			dirs[strings.Join(parts[:n-1], "/")] |= bit
+		}
+	}
+	for _, v := range dirs {
+		if v == 3 {
+			return blockf("`" + name + "` archive " + pyRepr(p) + " has config and HEAD in one directory (a bare repo layout " +
+				"whose config git runs: core.fsmonitor, core.hooksPath); " + why)
+		}
+	}
+	return nil
 }

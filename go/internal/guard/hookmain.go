@@ -39,9 +39,9 @@ func HookMain(args []string, stdin io.Reader, stdout, stderr io.Writer) (code in
 			return BossInbox(stdin, stdout, ExecInbox)
 		}
 	}
+	hookPath, args := splitPyHook(args)
+	SetHookPath(hookPath)
 	role, hq := ParseHookArgs(args)
-	pyHook, passArgs := splitPyHook(args)
-	SetPyHook(pyHook)
 	raw, err := io.ReadAll(io.LimitReader(stdin, MaxHookInput+1))
 	if err != nil {
 		return failClosed(stderr, "hook error, failing closed: reading stdin: "+err.Error())
@@ -74,12 +74,12 @@ func HookMain(args []string, stdin io.Reader, stdout, stderr io.Writer) (code in
 		// Python: `tool_name in {set}` raises TypeError on an unhashable value, which fails closed.
 		return failClosed(stderr, "hook error, failing closed: TypeError: unhashable type: '"+pyTypeName(tool)+"'")
 	case string:
-		return dispatch(tool, data, role, hq, passArgs, raw, stdout, stderr)
+		return dispatch(tool, data, role, hq, stderr)
 	}
 	return 0 // no tool name, or a non-string scalar: Python allows (it is not Bash)
 }
 
-func dispatch(tool string, data map[string]any, role string, hq bool, passArgs []string, raw []byte, stdout, stderr io.Writer) int {
+func dispatch(tool string, data map[string]any, role string, hq bool, stderr io.Writer) int {
 	switch {
 	case !hq && IsResearcher(role) && (IsPersistEditTool(tool) || tool == "Read" || tool == "Grep"):
 		SessionID, _ = data["session_id"].(string)
@@ -128,11 +128,8 @@ func dispatch(tool string, data map[string]any, role string, hq bool, passArgs [
 	}
 	SessionID, _ = data["session_id"].(string)
 	if err := Check(cmd, cwd, role, hq); err != nil {
-		if IsDelegate(err) {
-			if IsClosed(err) {
-				return closedExit(stderr, err.Error())
-			}
-			return RunPython(passArgs, raw, stdout, stderr)
+		if IsDelegate(err) { // the only Delegate left is the fail-closed refusal (guard export unusable)
+			return closedExit(stderr, err.Error())
 		}
 		fmt.Fprint(stderr, Explain(err))
 		return 2
@@ -148,8 +145,9 @@ func finish(code int, msg string) func(io.Writer) int {
 	}
 }
 
-// splitPyHook takes `--py-hook <path>` out of the arguments: the path of roles/hooks/worker-guard.py (the binary
-// lives outside the repo and cannot find it), and the arguments the Python hook itself is run with.
+// splitPyHook takes `--py-hook <path>` out of the arguments: the path of roles/hooks/worker-guard.py, which the shim
+// still passes. Its only use is locating the checkout (HookPath, host.go): the binary lives outside the repo and cannot
+// find it otherwise. Nothing runs that file. The rest is what role parsing sees, so the flag never reaches it.
 func splitPyHook(args []string) (path string, rest []string) {
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--py-hook" && i+1 < len(args) {

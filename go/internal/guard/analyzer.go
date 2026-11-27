@@ -37,6 +37,10 @@ type Analyzer struct {
 	cwdUnres  bool              // N3: after `cd ~nosuchuser`: ccwd stays the known path, the real directory is not known
 	ccwdKnown bool              // false where Python holds None: a `cd` target is only known at run time
 
+	// T-0805: mayCreate is set once a command that is not listingOnly has run on this line (it may have created the
+	// archive a later extraction reads); mayCreateBefore is its value before the current command.
+	mayCreate, mayCreateBefore bool
+
 	skipPriv         bool
 	shellAssigns     []string // env assignments of the shell command being analysed (T-0331)
 	unitRule         bool     // HQ mode: block mutating systemctl (workers keep the factory unit rule)
@@ -61,7 +65,7 @@ func NewAnalyzer(cwd, role string, hq bool) (*Analyzer, error) {
 }
 
 // soft is a port of Analyzer.soft applied to the result of the call: in HQ mode only a PRIV or public-text block (and a
-// delegation, which must never turn into an allow) counts, so parse trouble never blocks.
+// Delegate, the fail-closed refusal, which must never turn into an allow) counts, so parse trouble never blocks.
 func (a *Analyzer) soft(err error) error {
 	if err == nil || IsPrivBlock(err) || IsDelegate(err) || isPublicBlock(err) {
 		return err

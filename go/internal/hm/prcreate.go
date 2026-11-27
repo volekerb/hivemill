@@ -119,6 +119,8 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 				return "", fmt.Errorf("%w: pr create refused (public text): %s", ErrRefused, why)
 			}
 		}
+		// after the check: a body that holds a key block is still refused, not sent redacted
+		ghTitle, body = ScrubSecrets(ghTitle), ScrubSecrets(body)
 		argv = []string{"pr", "create", "--repo", repo, "--base", t.Base, "--head", branch, "--title", ghTitle, "--body-file", "-"}
 		input = body
 	case "ready":

@@ -79,8 +79,14 @@ func (r *Runner) localCI(run *Run, head string) error {
 	return nil
 }
 
-// redactHomes removes the local home paths.
+// redactHomes removes the App Store Connect key and the local home paths.
 func (r *Runner) redactHomes(text string) string {
+	// the key before the paths: a rewritten path inside a secret would hide it
+	return r.replaceHomes(ScrubSecrets(text))
+}
+
+// replaceHomes removes only the local home paths: the public-text guard must still see a key.
+func (r *Runner) replaceHomes(text string) string {
 	// the factory home first: it is usually inside the user home
 	for _, p := range [][2]string{{r.Env.Home, "<factory>"}, {r.Env.UserHome, "~"}} {
 		if len(p[0]) > 1 {

@@ -32,19 +32,15 @@ type Args struct {
 	UninstallBootUnits bool
 	NoScout, Resume    bool
 
-	HerdrApp       bool
-	FactoryURL     *string
-	FactoryMachine *string
-	FactoryWebURL  *string
-	Orgs           *string
-	NoSwitch       bool
-	NoSidebar      bool
+	HerdrApp  bool
+	Factories []string // --factory [LABEL=]URL, once per factory
+	NoSwitch  bool
+	NoSidebar bool
 }
 
 const usageLine = "usage: hivemill-install (--check | --dry-run | --yes) [--ref REF] [--repo-url URL] [--project-id ID --project-repo PATH]\n" +
 	"       [--project-name NAME] [--project-gh OWNER/NAME] [--max-agents N] [--port N] [--obs-listen ADDR] [--no-systemd|--no-boot-units] [--with-serve] [--uninstall-boot-units] [--linger]\n" +
-	"       [--no-scout] [--resume] [--herdr-app [--factory-url URL] [--factory-machine NAME] [--factory-web-url URL]\n" +
-	"       [--orgs auto|claude|cursor|claude,cursor] [--no-switch] [--no-sidebar]]"
+	"       [--no-scout] [--resume] [--herdr-app [--factory [LABEL=]URL]... [--no-switch] [--no-sidebar]]"
 
 // helpText is printed for --help.
 const helpText = usageLine + `
@@ -77,10 +73,8 @@ options:
 
 Herdr app dashboard (--herdr-app with --dry-run or --yes):
   --herdr-app          install the Hivemill dashboard into the Herdr app here
-  --factory-url URL    the factory web UI as seen from --factory-machine (default http://127.0.0.1:8765)
-  --factory-machine NAME  an hc machine ls name to reach the factory from ('' clears it)
-  --factory-web-url URL   the factory web UI as your browser reaches it, for the Open links
-  --orgs LIST          auto (default), claude, cursor, or claude,cursor
+  --factory [LABEL=]URL  a factory's hivemill obs address, e.g. Workshop=http://HOST:7461; repeat it per factory
+                       (default http://127.0.0.1:7461)
   --no-switch          do not switch the app to the Hivemill layout
   --no-sidebar         hide the sidebar in the Hivemill layout
 
@@ -88,15 +82,28 @@ Exit codes: 0 done, 1 a step failed or a refusal, 2 usage, 3 you must do somethi
 4 already installed. The last line of a run is RESULT PASS url=... version=... or RESULT FAIL step=...`
 
 var (
-	httpURLRe  = regexp.MustCompile(`^https?://[^` + spaceClass + `]+\n?$`) // Python: ^https?://[^\s]+$ ($ also matches before a final \n)
-	machineRe  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*\n?$`)
-	hasHelpArg = map[string]bool{"-h": true, "--help": true}
+	factoryURLRe = regexp.MustCompile(`^https?://[^` + spaceClass + `=]+\n?$`) // Python: ^https?://[^\s=]+$ ($ also matches before a final \n)
+	httpPrefixRe = regexp.MustCompile(`^https?://`)
+	hasHelpArg   = map[string]bool{"-h": true, "--help": true}
 )
 
 // helpRequested is returned by ParseArgs for -h/--help.
 type helpRequested struct{}
 
 func (helpRequested) Error() string { return "help requested" }
+
+// parseFactory splits --factory [LABEL=]URL: the URL is where that factory's `hivemill obs` answers.
+func parseFactory(spec string) (label, url string, ok bool) {
+	label, url, sep := strings.Cut(spec, "=")
+	if !sep || httpPrefixRe.MatchString(spec) {
+		label, url = "", spec
+	}
+	label = strings.TrimSpace(label)
+	if !factoryURLRe.MatchString(url) || (sep && label == "" && url != spec) {
+		return "", "", false
+	}
+	return label, strings.TrimRight(url, "/"), true
+}
 
 func usageErr(msg string) error { return stopf(2, "usage error: %s\n%s", msg, usageLine) }
 
@@ -114,16 +121,13 @@ func ParseArgs(argv []string) (*Args, error) {
 		"--no-switch": &a.NoSwitch, "--no-sidebar": &a.NoSidebar,
 	}
 	valueFlags := map[string]func(string) error{
-		"--ref":             func(v string) error { a.Ref = v; return nil },
-		"--repo-url":        func(v string) error { a.RepoURL = v; return nil },
-		"--project-id":      func(v string) error { a.ProjectID = v; return nil },
-		"--project-name":    func(v string) error { a.ProjectName = v; return nil },
-		"--project-repo":    func(v string) error { a.ProjectRepo = v; return nil },
-		"--project-gh":      func(v string) error { a.ProjectGH = v; return nil },
-		"--factory-url":     func(v string) error { a.FactoryURL = &v; return nil },
-		"--factory-machine": func(v string) error { a.FactoryMachine = &v; return nil },
-		"--factory-web-url": func(v string) error { a.FactoryWebURL = &v; return nil },
-		"--orgs":            func(v string) error { a.Orgs = &v; return nil },
+		"--ref":          func(v string) error { a.Ref = v; return nil },
+		"--repo-url":     func(v string) error { a.RepoURL = v; return nil },
+		"--project-id":   func(v string) error { a.ProjectID = v; return nil },
+		"--project-name": func(v string) error { a.ProjectName = v; return nil },
+		"--project-repo": func(v string) error { a.ProjectRepo = v; return nil },
+		"--project-gh":   func(v string) error { a.ProjectGH = v; return nil },
+		"--factory":      func(v string) error { a.Factories = append(a.Factories, v); return nil },
 		"--max-agents": func(v string) error {
 			n, ok := pyInt(v)
 			if !ok || n.Cmp(big.NewInt(1)) < 0 {
@@ -153,7 +157,7 @@ func ParseArgs(argv []string) (*Args, error) {
 		if hasHelpArg[arg] {
 			return nil, helpRequested{}
 		}
-		name, val, hasVal := strings.Cut(arg, "=")
+		name, val, hasVal := strings.Cut(arg, "=") // --factory=Label=URL: the value keeps its own "="
 		if !strings.HasPrefix(arg, "--") {
 			return nil, usageErr("unrecognized option (values are not echoed)")
 		}
@@ -200,28 +204,18 @@ func (a *Args) validate() error {
 	if a.UninstallBootUnits && a.Check {
 		return usageErr("--uninstall-boot-units goes with --dry-run or --yes")
 	}
-	dashSet := a.FactoryURL != nil || a.FactoryMachine != nil || a.FactoryWebURL != nil || a.Orgs != nil || a.NoSwitch || a.NoSidebar
+	dashSet := a.Factories != nil || a.NoSwitch || a.NoSidebar
 	if !a.HerdrApp && dashSet {
-		return usageErr("--factory-url, --factory-machine, --factory-web-url, --orgs, --no-switch and --no-sidebar need --herdr-app")
+		return usageErr("--factory, --no-switch and --no-sidebar need --herdr-app")
 	}
 	if a.HerdrApp {
 		if a.Check {
 			return usageErr("--herdr-app goes with --dry-run or --yes")
 		}
-		if a.Orgs != nil && *a.Orgs != "" && *a.Orgs != "auto" {
-			for _, o := range strings.Split(*a.Orgs, ",") {
-				if o != "claude" && o != "cursor" {
-					return usageErr("--orgs takes auto, claude, cursor or claude,cursor")
-				}
+		for _, spec := range a.Factories {
+			if _, _, ok := parseFactory(spec); !ok {
+				return usageErr("--factory takes URL or LABEL=URL, with an http(s) URL")
 			}
-		}
-		for _, v := range []*string{a.FactoryURL, a.FactoryWebURL} {
-			if v != nil && *v != "" && !httpURLRe.MatchString(*v) {
-				return usageErr("--factory-url and --factory-web-url must be http(s) URLs")
-			}
-		}
-		if a.FactoryMachine != nil && *a.FactoryMachine != "" && !machineRe.MatchString(*a.FactoryMachine) {
-			return usageErr("--factory-machine must be a machine name from `hc machine ls`")
 		}
 	}
 	if (a.ProjectID != "") != (a.ProjectRepo != "") {
