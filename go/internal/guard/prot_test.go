@@ -234,6 +234,7 @@ func TestGoToolchainForWorkers(t *testing.T) {
 // T-1498 N11: an empty go subcommand word (an empty quoted word after go) once looped forever in the Go port; the refusal must come back.
 func TestGoEmptySubcommandReturns(t *testing.T) {
 	_, wt, _ := protFixture(t)
+	fxUseHome(t, fxHome(t, fxSymlinkFactory))
 	g := "~/.local/go/bin/"
 	for _, c := range []string{g + "go ''", g + `go ""`, g + `go "" test ./...`, g + "go '' test", g + "go -C . ''"} {
 		done := make(chan error, 1)
