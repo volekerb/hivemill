@@ -46,7 +46,7 @@ Never cancel a failed task and file it again: the work stays on its own branch a
 - **Owner question**: only the owner can decide (product choice, credentials, a T3 hard limit, a judge HOLD on an unasked change), or the retries are used up. `hivemill ask add --task T-NNNN '...'`.
 - **Split** (rare): the task mixed two unrelated changes and cannot pass as one. Cancel it (`hivemill task cancel` closes its PR, the branch stays) and file the pieces with `--refile-of T-x` on the one its dependents need.
 
-A proof that cannot pass is a spec defect, not a task failure and not a broken gate. When a task failed with `spec_defect` (the `task.failed` reason kind; the failure reason has `spec defect:`), re-file it in place with a corrected proof: `hivemill task update T-NNNN --acceptance-file -` on the same id, then `hivemill task lint T-NNNN`, then `hivemill task retry T-NNNN`. Never ask the owner about a spec defect, and never hold the re-filing for an owner answer when you can fix the spec yourself.
+A proof that cannot pass is a spec defect, not a task failure and not a broken gate. When a task failed with `spec_defect` (the `task.failed` reason kind; the failure reason has `spec defect:`), re-file it in place with a corrected proof: `hivemill task update T-NNNN --acceptance-file -` on the same id, then `hivemill task lint T-NNNN`, then `hivemill task retry T-NNNN`. Never ask the owner about a spec defect, and never hold the re-filing for an owner answer when you can fix the spec yourself; only used-up retries go to the owner, as above. If the proof turns out right and only the work is missing, keep it and retry with a note.
 
 Never cancel a held run's task: the owner merges or closes its PR. Its question is already in the owner queue.
 

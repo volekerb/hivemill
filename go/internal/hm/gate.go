@@ -41,9 +41,9 @@ type Rerun struct {
 	took time.Duration
 }
 
-// baseRunBudget caps the head run time of the proofs run again on the base commit, so a gate with slow proofs stays
-// inside the Stop hook's timeout.
-var baseRunBudget = 5 * time.Minute
+// baseRunBudget caps the sum of the time limits of the proofs run again on the base commit, so that pass cannot push a
+// gate with slow or hanging proofs past the Stop hook's timeout.
+var baseRunBudget = 8 * time.Minute
 
 // baseSlack and twice its head run time is what a proof gets on the base commit: one that hangs there is cut.
 var baseSlack = time.Minute
@@ -346,7 +346,9 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 			argv = []string{"bash", "-c", c.Proof}
 		}
 		if len(limits) > 0 && limits[0][c.ID] > 0 {
-			argv = append([]string{"timeout", "-k", "10", strconv.Itoa(int(limits[0][c.ID].Seconds()))}, argv...)
+			// where the proof runs there may be no timeout (macOS): then only proofTimeout ends it
+			argv = append([]string{"bash", "-c", `command -v timeout >/dev/null && exec timeout -k 10 "$0" "$@"; exec "$@"`,
+				strconv.Itoa(int(limits[0][c.ID].Seconds()))}, argv...)
 		}
 		var rc int
 		var text string
@@ -393,14 +395,17 @@ func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Reru
 	out := map[int]string{}
 	failed := map[int]Rerun{}
 	var onBase []Criterion
+	limits := map[int]time.Duration{}
 	var spent time.Duration
 	for i, x := range reruns { // reruns[i] is the run of crit[i]
+		limit := 2*x.took + baseSlack
 		switch {
 		case x.OK == nil || *x.OK || x.Log == "" || x.rc == 124:
 		case x.rc == 2 || x.rc == 127:
 			out[x.ID] = fmt.Sprintf("exit %d: a usage error or a command that does not exist", x.rc)
-		case spent+x.took <= baseRunBudget:
-			spent += x.took
+		case spent+limit <= baseRunBudget:
+			spent += limit
+			limits[x.ID] = limit
 			failed[x.ID] = x
 			onBase = append(onBase, crit[i])
 		}
@@ -420,10 +425,6 @@ func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Reru
 	logs := filepath.Join(logdir, "base")
 	_ = os.MkdirAll(logs, 0o700)
 	same := func(s string) string { return durationRe.ReplaceAllString(strings.ReplaceAll(s, dir, wt), "T") }
-	limits := map[int]time.Duration{}
-	for id, head := range failed {
-		limits[id] = 2*head.took + baseSlack
-	}
 	for _, x := range r.rerunProofs(at, &base, onBase, logs, limits) {
 		head := failed[x.ID]
 		if x.OK != nil && !*x.OK && x.Log != "" && x.rc == head.rc && same(x.out) == same(head.out) {
@@ -592,6 +593,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	at.lost = &lost
 	g := at.git
 	wt, base := run.Worktree, run.Base
+	dropBaseCheckout(at, wt) // left by an interrupted gate: no check or proof may see the old code
 	rec := &GateRecord{Checks: map[string]string{}}
 	t, err := r.Store.Task(run.Task)
 	if err != nil {
@@ -727,7 +729,6 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		add("evidence", false, p)
 	}
 	if len(ev) == 0 {
-		dropBaseCheckout(at, wt)
 		rec.Reruns = r.rerunProofs(at, run, crit, logdir)
 		defects := r.specDefects(at, run, crit, rec.Reruns, mb, logdir)
 		var first []string // spec defects lead, so a cut failure reason still names them
