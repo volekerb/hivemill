@@ -29,12 +29,12 @@ func SessionCosts(root string, sessions []string) map[string]Bucket {
 	out := map[string]Bucket{}
 	seen := map[string]bool{}
 	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.Type()&fs.ModeSymlink != 0 || d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+		if err != nil || d.Type()&fs.ModeSymlink != 0 || d.IsDir() || !isTranscript(path) {
 			return nil
 		}
 		rel, _ := filepath.Rel(root, path)
 		parts := strings.Split(filepath.ToSlash(rel), "/")
-		owner := strings.TrimSuffix(parts[len(parts)-1], ".jsonl")
+		owner := transcriptStem(parts[len(parts)-1])
 		session, workflow, sub := subagentOf(parts)
 		if sub {
 			owner = session

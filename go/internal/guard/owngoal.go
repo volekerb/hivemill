@@ -1,37 +1,25 @@
 package guard
 
 import (
-	"bytes"
-	"context"
 	"errors"
-	"fmt"
-	"io"
 	"os"
-	"os/exec"
-	"time"
 )
 
 // Decisions that read the factory DB (own_goal, the test_sandbox config, the coder's task worktree, public_text_repos /
 // frozen_repos) are made from the guard export (guardexport.go); Go opens no sqlite (stdlib only). Where the DB file
-// does not exist, Python's read fails and the rule takes its "no DB" branch, which Go takes too. No rule re-runs the
-// payload through the Python hook any more; RunPython stays for a DB value the export has no row for, and a failure to
-// run it is exit 2.
+// does not exist, Python's read fails and the rule takes its "no DB" branch, which Go takes too; a DB value the export
+// has no row for is absent, as Python's query returning no row is. The Go guard decides every payload itself and never
+// runs the Python hook (T-2112).
 
-// Delegate is the error that means "the Python hook decides this payload". It is never swallowed (HQ mode's
-// soft() keeps it), so the Python answer replaces the Go one whatever the Go rules would have said later.
+// Delegate is the fail-closed refusal: the decision needs the guard export and the export is unusable, so the binary
+// exits 2 (closedExit). It is never swallowed (HQ mode's soft() keeps it), so it replaces whatever the Go rules would
+// have said later. Closed is always true; the name stays from the time a Delegate could hand a payload to Python.
 type Delegate struct {
 	Why    string
-	Closed bool // not a delegation: the decision cannot be made (guard export unusable) and the binary exits 2
+	Closed bool
 }
 
-func (d *Delegate) Error() string {
-	if d.Closed {
-		return d.Why
-	}
-	return "delegated to the Python hook: " + d.Why
-}
-
-func delegate(why string) error { return &Delegate{Why: why} }
+func (d *Delegate) Error() string { return d.Why }
 
 // IsClosed reports whether err is a Delegate that is really a fail-closed refusal (guard export unusable).
 func IsClosed(err error) bool {
@@ -39,7 +27,7 @@ func IsClosed(err error) bool {
 	return errors.As(err, &d) && d.Closed
 }
 
-// IsDelegate reports whether err asks for the Python hook.
+// IsDelegate reports whether err is a Delegate (every Delegate is a fail-closed refusal).
 func IsDelegate(err error) bool {
 	var d *Delegate
 	return errors.As(err, &d)
@@ -65,44 +53,5 @@ func pathExists(p string) bool {
 }
 
 // dbMissing is true when sqlite3.connect(file:<db>?mode=ro) cannot succeed because the file is not there: every
-// DB read of the hook then takes its failure branch (None / False / {}), so Go decides without Python.
+// DB read of the hook then takes its failure branch (None / False / {}), and Go takes the same branch.
 func dbMissing() bool { return !pathExists(dbPath()) }
-
-// pyRunTimeout bounds one delegated run (the hook's own DB read waits 2 s, its git calls 10 s each).
-const pyRunTimeout = 120 * time.Second
-
-// RunPython runs the Python hook on the same arguments and stdin and returns its exit code, with stdout and
-// stderr passed through. args is the binary's argv without `--py-hook <path>`. Any failure to run it (no hook
-// path, unreadable file, no python3, timeout, killed) is exit 2 with a message that says what to do.
-func RunPython(args []string, stdin []byte, stdout, stderr io.Writer) int {
-	if PyHook == "" {
-		fmt.Fprintln(stderr, "worker-guard(go): blocked (hook error, failing closed: this decision needs the Python hook but "+
-			"--py-hook <path to roles/hooks/worker-guard.py> was not given; the shim must pass it)")
-		return 2
-	}
-	f, err := os.Open(PyHook)
-	if err != nil {
-		fmt.Fprintf(stderr, "worker-guard(go): blocked (hook error, failing closed: cannot read the Python hook %s: %v)\n", PyHook, err)
-		return 2
-	}
-	f.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), pyRunTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "python3", append([]string{PyHook}, args...)...)
-	cmd.Stdin = bytes.NewReader(stdin)
-	cmd.Stdout, cmd.Stderr = stdout, stderr
-	err = cmd.Run()
-	var ee *exec.ExitError
-	switch {
-	case err == nil:
-		return 0
-	case errors.As(err, &ee) && ee.ExitCode() >= 0 && ctx.Err() == nil:
-		if ee.ExitCode() != 2 {
-			// the hook only ever exits 0 or 2; anything else (a crash is 1) would not block, so it becomes 2
-			fmt.Fprintf(stderr, "worker-guard(go): blocked (hook error, failing closed: the Python hook exited %d)\n", ee.ExitCode())
-		}
-		return 2
-	}
-	fmt.Fprintf(stderr, "worker-guard(go): blocked (hook error, failing closed: running the Python hook failed: %v)\n", err)
-	return 2
-}
