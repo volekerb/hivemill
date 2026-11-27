@@ -160,9 +160,13 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	} else {
 		args = append(args, "--session-id", sid)
 	}
-	env := map[string]string{"PATH": sessionPath(r.Env.UserHome), "LANG": "C.UTF-8", "TERM": "xterm-256color", "HOME": h.UserHome,
-		"FACTORY_AGENT": l.Name, "FACTORY_ROLE": l.Role, "FACTORY_HOME": h.Home}
+	env := sessionEnv(r.Env.UserHome, l.Name)
+	env["FACTORY_ROLE"], env["FACTORY_HOME"] = l.Role, h.Home
+	if err := prepareSessionDirs(env, l.Machine); err != nil { // before the l.Env overrides: they still apply
+		return "", err
+	}
 	if remote {
+		env["HOME"] = h.UserHome
 		env["PATH"] = strings.ReplaceAll(strings.TrimSuffix(remotePATH, ":$PATH")+":/usr/bin:/bin:/usr/sbin:/sbin", "$HOME", h.UserHome)
 	}
 	for k, v := range l.Env {
@@ -334,13 +338,15 @@ func (r *Runner) savePrompt(task, kind, text string) (string, error) {
 	return filepath.Join(rel, name), nil
 }
 
-// Close ends a session's terminal and marks its agents row exited.
+// Close ends a session's terminal, marks its agents row exited and removes its temp dir. A name that is not a single
+// path element is refused.
 func (r *Runner) Close(name string) {
-	if name == "" {
+	if !goodSessionName(name) {
 		return
 	}
 	_ = r.Store.AgentEnded(name) // first: a hook that kills its own terminal does not outlive the kill
 	r.Tools.HC("kill", name)
+	_ = os.RemoveAll(filepath.Join(sessionTmpRoot(r.Env.UserHome), name)) // a missing dir is no error
 }
 
 func nowISO() string { return time.Now().Format(time.RFC3339) }
