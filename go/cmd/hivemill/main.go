@@ -35,6 +35,7 @@
 //	hivemill ask add|list|answer|withdraw              the owner queue
 //	hivemill digest [--date D] [--json] [--send]        the morning digest of one day (default yesterday)
 //	hivemill obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH | obs sources   read-only page, multi-machine roll-up
+//	hivemill obs --hub [--peers URL,URL] [--listen HOST] [--port N]   only the All factories page, over other factories' obs
 //	hivemill otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]       tasks as OpenTelemetry traces
 package main
 
@@ -74,7 +75,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
 		"proofs touched --base REF [--root DIR] [--ios-dir DIR --xcode-workspace PATH|--xcode-project PATH --xcode-scheme NAME] | " +
-		"obs [--listen HOST] [--port N] [--json] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
+		"obs [--listen HOST] [--port N] [--json] | obs --hub [--peers URL,URL] | obs pull --from HOST:PATH [--as NAME] | obs sources | " +
 		"otel export [--since D] [--endpoint URL] [--pulled] [--dry-run]"
 	if len(args) > 0 && args[0] == "guard" && !isGuardExport(args) { // a hook: its arguments and stdin are the guard's, never a help request
 		return cmdGuard(args[1:], stdin, stdout, stderr)
@@ -105,6 +106,10 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		return cmdAffected(args[1:], stdout, stderr)
 	case "proofs": // a project's gate command: no runner, any actor
 		return cmdProofs(args[1:], stdout, stderr)
+	case "obs": // a hub over the peers named on the command line: read-only, no runner, so no factory is needed here
+		if hubWithoutRunner(args[1:]) {
+			return cmdObsHub(args[1:], nil, stdout, stderr)
+		}
 	}
 	env := hm.LoadEnv()
 	hook := len(args) >= 2 && (args[1] == "hook" || args[1] == "hook-session")
