@@ -1370,7 +1370,11 @@ func removeStale(ctx context.Context, rep *CleanReport, kind string, now time.Ti
 			continue
 		}
 		size, err := fsx.Size(root, e.Name())
-		if err != nil || (!size.Newest.IsZero() && now.Sub(size.Newest) < idle) {
+		if err != nil {
+			rep.Kept = append(rep.Kept, CleanItem{Kind: kind, Path: path, Reason: "cannot be measured: " + err.Error()})
+			continue
+		}
+		if !size.Newest.IsZero() && now.Sub(size.Newest) < idle {
 			continue
 		}
 		item := CleanItem{Kind: kind, Path: path, Bytes: size.Bytes}
@@ -1403,7 +1407,20 @@ func (r *Runner) maestroDirs() []string {
 
 // cleanMaestroOutput removes the Maestro output that nothing wrote for maestroKeep.
 func (r *Runner) cleanMaestroOutput(ctx context.Context, rep *CleanReport, now time.Time) {
+	home, err := filepath.EvalSymlinks(r.Env.UserHome)
+	if err != nil {
+		return
+	}
 	for _, dir := range r.maestroDirs() {
+		real, err := filepath.EvalSymlinks(dir)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		// every entry goes here, so a link must not lead the clean into some other folder of the user's
+		if rel, relErr := filepath.Rel(r.Env.UserHome, dir); err != nil || relErr != nil || real != filepath.Join(home, rel) {
+			rep.Kept = append(rep.Kept, CleanItem{Kind: cleanMaestro, Path: dir, Reason: "reached through a link"})
+			continue
+		}
 		removeStale(ctx, rep, cleanMaestro, now, dir, maestroKeep,
 			func(string) string { return "" }, func(string) bool { return true })
 	}
@@ -1545,7 +1562,9 @@ func (r *Runner) categorySizes() map[string]int64 {
 		cleanTmp:         {filepath.Join(h, ".cache", "hivemill", "tmp"), filepath.Join(h, ".cache", "hivemill", "go", "tmp")},
 		cleanDerived:     {filepath.Join(h, "Library", "Developer", "Xcode", "DerivedData")},
 		cleanSim:         {filepath.Join(h, "Library", "Developer", "CoreSimulator")},
-		cleanMaestro:     r.maestroDirs(),
+	}
+	if GOOS == "darwin" { // only cleaned there
+		dirs[cleanMaestro] = r.maestroDirs()
 	}
 	for _, root := range r.tmpRoots() {
 		if real, err := filepath.EvalSymlinks(root); err == nil {

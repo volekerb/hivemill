@@ -322,6 +322,20 @@ func TestCleanMaestroOutput(t *testing.T) {
 		old, young = append(old, stale), append(young, fresh)
 	}
 	slices.Sort(old)
+	// a linked directory is someone's own folder: nothing in it goes
+	own := filepath.Join(home, "own")
+	zzWrite(t, filepath.Join(own, "keep"), "x")
+	zzOld(t, 30*24*time.Hour, own)
+	shots := filepath.Join(home, ".maestro", "screenshots")
+	if err := os.Rename(shots, shots+".was"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(own, shots); err != nil {
+		t.Fatal(err)
+	}
+	old = slices.DeleteFunc(old, func(p string) bool { return filepath.Dir(p) == shots })
+	young = slices.DeleteFunc(young, func(p string) bool { return filepath.Dir(p) == shots })
+	young = append(young, filepath.Join(own, "keep"))
 	dry := f.clean(t, true)
 	if got := removedPaths(dry, cleanMaestro); !slices.Equal(got, old) || !exists(old[0]) {
 		t.Fatalf("dry run: %v", got)
