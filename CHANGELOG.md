@@ -49,6 +49,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Fixed
 
+- **A lost local CI job on this machine no longer leaves its `gate_cmd` running.** With the wrapper dead but not yet reaped, the restart skipped the group kill; it now waits for the reap (T-2183).
+
 - **Gate proofs over 60 s no longer fail on a worker machine.** `hc exec` ended them at its own default of 60 s. A remote proof now has `--timeout 600`, one cut at that limit runs again on the local core, and the timeout note names the limit that applied (T-2040).
 
 - **`hivemill obs` shows the machine a run was placed on.** A run on a session machine showed as the coordinator. Every `session_machines` entry and pulled source is now listed, even with no run (T-1987).
