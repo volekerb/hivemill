@@ -50,11 +50,13 @@ class PushPinTests(unittest.TestCase):
         con.commit()
         con.close()
 
-    def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}", cwd=None):
-        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
+    def run_hook(self, cmd, role="coder", agent=f"coder-{TASK}", cwd=None, push_task=None):
+        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT", "FACTORY_PUSH_TASK")}
         env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home)
         if agent:
             env["FACTORY_AGENT"] = agent
+        if push_task:
+            env["FACTORY_PUSH_TASK"] = push_task
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}, "cwd": cwd or self.wt})
         return hook_run(payload, ["--role", role], env=env)
 
@@ -107,6 +109,24 @@ class PushPinTests(unittest.TestCase):
         ):
             with self.subTest(cmd=cmd):
                 self.assertTrue(self.pinned(cmd), cmd)
+
+    def test_refiled_task_pushes_the_branch_the_runner_names(self):
+        """T-2213: with FACTORY_PUSH_TASK set, that branch only, from the task's own worktree."""
+        p = self.run_hook("git push origin HEAD:factory/t-0001", push_task="t-0001")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for cmd in (f"git push origin {OWN}", "git push origin HEAD:factory/t-0002", "git push origin HEAD:main",
+                    "git push --force origin HEAD:factory/t-0001"):
+            with self.subTest(cmd=cmd):
+                self.assertTrue(self.pinned(cmd, push_task="t-0001"))
+        p = self.run_hook(f"git push origin {OWN}", push_task="main")  # not a task id: the own branch only
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_push_task_may_not_be_assigned(self):
+        for cmd in ("FACTORY_PUSH_TASK=t-0001 git status", "export FACTORY_PUSH_TASK=t-0001"):
+            with self.subTest(cmd=cmd):
+                p = self.run_hook(cmd)
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn("FACTORY_PUSH_TASK", p.stderr)
 
     def test_unknown_task_id_refuses(self):
         for agent in (None, "coder", "qa-t-0689", "coder-t-0689x"):
@@ -392,7 +412,7 @@ class AttemptSuffixPushPinTests(unittest.TestCase):
         con.close()
 
     def run_hook(self, cmd, role="coder", agent="cursor-coder-t-0817-a2", cwd=None):
-        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT")}
+        env = {k: v for k, v in os.environ.items() if k not in ("WORKER_GUARD_LIVE_HOME", "FACTORY_AGENT", "FACTORY_PUSH_TASK")}
         env.update(HOME=self.tmp, WORKER_GUARD_LIVE_HOME=self.home, FACTORY_HOME=self.home)
         if agent:
             env["FACTORY_AGENT"] = agent

@@ -30,8 +30,8 @@ func newFakePRs(r *Runner, prs ...PR) *fakePRs {
 			if p == nil {
 				return 1, "", "no such PR"
 			}
-			return 0, fmt.Sprintf(`{"state":%q,"headRefName":%q,"headRefOid":%q,"body":%q,"url":%q}`,
-				p.State, p.HeadRefName, p.HeadRefOid, p.Body, p.URL), ""
+			return 0, fmt.Sprintf(`{"state":%q,"headRefName":%q,"headRefOid":%q,"body":%q,"url":%q,"closedAt":%q}`,
+				p.State, p.HeadRefName, p.HeadRefOid, p.Body, p.URL, p.ClosedAt), ""
 		case "list":
 			for _, p := range f.prs {
 				if p.State == "OPEN" && p.HeadRefName == args[5] {
@@ -43,7 +43,7 @@ func newFakePRs(r *Runner, prs ...PR) *fakePRs {
 		f.calls, f.inputs = append(f.calls, args), append(f.inputs, in)
 		switch args[1] {
 		case "close":
-			f.prs[args[2]].State = "CLOSED"
+			f.prs[args[2]].State, f.prs[args[2]].ClosedAt = "CLOSED", nowISO()
 		case "reopen":
 			f.prs[args[2]].State = "OPEN"
 		case "edit":
@@ -253,5 +253,123 @@ func TestSupersededPRClosedOnLand(t *testing.T) {
 	c := f.did("close")
 	if len(c) != 1 || !strings.Contains(c[0], oldPR.URL) || !strings.Contains(c[0], "superseded by #2") {
 		t.Fatalf("close calls %v", f.calls)
+	}
+}
+
+// A run held for the owner is theirs to decide: a landed re-file does not close its PR, their cancel does.
+func TestHeldPRStaysOpenOnLand(t *testing.T) {
+	r, s := testRunner(t, "")
+	oldPR, newPR := openPRof(1, "factory/t-0001"), openPRof(2, "factory/t-0002")
+	f := newFakePRs(r, oldPR, newPR)
+	putRuns(t, s, endedRun("T-0001", Held, oldPR.URL, time.Hour))
+	setStatus(t, s, "T-0001", "blocked")
+	id, err := s.AddTask("G-001", "zz-test again", "spec", "1. works - cmd:true => exit 0", "in_progress", "[]", 1, "T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	landed := endedRun(id, Merged, newPR.URL, 0)
+	r.closeSuperseded(landed)
+	putRuns(t, s, landed)
+	r.sweepPRs()
+	if len(f.calls) != 0 {
+		t.Fatalf("closed a held PR: %v", f.calls)
+	}
+	setStatus(t, s, "T-0001", "cancelled")
+	r.sweepPRs()
+	if len(f.did("close")) != 1 {
+		t.Errorf("after the cancel: %v", f.calls)
+	}
+}
+
+func TestStartBranchChecksTheContinuedBranch(t *testing.T) {
+	r, s := testRunner(t, "")
+	pr := openPRof(1, "factory/t-0001")
+	f := newFakePRs(r, pr)
+	putRuns(t, s, endedRun("T-0001", Failed, pr.URL, time.Hour))
+	id, err := s.AddTask("G-001", "zz-test again", "spec", "1. works - cmd:true => exit 0", "todo", "[]", 1, "T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := func(task, recorded, url string) (string, error) {
+		x, err := s.Task(task)
+		if err != nil {
+			t.Fatal(err)
+		}
+		x.Branch, x.PRURL = recorded, url
+		return r.startBranch(x)
+	}
+	for _, recorded := range []string{"", "factory/t-0001"} {
+		if got, err := start(id, recorded, pr.URL); err != nil || got != "factory/t-0001" {
+			t.Errorf("recorded %q: %q %v", recorded, got, err)
+		}
+		f.prs[pr.URL].State = "MERGED"
+		if got, err := start(id, recorded, pr.URL); err != nil || got != "factory/t-0002" {
+			t.Errorf("recorded %q, merged: %q %v", recorded, got, err)
+		}
+		f.prs[pr.URL].State = "OPEN"
+		delete(f.prs, pr.URL) // gh cannot read it: the start waits
+		if got, err := start(id, recorded, pr.URL); err == nil {
+			t.Errorf("recorded %q, unreadable PR: started on %q", recorded, got)
+		}
+		f.prs[pr.URL] = &pr
+	}
+	// the re-file's run holds the old branch: the old task cannot be retried onto it
+	run := endedRun(id, Working, pr.URL, 0)
+	run.Branch = "factory/t-0001"
+	putRuns(t, s, run)
+	if got, err := start("T-0001", "factory/t-0001", pr.URL); err == nil {
+		t.Errorf("a second run on %q", got)
+	}
+}
+
+func TestAdoptPRLeavesAHumanCloseAndForgetsIt(t *testing.T) {
+	r, s := testRunner(t, "")
+	pr := openPRof(1, "factory/t-0001")
+	pr.State, pr.ClosedAt = "CLOSED", time.Now().Format(time.RFC3339)
+	f := newFakePRs(r, pr)
+	// the runner closed it an hour ago; somebody reopened it and closed it again just now
+	if err := s.SetMeta(prClosedKey+pr.URL, time.Now().Add(-time.Hour).Format(time.RFC3339)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.TaskPR("T-0001", pr.URL, ""); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.Task("T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := &Run{Task: "T-0001", Repo: "zz-test/www", Branch: "factory/t-0001"}
+	r.adoptPR(run, task)
+	if len(f.calls) != 0 || run.PRURL != "" {
+		t.Errorf("reopened a PR a person closed: %v, %q", f.calls, run.PRURL)
+	}
+	if x, _ := s.Task("T-0001"); x.PRURL != "" {
+		t.Errorf("the task keeps the closed PR %q", x.PRURL)
+	}
+}
+
+// Runs that cost no gh call do not use up the sweep's cap, and a failed one waits before it is tried again.
+func TestPRSweepCapCountsGHCallsOnly(t *testing.T) {
+	r, s := testRunner(t, "")
+	f := newFakePRs(r)
+	run := endedRun("T-0001", Cancelled, "https://github.com/zz-test/www/pull/9", 0) // gh cannot read it
+	putRuns(t, s, run)
+	cancelTask(t, s, "T-0001")
+	views := 0
+	gh := r.Tools.GH
+	r.Tools.GH = func(in string, args ...string) (int, string, string) {
+		views++
+		return gh(in, args...)
+	}
+	if !r.closePR(run, "why", "") || r.closePR(run, "why", run.PRURL) {
+		t.Error("called: want true for a gh read, false for the landed PR itself")
+	}
+	if err := s.SetMeta(prSweptKey+"T-0001", ""); err != nil {
+		t.Fatal(err)
+	}
+	views = 0
+	r.sweepPRs()
+	if views != 0 || len(f.calls) != 0 {
+		t.Errorf("%d gh calls right after a failure", views)
 	}
 }

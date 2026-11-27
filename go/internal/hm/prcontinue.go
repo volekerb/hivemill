@@ -14,7 +14,9 @@ import (
 const (
 	prDropGrace = 30 * time.Minute // how long a failed run waits for a re-file before its PR is closed
 	prSweepCap  = 10               // PRs looked at in one pass: the gh rate limit is shared
-	prClosedKey = "pr_closed:"     // + URL: the runner closed this PR, so a run that continues it may reopen it
+	prClosedKey = "pr_closed:"     // + URL: when the runner closed this PR, so a run that continues it may reopen it
+	prTriedKey  = "pr_tried:"      // + task: when closing its PR last failed; the next try waits prDropGrace
+	prClockSkew = 5 * time.Minute  // between gh's closedAt and the runner's record of its own close
 	prSweptKey  = "pr_swept:"      // + task: the Dispatched of the run whose PR is settled
 )
 
@@ -64,12 +66,16 @@ func (r *Runner) refileChain(task string) []string {
 }
 
 // continuedTask is the lower-case id of the older task whose branch the run continues; "" for a run on its own branch.
-func (r *Runner) continuedTask(run *Run) string {
-	m := taskBranch.FindStringSubmatch(run.Branch)
-	if m == nil || m[1] == strings.ToLower(run.Task) {
+// Start fixes it on the run: a later edit of a title or a re-file link cannot move a live session's push.
+func (r *Runner) continuedTask(run *Run) string { return run.Continues }
+
+// continuesFrom is Run.Continues of a new run of task on branch.
+func (r *Runner) continuesFrom(task, branch string) string {
+	m := taskBranch.FindStringSubmatch(branch)
+	if m == nil || m[1] == strings.ToLower(task) {
 		return ""
 	}
-	for _, o := range r.refileChain(run.Task) {
+	for _, o := range r.refileChain(task) {
 		if strings.ToLower(o) == m[1] {
 			return m[1]
 		}
@@ -92,22 +98,34 @@ func (r *Runner) branchUser(task, repo, branch, url string) (string, error) {
 	return "", nil
 }
 
-// startBranch is the branch of a new run: the one recorded for the task, else the branch of the task it files again
-// (unless a run still works there or its PR is merged), else factory/<id>.
-func (r *Runner) startBranch(t *Task) string {
-	if t.Branch != "" {
-		return t.Branch
+// continuable: no other run works on the branch or its PR, and the PR is not merged. An unreadable PR is an error:
+// the start waits for a later pass instead of pushing to a branch that may have landed.
+func (r *Runner) continuable(t *Task, branch, url string) (bool, error) {
+	user, err := r.branchUser(t.ID, t.GHRepo, branch, url)
+	if err != nil || user != "" {
+		return false, err
 	}
-	own := "factory/" + strings.ToLower(t.ID)
+	if url == "" {
+		return true, nil
+	}
+	pr, err := PRView(r.Tools, url)
+	if err != nil {
+		return false, err
+	}
+	return pr.State != "MERGED", nil
+}
+
+// refiledBranch is the branch of the task that t files again, when t can continue it; "" = none.
+func (r *Runner) refiledBranch(t *Task) (string, error) {
 	for _, o := range r.refileChain(t.ID) {
 		old, err := r.Store.Task(o)
 		if err != nil {
-			break
+			return "", err
 		}
 		branch, url := old.Branch, old.PRURL
 		run, err := r.Store.Run(o)
 		if err != nil {
-			break
+			return "", err
 		}
 		if run != nil {
 			if run.Eval {
@@ -124,17 +142,40 @@ func (r *Runner) startBranch(t *Task) string {
 		if !taskBranch.MatchString(branch) {
 			break // the worker guard allows a push to factory/t-N only
 		}
-		if user, err := r.branchUser(t.ID, t.GHRepo, branch, url); err != nil || user != "" {
-			break
+		if ok, err := r.continuable(t, branch, url); err != nil || !ok {
+			return "", err
 		}
-		if url != "" {
-			if pr, err := PRView(r.Tools, url); err == nil && pr.State == "MERGED" {
-				break
-			}
-		}
-		return branch
+		return branch, nil
 	}
-	return own
+	return "", nil
+}
+
+// startBranch is the branch of a new run: the one recorded for the task, else the branch of the task it files again,
+// else factory/<id>. A continued branch is checked again on every start; an own branch that another run continues
+// refuses the start.
+func (r *Runner) startBranch(t *Task) (string, error) {
+	own := "factory/" + strings.ToLower(t.ID)
+	switch {
+	case t.Branch == "":
+		if branch, err := r.refiledBranch(t); err != nil || branch != "" {
+			return branch, err
+		}
+	case t.Branch != own:
+		if !taskBranch.MatchString(t.Branch) {
+			return t.Branch, nil
+		}
+		if ok, err := r.continuable(t, t.Branch, t.PRURL); err != nil || ok {
+			return t.Branch, err
+		}
+	}
+	user, err := r.branchUser(t.ID, t.GHRepo, own, "")
+	if err != nil {
+		return "", err
+	}
+	if user != "" {
+		return "", fmt.Errorf("%w: %s: the run of %s works on %s", ErrRefused, t.ID, user, own)
+	}
+	return own, nil
 }
 
 func refileNote(task, old string) string {
@@ -159,8 +200,15 @@ func continuedNote(run *Run, old string) string {
 		strings.ToUpper(old), run.Branch, pr, run.Branch)
 }
 
+// closedByUs: the PR's last close is the runner's own (a person who reopened and closed it again moved closedAt).
+func (r *Runner) closedByUs(url string, pr *PR) bool {
+	ours, err1 := time.Parse(time.RFC3339, r.Store.Meta(prClosedKey+url))
+	closed, err2 := time.Parse(time.RFC3339, pr.ClosedAt)
+	return err1 == nil && err2 == nil && ours.Sub(closed).Abs() < prClockSkew
+}
+
 // adoptPR records on a new run the PR it continues: the open one of the re-filed branch, or one the runner closed
-// itself, which it reopens. A PR somebody else closed stays closed.
+// itself, which it reopens. A PR somebody else closed stays closed, and the task forgets it.
 func (r *Runner) adoptPR(run *Run, t *Task) {
 	old := r.continuedTask(run)
 	var urls []string
@@ -181,8 +229,7 @@ func (r *Runner) adoptPR(run *Run, t *Task) {
 	}
 	seen := map[string]bool{"": true}
 	for _, url := range urls {
-		closedByUs := url != "" && r.Store.Meta(prClosedKey+url) != ""
-		if seen[url] || (old == "" && !closedByUs) {
+		if seen[url] || (old == "" && r.Store.Meta(prClosedKey+url) == "") {
 			continue
 		}
 		seen[url] = true
@@ -194,15 +241,15 @@ func (r *Runner) adoptPR(run *Run, t *Task) {
 		if pr.HeadRefName != "" && pr.HeadRefName != run.Branch {
 			continue
 		}
-		if pr.State == "CLOSED" && closedByUs {
+		if pr.State == "CLOSED" && r.closedByUs(url, pr) {
 			if rc, _, errs := r.Tools.GH("", "pr", "reopen", url); rc != 0 {
 				r.printf("%s: reopen %s: %s\n", t.ID, url, firstLine(errs))
 				continue
 			}
-			_ = r.Store.SetMeta(prClosedKey+url, "")
 		} else if pr.State != "OPEN" {
 			continue
 		}
+		_ = r.Store.SetMeta(prClosedKey+url, "")
 		run.PRURL, run.RescuedHead = url, pr.HeadRefOid // the old head is not this run's work to rescue
 		_ = r.Store.TaskPR(t.ID, url, "")
 		if old != "" {
@@ -213,6 +260,13 @@ func (r *Runner) adoptPR(run *Run, t *Task) {
 			}
 		}
 		return
+	}
+	// the gate prefers the task's recorded PR: a closed one, or one of another branch, would fail the new run
+	if t.PRURL == "" {
+		return
+	}
+	if pr, err := PRView(r.Tools, t.PRURL); err == nil && (pr.State == "CLOSED" || (pr.HeadRefName != "" && pr.HeadRefName != run.Branch)) {
+		_ = r.Store.TaskPR(t.ID, "", "")
 	}
 }
 
@@ -300,8 +354,12 @@ func (r *Runner) sweepPRs() {
 		if run.Eval || run.State == Merged || Active(run.State) || r.Store.Meta(prSweptKey+id) == run.Dispatched {
 			continue
 		}
+		if tried, err := time.Parse(time.RFC3339, r.Store.Meta(prTriedKey+id)); err == nil && time.Since(tried) < prDropGrace {
+			continue
+		}
 		var why, landedPR string
-		if next := w.landed(id); next != nil {
+		// a run held for the owner is theirs to decide: only their cancel closes its PR
+		if next := w.landed(id); next != nil && (!heldForOwner(run) || w.status[id] == "cancelled") {
 			why, landedPR = supersededBy(next.PRURL), next.PRURL
 		} else if w.gone(id) && !w.carried(id) {
 			if w.status[id] == "cancelled" {
@@ -313,11 +371,11 @@ func (r *Runner) sweepPRs() {
 		} else {
 			continue
 		}
-		if left == 0 {
-			return
+		if r.closePR(run, why, landedPR) {
+			if left--; left == 0 {
+				return
+			}
 		}
-		left--
-		r.closePR(run, why, landedPR)
 	}
 }
 
@@ -333,24 +391,30 @@ func (r *Runner) closeSuperseded(landed *Run) {
 	}
 	for _, o := range r.refileChain(landed.Task) {
 		run, err := r.Store.Run(o)
-		if err != nil || run == nil || run.Eval || run.State == Merged || Active(run.State) {
+		if err != nil || run == nil || run.Eval || run.State == Merged || Active(run.State) || heldForOwner(run) {
 			continue
 		}
 		r.closePR(run, supersededBy(landed.PRURL), landed.PRURL)
 	}
 }
 
-// closePR closes the open PR of an ended run with why as the comment, and keeps the branch.
-func (r *Runner) closePR(run *Run, why, landedPR string) {
+// closePR closes the open PR of an ended run with why as the comment, and keeps the branch. It reports whether it
+// called gh, which is what the sweep's cap counts.
+func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
 	settled := func() { _ = r.Store.SetMeta(prSweptKey+run.Task, run.Dispatched) }
+	failed := func(format string, a ...any) {
+		r.printf("%s: "+format+"\n", append([]any{run.Task}, a...)...)
+		_ = r.Store.SetMeta(prTriedKey+run.Task, nowISO())
+	}
 	url := run.PRURL
 	if t, err := r.Store.Task(run.Task); err == nil && url == "" {
 		url = t.PRURL
 	}
 	if url == "" {
-		rc, out, errs := r.Tools.GH("", "pr", "list", "-R", run.Repo, "--head", run.Branch, "--state", "open", "--json", "url", "-q", ".[0].url")
+		called = true
+		rc, out, errs := r.listOpenPR(run.Repo, run.Branch)
 		if rc != 0 {
-			r.printf("%s: find its PR: %s\n", run.Task, firstLine(errs))
+			failed("find its PR: %s", firstLine(errs))
 			return
 		}
 		url = strings.TrimSpace(out)
@@ -362,9 +426,10 @@ func (r *Runner) closePR(run *Run, why, landedPR string) {
 	if user, err := r.branchUser(run.Task, run.Repo, run.Branch, url); err != nil || user != "" {
 		return // another run works on it: look again when it ends
 	}
+	called = true
 	pr, err := PRView(r.Tools, url)
 	if err != nil {
-		r.printf("%s: %v\n", run.Task, err)
+		failed("%v", err)
 		return
 	}
 	if pr.State != "OPEN" || (pr.HeadRefName != "" && pr.HeadRefName != run.Branch) {
@@ -378,11 +443,12 @@ func (r *Runner) closePR(run *Run, why, landedPR string) {
 	}
 	comment = ScrubSecrets(comment) + "\n\nThe branch `" + run.Branch + "` is kept."
 	if rc, _, errs := r.Tools.GH("", "pr", "close", url, "--comment", comment); rc != 0 {
-		r.printf("%s: close %s: %s\n", run.Task, url, firstLine(errs))
+		failed("close %s: %s", url, firstLine(errs))
 		return
 	}
 	settled()
-	_ = r.Store.SetMeta(prClosedKey+url, run.Task)
+	_ = r.Store.SetMeta(prClosedKey+url, nowISO())
 	r.printf("%s: closed %s\n", run.Task, url)
 	_ = r.Log.Emit("pr.closed", run, Event{Data: map[string]any{"pr": url, "why": truncate(why, 900)}})
+	return
 }

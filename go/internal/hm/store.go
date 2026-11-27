@@ -26,6 +26,7 @@ type Task struct {
 // Run is the runner's record of one task. It is stored as JSON in hm_runs so new fields need no migration.
 type Run struct {
 	Task, Goal, Project, Repo, Base, Worktree, Branch, Agent  string
+	Continues                                                 string // lower-case id of the re-filed task whose branch it pushes
 	Judges                                                    []string
 	State                                                     string // working | gated | judging | judged | merging | merged | failed | reverted | cancelled
 	Round, GateBlocks, GateBlocksTotal, JudgeRounds, CIRounds int

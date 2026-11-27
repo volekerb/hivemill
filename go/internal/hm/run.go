@@ -232,7 +232,10 @@ func (r *Runner) Start(id string) error {
 	if err != nil {
 		return err
 	}
-	branch := r.startBranch(t)
+	branch, err := r.startBranch(t)
+	if err != nil {
+		return err
+	}
 	// held until the run is saved: the removal of an ended run's remote worktree takes it too
 	l := r.lock(id, false)
 	if l == nil {
@@ -289,7 +292,8 @@ func (r *Runner) Start(id string) error {
 	// claude-coder-t-NNNN(-aN); the lane's own suffix -a7 keeps the name apart from old-pipeline coders.
 	name := "claude-coder-" + strings.ToLower(id) + "-a7"
 	run := &Run{Task: id, Goal: t.Goal, Project: t.Project, Repo: t.GHRepo, Base: t.Base, Worktree: wt, Branch: branch, Agent: name,
-		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
+		Continues: r.continuesFrom(id, branch),
+		State:     Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
 	r.adoptPR(run, t) // before the save: a pass must not see the run without the PR it continues

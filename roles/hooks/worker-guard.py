@@ -935,6 +935,8 @@ AWKS = {"awk", "gawk", "mawk", "nawk", "busybox-awk"}
 EDITORS = {"vim", "vi", "nvim", "view", "ex", "emacs", "nano", "ed", "less", "more", "man"}
 SHELL_LIKE = SHELLS | {"source", ".", "eval"}
 IDENT_VARS = ("FACTORY_AGENT", "FACTORY_ROLE", "HERDR_PANE_ID")
+# T-2213: set by the hivemill runner on the session of a re-filed task, whose one allowed push goes to the old task's branch
+PUSH_TASK_VAR = "FACTORY_PUSH_TASK"
 SCRUB_VARS = {"FACTORY_ROLE", "HERDR_PANE_ID"}
 DECLARERS = {"export", "declare", "typeset", "readonly", "local"}
 
@@ -2000,7 +2002,7 @@ class Analyzer:
         for a in assigns:
             name, _, v = a.partition("=")
             name = name.rstrip("+")
-            if name not in IDENT_VARS:
+            if name not in IDENT_VARS and name != PUSH_TASK_VAR:
                 continue
             if name == "FACTORY_AGENT" and own and v == own and v != "owner":
                 continue
@@ -4330,21 +4332,24 @@ class Analyzer:
         m = re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)(?:-a\d+)?", os.environ.get("FACTORY_AGENT", ""))
         if not m:
             raise Block("git push: cannot tell this pane's task id (FACTORY_AGENT); ask your lead")
-        ref = f"HEAD:factory/{m.group(1)}"
+        # T-2213: a re-filed task pushes the branch the runner names; the worktree below stays this task's own
+        pushed = os.environ.get(PUSH_TASK_VAR, "")
+        task = pushed if re.fullmatch(r"t-[0-9]+", pushed) else m.group(1)
+        ref = f"HEAD:factory/{task}"
         fac = self.factory_remote_url()
         ok = args == ["origin", ref] or (fac and len(args) == 2 and args[1] == ref
                                          and normalize_push_url(args[0]) == normalize_push_url(fac))
         if not ok:
-            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` (no other remote, refspec, "
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{task}` (no other remote, refspec, "
                         "force, --all/--mirror/--tags/--delete or option)")
         # fail closed: the whole Bash call must be the one push (optionally `-C <static path>`). Anything around it
         # (env assigns, export/printf -v/set -a, functions, bash -c, BASH_ENV, HOME=) could redirect it unseen.
         url_pat = re.escape(fac) if fac else ""
         remote = rf"(?:origin|{url_pat})" if url_pat else "origin"
-        w = re.fullmatch(rf"(?:uv run (?:-- )?)?git(?: -C ([\w./-]+))? push {remote} HEAD:factory/{m.group(1)}",
+        w = re.fullmatch(rf"(?:uv run (?:-- )?)?git(?: -C ([\w./-]+))? push {remote} HEAD:factory/{task}",
                          self.text.strip())
         if not w:
-            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` as the whole command "
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{task}` as the whole command "
                         "(optionally `git -C <own worktree> push ...`): no prefix, env assignment, export, chain, wrapper or quoting")
         # T-0743: the own worktree is the one recorded for this task in the factory DB, not whatever dir the pane sits in;
         # both the hook cwd and any -C target must be inside / equal to it. Unresolvable -> refuse (fail closed).
@@ -4353,12 +4358,12 @@ class Analyzer:
             raise Block(f"git push: cannot resolve the worktree recorded for {m.group(1)} in the factory DB; ask your lead")
         cwd = os.path.realpath(self.cwd)
         if cwd != own and not cwd.startswith(own + os.sep):
-            raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}` from their own worktree {own}; "
+            raise Block(f"coders push exactly `git push origin HEAD:factory/{task}` from their own worktree {own}; "
                         f"this pane is in {cwd}: cd back to your worktree")
         if w.group(1):
             tgt = os.path.realpath(w.group(1) if os.path.isabs(w.group(1)) else os.path.join(self.cwd, w.group(1)))
             if tgt != own:
-                raise Block(f"coders push exactly `git push origin HEAD:factory/{m.group(1)}`: `-C` must be this task's own "
+                raise Block(f"coders push exactly `git push origin HEAD:factory/{task}`: `-C` must be this task's own "
                             f"worktree {own}, not {w.group(1)}; drop -C or fix the path")
 
     def git_runners(self, rest, depth):
