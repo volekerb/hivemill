@@ -381,6 +381,8 @@ def compare(base_hook, pr_hook, items, modes, role, timeout, temp_home, jobs=4, 
 
 
 SETTINGS_DIR = "roles/settings"
+# Claude Code applies file-path rules only through Edit(<path>); the same path under these names never matches
+NO_OP_FILE_RULE = re.compile(r"(?:Write|MultiEdit|NotebookEdit)(\(.*\))", re.DOTALL)
 OWNER_HOME = re.compile(r"(/?)/ho" r"me/[^/\s\"]+/factory")
 OWNER_HOME_DIR = re.compile(r"(/?)/ho" r"me/[^/\s\"]+")
 
@@ -493,7 +495,8 @@ def compare_settings(repo, top, base):
     in the tree. Returns (lines, loosened): a removed deny, ask, hook, hook timeout, autoMode or env entry, an added allow,
     or a removed template is LOOSENED; a removed allow or an added deny, ask or hook is TIGHTENED; an added env,
     autoMode or hook-timeout entry is SETTINGS-CHANGED. A timeout line of a hook that exists on only one side is
-    dropped (the hook line itself reports the add or removal)."""
+    dropped (the hook line itself reports the add or removal). A removed Write, MultiEdit or NotebookEdit path deny
+    is not reported when the tree denies Edit of the same path."""
     sdir = os.path.join(top, SETTINGS_DIR)
     tree_roles = set()
     if os.path.isdir(sdir):
@@ -533,6 +536,9 @@ def compare_settings(repo, top, base):
             return kind != "hook-timeout" or rule.rsplit("|timeout=", 1)[0] in (old_hooks & new_hooks)
         removed_automode_keys = {automode_key(r) for k, r in old - new if k == "autoMode"}
         for kind, rule in sorted(x for x in old - new if paired(*x)):
+            no_op = NO_OP_FILE_RULE.fullmatch(rule) if kind == "deny" else None
+            if no_op and ("deny", "Edit" + no_op[1]) in new:
+                continue
             lines.append(f"SETTINGS-{'TIGHTENED' if kind == 'allow' else 'LOOSENED'} {role} {kind} removed: {rule}")
             if kind != "allow":
                 loosened.append(f"{role} {kind} removed: {rule}")

@@ -19,6 +19,8 @@ var InitDirs = []string{"db", "worktrees", "logs", "state/hivemill/locks", "stat
 // InitOptions are the factory config keys `hivemill init` may set (empty = leave as is).
 type InitOptions struct {
 	NoreplyEmail, ScrubTermsFile string
+	// ObsListen sets the runner setting obs_listen, the host `hivemill obs` binds.
+	ObsListen string
 }
 
 // InitHome makes a standalone factory home: the state dirs, and the factory DB with the tables the runner uses
@@ -67,6 +69,12 @@ func InitHome(home string, o InitOptions) ([]string, error) {
 		}
 		notes = append(notes, "set "+k)
 	}
+	if o.ObsListen != "" {
+		if err := s.SetCfg("obs_listen", o.ObsListen); err != nil {
+			return notes, err
+		}
+		notes = append(notes, "set obs_listen")
+	}
 	if s.FactoryCfg("noreply_email") == "" { // as bin/factory: the git identity, when it is a noreply address
 		if g := GitGlobalEmail(); g != "" && CheckFactoryKey("noreply_email", g) == nil {
 			if err := s.SetFactoryCfg("noreply_email", g); err != nil {
@@ -104,9 +112,9 @@ func DefaultLaunchdPath(userHome string) string {
 // built-in one). Values are XML-escaped and the result must parse.
 func RenderDaemonPlist(e Env, in PlistInput) (string, error) { return RenderPlist(e, "daemon", in) }
 
-// LaunchAgents are the LaunchAgents `hivemill launchd` renders: the pass loop, the morning digest, and the dead-man
-// check that runs `hivemill health --alert` every 5 minutes.
-var LaunchAgents = []string{"daemon", "digest", "health"}
+// LaunchAgents are the LaunchAgents `hivemill launchd` renders: the pass loop, the morning digest, the dead-man
+// check that runs `hivemill health --alert` every 5 minutes, and the dashboard (`hivemill obs`).
+var LaunchAgents = []string{"daemon", "digest", "health", "obs"}
 
 // RenderLaunchAgent is RenderPlist.
 func RenderLaunchAgent(e Env, name string, in PlistInput) (string, error) {

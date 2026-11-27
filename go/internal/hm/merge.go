@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -216,11 +217,28 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 	if len(runs) == 0 {
 		return "none"
 	}
+	// No run for main's head while tests.yml is switched off (gh workflow disable, as during the 2026-11-26 local-CI
+	// period): nothing will ever run, so it counts as a repo without the workflow, not as pending forever.
+	if workflowDisabled(r.Tools, slug, "tests.yml") {
+		return "none"
+	}
 	return "pending"
+}
+
+// workflowDisabled reports whether the repo's workflow is disabled (disabled_manually or disabled_inactivity).
+// Any error answers false: an unknown state keeps the old "pending" behaviour.
+func workflowDisabled(t Tools, slug, file string) bool {
+	rc, out, _ := t.GH("", "api", "repos/"+slug+"/actions/workflows/"+file, "--jq", ".state")
+	return rc == 0 && strings.HasPrefix(strings.TrimSpace(out), "disabled")
 }
 
 // Merge is one merge attempt of a run in state merging.
 func (r *Runner) Merge(run *Run) {
+	defer func() {
+		if run.State != Merging && run.State != Gated {
+			r.endCIWait(run) // `hivemill merge T` has no Advance around it to close the wait's alert
+		}
+	}()
 	if run.Eval {
 		run.MergeHold = "eval run: never merged"
 		r.fail(run, "eval run reached the merge step: refused, eval runs are never merged")
@@ -238,8 +256,12 @@ func (r *Runner) Merge(run *Run) {
 			// a new head (a refresh, a revert): run gate_cmd now and decide on the next pass from fresh PR data
 			if err := r.localCI(run, in.Head); err != nil {
 				run.MergeHold = err.Error()
+				r.localCIWaits(run, in.Head, time.Now())
 				return
 			}
+		}
+		if run.LocalCI != nil && run.LocalCI.Head == in.Head {
+			r.endCIWait(run) // the result is in, whoever read it
 		}
 		r.postLocalCI(run)
 		if d.Why == ciPending {
@@ -400,7 +422,49 @@ func heldForOwner(x *Run) bool {
 	return x.State == Held || (x.State == Failed && strings.HasPrefix(x.FailReason, "merge blocked: ") && OwnerMerges(x.FailReason))
 }
 
-// checkHeld finishes a held run whose PR the owner merged, and fails one whose PR was closed.
+var approvalRe = regexp.MustCompile(`(?i)^\s*(approved|merge it)\b`)
+
+// approveHeld turns the owner's approval of a hold into a MERGE verdict: the held question of this run and round was
+// answered by the owner with "approved..." or "merge it...", and the PR is still at the judged head. A newer head needs its own judge.
+// Every other limit of the merge decision still applies.
+func (r *Runner) approveHeld(run *Run, head string) {
+	if run.State != Held || head != run.JudgeHead {
+		return
+	}
+	// only a rejecting (HOLD) verdict needs the approval; once it is "pass" a run held again is not approved again
+	if v, _, err := r.Store.LaneVerdict(run.Task, head); err != nil || v != "fail" {
+		return
+	}
+	s, err := r.sq()
+	if err != nil {
+		return
+	}
+	asks, err := s.Asks("answered")
+	if err != nil {
+		return
+	}
+	since, _ := time.Parse(time.RFC3339, run.Dispatched)
+	for _, a := range asks {
+		// the ref repeats when a task is dispatched again: an answer to an earlier run's question is not for this one
+		at, err := time.Parse(time.RFC3339, a.Answered)
+		if a.Ref != heldRef(run) || a.AnsweredBy != "owner" || !approvalRe.MatchString(a.Answer) || err != nil || at.Before(since) {
+			continue
+		}
+		why := fmt.Sprintf("the owner approved the hold (question #%d, by %s)", a.ID, a.AnsweredBy)
+		if err := r.Store.Verdict(run.Task, run.PRURL, head, "pass", why, a.AnsweredBy); err != nil {
+			r.printf("%s: %v\n", run.Task, err)
+			return
+		}
+		run.State, run.Outcome, run.MergeHold, run.Head = Merging, "", "", head
+		_ = r.Store.TaskStatus(run.Task, "in_review", "")
+		_ = r.Store.Event(r.actor(), "task", run.Task, "run-approved", why)
+		_ = r.Log.Emit("run.approved", run, Event{Data: map[string]any{"head": head, "pr": run.PRURL, "ask": a.ID}})
+		return
+	}
+}
+
+// checkHeld finishes a held run whose PR the owner merged, fails one whose PR was closed, and sends an approved one on
+// to the merge.
 func (r *Runner) checkHeld(run *Run) {
 	if run.PRURL == "" {
 		return
@@ -416,6 +480,8 @@ func (r *Runner) checkHeld(run *Run) {
 		r.finish(run, pr)
 	case "CLOSED":
 		r.fail(run, "the owner closed the held PR")
+	case "OPEN":
+		r.approveHeld(run, pr.HeadRefOid)
 	}
 }
 
@@ -485,6 +551,8 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	if pr.MergeCommit != nil {
 		run.MergeSHA = pr.MergeCommit.Oid
 	}
+	// merged by hand while a new judge runs: JudgeHead is already the new head and the last verdict is about an old one
+	rejudging := run.State == Judging
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
@@ -493,6 +561,9 @@ func (r *Runner) finish(run *Run, pr *PR) {
 		data["unattended"] = true
 	}
 	_ = r.Log.Emit("pr.merged", run, Event{Data: data})
+	if !rejudging {
+		r.reportUnasked(run, pr.HeadRefOid)
+	}
 	r.checkMergeCommit(run)
 	r.closeSessions(run)
 	r.endSessions(run)

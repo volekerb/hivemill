@@ -9,9 +9,17 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Runs with a finished PR land by themselves.** A run that would fail as stalled, timed out or with the gate finding no PR goes to CI and the judge when its branch has an open PR; a running Stop gate hook no longer counts as an idle session (a hook past its timeout fails as `gate hook timed out`); and answering a held run's question with `approved` or `merge it` counts as the judge's MERGE for the held head (T-2188).
+
+- **`hivemill proofs touched --ios-dir` no longer passes on a mistyped directory.** An iOS directory that is missing under the root, or differs in letter case from the real one, is now a usage error (exit 2) that names it, not `SKIP xcodebuild: no iOS change` (T-2074).
+
 ### Added
 
 - **A summary API and a hub for several factories.** `GET /api/obs/v1/summary` gives one factory's identity (`obs_label`), run counts, one "needs you" list (questions with their text, held runs with reason and PR, failures that were not re-filed, runs over a per-stage limit, system lines), planner state, merges, spend, budget and machines. With `obs_peers` set, a factory's obs serves the All factories page at `/all`; `hivemill obs --hub --peers ...` serves it on a machine with no factory. Bound beyond loopback, obs no longer names file paths or pull sources. See [docs/hivemill-observability.md](docs/hivemill-observability.md#several-factories-the-summary-api-and-the-hub).
+
+- **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).
 
 - **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
 
@@ -42,6 +50,8 @@ v0.1.0 summarises the changes merged during private development.
 - Old-chain delete step 1: the `factory-forward` ssh forwarder, the `factory-go-version` command and their packages (`internal/forward`, `internal/buildinfo`) are gone, with the tests that built or exercised the forwarder (T-1932).
 
 ### Fixed
+
+- **A lost local CI job on this machine no longer leaves its `gate_cmd` running.** With the wrapper dead but not yet reaped, the restart skipped the group kill; it now waits for the reap (T-2183).
 
 - **Gate proofs over 60 s no longer fail on a worker machine.** `hc exec` ended them at its own default of 60 s. A remote proof now has `--timeout 600`, one cut at that limit runs again on the local core, and the timeout note names the limit that applied (T-2040).
 
