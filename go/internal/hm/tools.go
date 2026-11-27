@@ -22,6 +22,8 @@ type Tools struct {
 	GH  func(input string, args ...string) (int, string, string)
 	HC  func(args ...string) (int, string, string)
 	Sh  func(dir string, timeout time.Duration, env []string, argv ...string) (int, string)
+	// Detach starts a background job that outlives this process (localjob.go). nil: local CI jobs run inline.
+	Detach func(dir, logfile, lockfile string, env []string, argv ...string) (int, error)
 }
 
 // RealTools runs git through gitx (hooks off, https only, live-checkout moves refused), gh and hc.
@@ -47,6 +49,7 @@ func RealTools(e Env) Tools {
 			rc, out, errs := run(timeout, dir, "", env, argv...)
 			return rc, out + errs
 		},
+		Detach: detach,
 	}
 }
 
