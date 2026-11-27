@@ -24,6 +24,11 @@ type Digest struct {
 	GHCalls    int                `json:"gh_calls"`      // gh calls of the daemon's passes that day
 	GHPeak     int                `json:"gh_calls_peak"` // the most in one hour
 	GHHours    int                `json:"gh_hours"`      // hours with at least one call
+	Unasked    []DigestUnasked    `json:"unasked"`       // changes no criterion asked for, merged that day
+}
+
+type DigestUnasked struct {
+	Task, Change, Why string
 }
 
 type DigestMerge struct {
@@ -81,6 +86,10 @@ func (r *Runner) BuildDigest(day time.Time) (*Digest, error) {
 			d.Failed = append(d.Failed, DigestRun{Task: e.TaskID, Why: truncate(why, 200), Since: e.TS})
 		case "task.dispatched":
 			d.Dispatched++
+		case "judge.unasked_ok":
+			change, _ := e.Data["change"].(string)
+			why, _ := e.Data["why"].(string)
+			d.Unasked = append(d.Unasked, DigestUnasked{Task: e.TaskID, Change: change, Why: why})
 		}
 	}
 	// $: the sessions started that day, and every session of a task merged that day
@@ -198,6 +207,10 @@ func (d *Digest) Markdown(now time.Time) string {
 	var parts []string
 	for _, k := range roles {
 		parts = append(parts, fmt.Sprintf("%s $%.2f", k, d.USDByRole[k]))
+	}
+	fmt.Fprintf(&b, "\n## Unasked changes merged (%d)\n", len(d.Unasked))
+	for _, u := range d.Unasked {
+		fmt.Fprintf(&b, "- %s: %s (why: %s)\n", u.Task, u.Change, u.Why)
 	}
 	fmt.Fprintf(&b, "\n## Spend\n$%.2f in sessions started that day (%s); %d runs dispatched\n", d.USD, or(strings.Join(parts, ", "), "none"), d.Dispatched)
 	fmt.Fprintf(&b, "\n## gh API use\n%d calls; %d per hour on average over %d active hours, %d in the busiest hour\n",

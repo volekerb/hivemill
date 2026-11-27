@@ -13,6 +13,8 @@ v0.1.0 summarises the changes merged during private development.
 
 - **A PR flow controller keeps runner PRs moving.** Each pass reads all open runner PRs with one batched GraphQL query, gives every flow state a time budget with a fixed action when it runs out, merges a train of PRs that share no file, and emits `pr.stale` for a PR that stops changing. New config keys: `ci_queue_max_min`, `merge_train`, `stale_pr_min`. See [docs/pr-flow.md](https://github.com/volekerb/hivemill/blob/main/docs/pr-flow.md) (T-2079).
 
+- **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).
+
 - **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
 
 - **Warm standby.** `docs/standby.md` is the failover runbook; `hivemill standby check --from HOST` restores the primary's newest snapshot into a temporary home (the daemon runs it monthly when `standby_from` is set), and a `daemon.lock` stops a second writer on another machine unless `hivemill daemon --take-over` is given (T-2086).
@@ -68,6 +70,8 @@ v0.1.0 summarises the changes merged during private development.
 - **Scheduled jobs now fire from the tick.** Before, `factory schedule` only stored jobs and nothing fired them. Now the Python tick runs `factory-go schedule due --json` and mails each due job to the director, the run's token cap is applied through the goal's `token_limit`, and days the tick missed are not back-filled. See [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md#tick-claiming-due-jobs) (#777).
 
 ### Changed
+
+- **The tests workflow classifies the tier with the Go `ci-tier`.** The three classify steps and the docs-check step build `go/cmd/ci-tier` from the base commit's archive instead of running `ci/ci_tier.py`, so a PR still cannot loosen its own tier; a base without the Go tool still gets the full suite (T-1933).
 
 - **The hivemill runner waits for CI itself after the gate.** It reads a gated run's PR every `ci_poll_s` (60), starts the judge once the checks are green with the required ones present (without a required list: still green one poll later), and alerts the owner once after `ci_timeout_s` (2700) while the run stays (T-2000).
 

@@ -518,6 +518,10 @@ func (r *Runner) Pass(startNew bool) error {
 		return err
 	}
 	defer r.countGH()() // the gh calls of this pass, for the digest
+	r.sweepLocalCI()    // results first: they free job slots, and the runs below read them
+	if runs, err = r.Store.Runs(); err != nil {
+		return err
+	}
 	r.poll = r.pollPRs(runs)
 	defer func() { r.poll, r.queueSlow = nil, false }()
 	r.queueSlow = r.queuedTooLong(runs)
@@ -594,7 +598,7 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		if r.poll != nil {
 			r.trackFlow(run)
 		}
-		if run.State != Gated {
+		if run.State != Gated && (run.State != Merging || !r.ciNone(run.Project)) {
 			r.endCIWait(run) // the run left the CI wait, however it did
 		}
 		_ = r.Store.PutRun(run)
