@@ -1,0 +1,100 @@
+{
+ "flow": {
+  "days": 1,
+  "tasks": [
+   {
+    "key": "box-a/T-0090",
+    "task": "T-0090",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "FAIL: stalled: the task session stayed idle without a passing gate",
+    "stage": "",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 0,
+    "seconds": {
+     "": 0
+    },
+    "total_sec": 600,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0091",
+    "task": "T-0091",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "FAIL: stalled: the task session stayed idle without a passing gate",
+    "stage": "",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 0,
+    "seconds": {
+     "": 0
+    },
+    "total_sec": 600,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0092",
+    "task": "T-0092",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "FAIL: budget: sessions cost $5.40, over task_budget_usd $5.00",
+    "stage": "",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 0,
+    "seconds": {
+     "": 0
+    },
+    "total_sec": 600,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0080",
+    "task": "T-0080",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "merged",
+    "stage": "",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 0,
+    "seconds": {
+     "": 0
+    },
+    "total_sec": 600,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0101",
+    "task": "T-0101",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "open",
+    "stage": "dispatched",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 600,
+    "seconds": {
+     "dispatched": 600
+    },
+    "total_sec": 1200,
+    "usd": 1.5,
+    "sessions": 2
+   }
+  ],
+  "stuck": [],
+  "merged_per_day": [
+   {
+    "day": "2026-11-14",
+    "n": 64
+   }
+  ],
+  "merged": 64
+ }
+}

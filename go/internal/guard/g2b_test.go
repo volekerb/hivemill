@@ -2,8 +2,8 @@ package guard
 
 // The guard2 cases of go/internal/factorytest (researcher, retro_mirror, retro, scratch_init, uv_wrapper; T-1921,
 // guard port 2b): every TestG2<name> is the old Test<name> with the same inputs and the same expected answers, but it
-// calls HookMain in-process (g2_helpers_test.go) instead of the built binary. The map is
-// testdata/portmap/guard2b.txt.
+// calls HookMain in-process (g2_helpers_test.go) instead of the built binary; a run under a fixture home
+// (g2Opts.pw) takes g2HookMainIn. The map is testdata/portmap/guard2b.txt.
 
 import (
 	"os"
@@ -45,11 +45,7 @@ type g2bRsEnv struct {
 
 func g2bNewRs(t *testing.T) *g2bRsEnv {
 	t.Helper()
-	u, err := user.Current()
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := &g2bRsEnv{t: t, tmp: g2RealTemp(t), home: u.HomeDir}
+	e := &g2bRsEnv{t: t, tmp: g2RealTemp(t), home: fxHome(t, fxSymlinkFactory)}
 	e.live = e.home + "/factory"
 	e.state = filepath.Join(e.tmp, "state")
 	e.rdir = filepath.Join(e.state, "factory", "research", "T-9999")
@@ -62,7 +58,8 @@ func (e *g2bRsEnv) hook(payload map[string]any, role string) g2Res {
 	e.t.Helper()
 	return g2HookJSON(e.t, payload, g2Opts{args: g2RoleArgs(role),
 		drop: []string{"WORKER_GUARD_LIVE_HOME", "FACTORY_HOME"},
-		set:  map[string]string{"WORKER_GUARD_STATE": e.state, "WORKER_GUARD_SCRATCH": e.scratch}})
+		set:  map[string]string{"WORKER_GUARD_STATE": e.state, "WORKER_GUARD_SCRATCH": e.scratch, "HOME": e.home},
+		pw:   e.home})
 }
 
 func (e *g2bRsEnv) bash(cmd, cwd, role string) g2Res {
@@ -907,7 +904,7 @@ func TestG2ScratchInitInstallDryRunWritesNothingListingUnchanged(t *testing.T) {
 		t.Errorf("listing changed: before %v after %v", before, after)
 	}
 	for _, want := range []string{"[dry-run] mkdir -p " + filepath.Join(home, ".config", "systemd", "user"),
-		"[dry-run] systemctl --user enable factory-tick.timer"} {
+		"[dry-run] systemctl --user enable hivemill.service"} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("stdout lacks %q:\n%s", want, out)
 		}

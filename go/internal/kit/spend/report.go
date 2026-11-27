@@ -1,11 +1,13 @@
 // Package spend measures where Claude tokens go on one machine and applies context limits to its agents. It reads
-// Claude Code transcripts (~/.claude/projects/**/*.jsonl) and settings files only: no factory DB, no network.
+// Claude Code transcripts (~/.claude/projects/**/*.jsonl, or .jsonl.gz once `hivemill clean` gzipped them) and settings
+// files only: no factory DB, no network.
 // docs/token-discipline.md explains the numbers and the limits.
 package spend
 
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"io"
@@ -268,7 +270,7 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 			}
 			return err
 		}
-		if d.Type()&fs.ModeSymlink != 0 || d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+		if d.Type()&fs.ModeSymlink != 0 || d.IsDir() || !isTranscript(path) {
 			return nil
 		}
 		info, err := d.Info()
@@ -277,7 +279,7 @@ func Scan(root string, since, until time.Time, top int) (*Report, error) {
 		}
 		rel, _ := filepath.Rel(root, path)
 		project := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
-		session := strings.TrimSuffix(filepath.Base(path), ".jsonl")
+		session := transcriptStem(filepath.Base(path))
 		if p, _, ok := subagentOf(strings.Split(filepath.ToSlash(rel), "/")); ok {
 			parent[session] = p
 		}
@@ -397,6 +399,16 @@ func userText(raw []byte) (string, bool) {
 	return strings.Join(parts, "\n"), true
 }
 
+// isTranscript reports a transcript path, gzipped or not.
+func isTranscript(path string) bool {
+	return strings.HasSuffix(strings.TrimSuffix(path, ".gz"), ".jsonl")
+}
+
+// transcriptStem is a transcript's file name without .jsonl or .jsonl.gz: the session id of a main transcript.
+func transcriptStem(name string) string {
+	return strings.TrimSuffix(strings.TrimSuffix(name, ".gz"), ".jsonl")
+}
+
 // readFile emits the requests of one transcript. user receives the user messages in order (up to maxKickoffLines)
 // until it returns false.
 func readFile(path string, user func(string) bool, emit func(Request), tool func(time.Time, int) bool, seen map[string]bool) error {
@@ -405,7 +417,16 @@ func readFile(path string, user func(string) bool, emit func(Request), tool func
 		return nil // a transcript that vanished or is unreadable is skipped, not fatal
 	}
 	defer f.Close()
-	br := bufio.NewReaderSize(f, 1<<20)
+	var in io.Reader = f
+	if strings.HasSuffix(path, ".gz") {
+		z, err := gzip.NewReader(f)
+		if err != nil {
+			return nil // unreadable like any other transcript: skipped
+		}
+		defer z.Close()
+		in = z
+	}
+	br := bufio.NewReaderSize(in, 1<<20)
 	wantUser, users, first := user != nil, 0, true
 	for {
 		raw, err := br.ReadBytes('\n')

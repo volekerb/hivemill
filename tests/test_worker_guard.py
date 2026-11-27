@@ -724,14 +724,17 @@ class ClaudeGuardTests(unittest.TestCase):
                 old = json.loads(base.stdout)["permissions"]["deny"]
                 with open(os.path.join(ROOT, rel)) as f:
                     tdeny = json.load(f)["permissions"]["deny"]
-                # only these may differ from main: PRIV denies (T-0057), db/** denies (T-0159), advisor (T-0250)
-                added = {"Advisor", "Bash(claude:*)", "Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)", "Bash(pkexec:*)",
-                         "Bash(docker:*)", "Edit(/@FACTORY_LIVE_HOME@/db/**)", "Write(/@FACTORY_LIVE_HOME@/db/**)",  # T-A
-                         "Edit(/@FACTORY_LIVE_HOME@/run/settings/**)", "Write(/@FACTORY_LIVE_HOME@/run/settings/**)"}  # T-B2
+                # only these may differ from main: PRIV denies (T-0057), db/** denies (T-0159)
+                added = {"Bash(claude:*)", "Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)", "Bash(pkexec:*)",
+                         "Bash(docker:*)", "Edit(/@FACTORY_LIVE_HOME@/db/**)",  # T-A
+                         "Edit(/@FACTORY_LIVE_HOME@/run/settings/**)"}  # T-B2
                 added |= {f"Bash({c}:*)" for c in ("hc server stop", "herdr-core server stop", "hc kill", "hc rm", "hc run")}  # T-1446
-                added |= {f"{t}(/@FACTORY_LIVE_HOME@/run/guard-export.json*)"
-                          for t in ("Edit", "Write", "MultiEdit", "NotebookEdit")}  # T-0883
-                self.assertEqual([x for x in tdeny if x not in added], [x for x in old if x not in added])
+                added.add("Edit(/@FACTORY_LIVE_HOME@/run/guard-export.json*)")  # T-0883
+
+                # T-2093: on main only, path rules count as Edit(...) and the gone MultiEdit and Advisor tools drop out;
+                # the tree is compared as written, so a rule turned back into a no-op fails here
+                old = {re.sub(r"^(Write|MultiEdit|NotebookEdit)\(", "Edit(", x) for x in old} - {"MultiEdit", "Advisor"}
+                self.assertEqual(sorted(x for x in tdeny if x not in added), sorted(old - added))
 
 if __name__ == "__main__":
     unittest.main()

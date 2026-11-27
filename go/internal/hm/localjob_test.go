@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -451,5 +453,55 @@ func TestLocalCIJobLeftovers(t *testing.T) {
 		if j.Cmd != "exit 0" {
 			t.Errorf("job of the old command: %+v", j)
 		}
+	}
+}
+
+// The wrapper's lock is free before its pid is: a wrapper not yet reaped must not save what it left running.
+func TestLocalCIJobOrphansOfUnreapedWrapper(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("zombie reads /proc")
+	}
+	cmd := exec.Command("bash", "-c", "sleep 60 >/dev/null 2>&1 &")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	pid := cmd.Process.Pid
+	t.Cleanup(func() { _ = syscall.Kill(-pid, syscall.SIGKILL) })
+	waitFor(t, "the wrapper to exit", func() bool { return zombie(pid) })
+	reaped := make(chan error, 1)
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		reaped <- cmd.Wait()
+	}()
+	if err := (&Runner{}).killCIOrphans(&ciJob{PID: pid}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-reaped; err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "its orphans to end", func() bool { return syscall.Kill(-pid, 0) != nil })
+}
+
+// A live process that has the pid by now is someone else's: its group is left alone, without a wait.
+func TestLocalCIJobOrphansOfReusedPID(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("reads /proc")
+	}
+	cmd := exec.Command("sleep", "60")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+	pid, from := cmd.Process.Pid, time.Now()
+	if err := (&Runner{}).killCIOrphans(&ciJob{PID: pid, Dir: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(from) > 4*time.Second || zombie(pid) {
+		t.Fatalf("waited %s; killed %v", time.Since(from), zombie(pid))
 	}
 }

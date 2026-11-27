@@ -523,11 +523,22 @@ class GoImplTests(GuardDiffCase):
         self.assertEqual(self.run_tool("--strict").returncode, 2)
 
 
+LB_RUN = "~/.local/bin/factory whoami"  # the corpus run of ~/.local/bin/factory (go/internal/guard g2LbRun)
+
+
 class CorpusSanityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with open(CORPUS) as f:
             cls.corpus = json.load(f)
+        # T-2168: a temp home whose ~/.local/bin/factory is a Python script, as in the Go g2LbPyFactory (T-2041), so
+        # the LB_RUN verdict does not depend on this machine's ~/.local/bin (a bash forwarder there is blocked)
+        tmp = tempfile.TemporaryDirectory(prefix="zz-test-lbhome-")
+        cls.addClassCleanup(tmp.cleanup)
+        cls.lb_home = tmp.name
+        os.makedirs(os.path.join(cls.lb_home, ".local", "bin"))
+        with open(os.path.join(cls.lb_home, ".local", "bin", "factory"), "w") as f:
+            f.write("#!/usr/bin/env python3\nimport sys\nprint(sys.argv)\n")
 
     def check(self, key, want):
         jobs = []
@@ -541,6 +552,8 @@ class CorpusSanityTests(unittest.TestCase):
                 modes = ["worker", "hq"]
             it = guard_diff.entry_item(e)  # a seeded entry (T-0762) runs against its own seeded temp home
             seed, xenv = (it[2] if len(it) > 2 else None), (it[3] if len(it) > 3 else None)
+            if cmd == LB_RUN and xenv is None:  # the guard reads the script it runs through $HOME: not this box's
+                xenv = (("HOME", self.lb_home),)
             jobs += [(cmd, m, role or "coder", seed, xenv) for m in modes]
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
             specs = dict.fromkeys((j[3] or (), guard_diff.agent_task(j[4])) for j in jobs
@@ -1053,6 +1066,24 @@ class SettingsFollowUpTests(GuardDiffCase):
         self.assertIn("SETTINGS-LOOSENED qa ask removed: Bash(rm -rf *)", p.stdout)
         self.assertIn("1 loosened", p.stdout)
 
+    def test_path_deny_moved_to_edit_is_not_loosened(self):
+        def old_rules(d):
+            d["permissions"]["deny"] += ["Write(/x/**)", "MultiEdit(/x/**)", "NotebookEdit(/x/**)"]
+        self.commit_base(old_rules)
+        self.edit_tree(lambda d: d["permissions"].__setitem__(
+            "deny", [r for r in d["permissions"]["deny"] if not r.endswith("(/x/**)")] + ["Edit(/x/**)"]))
+        p = self.settings()
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("SETTINGS-LOOSENED", p.stdout)
+
+    def test_path_deny_without_edit_of_same_path_is_loosened(self):
+        self.commit_base(lambda d: d["permissions"]["deny"].append("Write(/x/**)"))
+        self.edit_tree(lambda d: d["permissions"].__setitem__(
+            "deny", [r for r in d["permissions"]["deny"] if r != "Write(/x/**)"] + ["Edit(/y/**)"]))
+        p = self.settings()
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("SETTINGS-LOOSENED qa deny removed: Write(/x/**)", p.stdout)
+
     def test_added_ask_rule_is_tightened(self):
         self.commit_base(self.seed)
         self.edit_tree(lambda d: d["permissions"]["ask"].append("Bash(curl *)"))
@@ -1253,6 +1284,18 @@ except Exception:
     sys.exit(2)
 sys.exit(0)
 '''
+
+
+class AllowLoosenT2093Tests(unittest.TestCase):
+    """T-2093: ci/allow_loosen_t2093.json allows only the removal of deny rules Claude Code reports as no-ops."""
+
+    def test_entries_are_no_op_deny_removals(self):
+        with open(os.path.join(ROOT, "ci", "allow_loosen_t2093.json")) as f:
+            entries = json.load(f)
+        self.assertTrue(entries)
+        self.assertEqual(len(entries), len(set(entries)))
+        no_op = re.compile(r"[\w-]+ deny removed: (?:Advisor|MultiEdit|(?:Write|MultiEdit|NotebookEdit)\(.+\))")
+        self.assertEqual([e for e in entries if not no_op.fullmatch(e)], [])
 
 
 class BaseCiExtractTests(GuardDiffCase):

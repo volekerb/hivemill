@@ -48,7 +48,9 @@ type Runner struct {
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
 	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
-	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	SSH func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	// ObsDial dials the dashboard's address for ObsDown (nil = a TCP connect).
+	ObsDial    func(addr string) error
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
@@ -56,6 +58,8 @@ type Runner struct {
 	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
 	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
+	// DiskFree is (total, available) bytes of a path's filesystem; nil = statfs. Tests replace it.
+	DiskFree func(path string) (uint64, uint64, error)
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -435,6 +439,7 @@ func (r *Runner) prepareClone(wt string) error {
 
 func (r *Runner) fail(run *Run, reason string) {
 	run.State, run.Outcome, run.FailReason, run.Ended = Failed, "failed", reason, nowISO()
+	run.HookStarted = ""
 	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-fail", truncate(reason, 900))
 	if !run.Eval {
@@ -469,6 +474,10 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
 	run.LongPct, run.LongResumed, run.LongSendFailed = 0, "", ""
+	run.HookStarted = ""
+	if run.Head != "" { // sent back for more work: this head must not go to evaluation unchanged (rescueOpenPR)
+		run.RescuedHead = run.Head
+	}
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	send := r.Prompt
 	list, listed := Terminals(r.Tools)
@@ -794,8 +803,20 @@ func (r *Runner) budgetEvent(why string) {
 	_ = r.Log.Emit(kind, nil, Event{Data: map[string]any{"why": why}})
 }
 
+// failUnlessRescued fails a stalled or timed out run, unless an open PR takes it to evaluation (rescueOpenPR). The
+// task session of a rescued run is closed, so that it does not change the worktree under the judge; a later round
+// relaunches it.
+func (r *Runner) failUnlessRescued(run *Run, reason string) {
+	if !r.rescueOpenPR(run, reason) {
+		r.fail(run, reason)
+		return
+	}
+	r.Close(run.Agent)
+}
+
 // idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a
-// background review was running); after a second idle spell the run is FAIL "stalled".
+// background review was running); after a second idle spell the run is FAIL "stalled". A running gate hook is not
+// idleness: a session whose hook passed its timeout without a result fails as "gate hook timed out" instead.
 func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	idle := false
 	for _, t := range list {
@@ -803,8 +824,21 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 			idle = t.Status == "idle" || t.Status == "done"
 		}
 	}
+	if !idle { // a session that works on has left its hook behind; its next stop records a new start
+		run.HookStarted = ""
+	}
+	started, err := time.Parse(time.RFC3339, run.HookStarted)
+	if err == nil && time.Since(started) < gateHookTimeout {
+		run.IdleSince = ""
+		return
+	}
 	if !idle || r.workflowBusy(run, time.Now().Add(-15*time.Minute)) {
 		run.IdleSince = ""
+		return
+	}
+	if err == nil { // the hook passed its timeout without a result
+		run.HookStarted, run.IdleSince = "", ""
+		r.failUnlessRescued(run, fmt.Sprintf("gate hook timed out: no result after %d seconds", int(gateHookTimeout/time.Second)))
 		return
 	}
 	if run.IdleSince == "" {
@@ -817,7 +851,7 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	}
 	run.IdleSince = ""
 	if run.IdleNudges >= 1 {
-		r.fail(run, "stalled: the task session stayed idle without a passing gate after a nudge")
+		r.failUnlessRescued(run, "stalled: the task session stayed idle without a passing gate after a nudge")
 		return
 	}
 	run.IdleNudges++
