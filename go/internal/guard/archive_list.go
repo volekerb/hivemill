@@ -907,7 +907,9 @@ func pyInt(s string, base int, ascii bool) (int64, bool) {
 			return 0, false
 		}
 		digits++
-		if v < pySat {
+		if v > (pySat-int64(d))/int64(base) {
+			v = pySat // saturate before v*base can overflow int64
+		} else {
 			v = v*int64(base) + int64(d)
 		}
 	}

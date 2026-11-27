@@ -213,6 +213,9 @@ func TestArchiveListHelpers(t *testing.T) {
 		{" 0o_7", 8, true, 7, true}, {"0_7", 8, true, 7, true}, {"+_1", 10, false, 0, false}, {"1__2", 10, false, 0, false},
 		{"\x1c5", 10, false, 0, false}, {"\u00855", 10, false, 5, true}, {"٣", 10, false, 3, true}, {" 5\n", 10, true, 5, true},
 		{"\v5", 10, true, 5, true}, {"8", 8, true, 0, false}, {"1_", 10, false, 0, false}, {"-12", 10, false, -12, true},
+		{"1152921504606846975", 10, true, pySat - 1, true}, {"11529215046068469759", 10, true, pySat, true},
+		{"115292150460684697599999", 10, false, pySat, true}, {"-11529215046068469759", 10, true, -pySat, true},
+		{"77777777777777777777777", 8, true, pySat, true},
 	} {
 		if v, ok := pyInt(c.s, c.base, c.asc); v != c.want || ok != c.ok {
 			t.Errorf("pyInt(%q, %d) = %d %v, want %d %v", c.s, c.base, v, ok, c.want, c.ok)
