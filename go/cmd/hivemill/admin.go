@@ -447,6 +447,12 @@ func addRelease(s *hm.SQLite, project, goal, title, spec, status, deps string, p
 	if project == "" || !projectExists(s, project) {
 		return "", "", fmt.Errorf("%w: --kind release needs --project, one of `hivemill project list`", hm.ErrRefused)
 	}
+	if cmd, err := s.ReleaseCmd(project); err != nil {
+		return "", "", err
+	} else if cmd == "" {
+		return "", "", fmt.Errorf("%w: project %s has no release_cmd (`hivemill project profile %s --release-cmd CMD`)",
+			hm.ErrRefused, project, project)
+	}
 	if goal != "" {
 		g, err := s.Goal(goal)
 		if err != nil {
@@ -504,6 +510,10 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		if e != nil {
 			fmt.Fprintln(stderr, "hivemill:", e)
 			return 2
+		}
+		if t.Kind == hm.KindRelease {
+			fmt.Fprintf(stdout, "%s: a release task has no spec gate\n", t.ID)
+			return 0
 		}
 		if len(lintReport(stdout, t.ID, t.Acceptance)) > 0 {
 			return 1
@@ -724,6 +734,13 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			}
 			if run, _ := s.Run(id); run != nil && hm.Active(run.State) {
 				return fail(stderr, fmt.Errorf("%w: %s has an active run (%s); `hivemill run stop %s` first", hm.ErrRefused, id, run.State, id))
+			}
+			if t.Kind == hm.KindRelease {
+				if state, _, err := s.Release(id); err != nil {
+					return fail(stderr, err)
+				} else if state == "queued" || state == "running" {
+					return fail(stderr, fmt.Errorf("%w: %s has a release %s; wait until it ends", hm.ErrRefused, id, state))
+				}
 			}
 			set["status"] = *status
 		}

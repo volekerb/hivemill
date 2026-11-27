@@ -1,15 +1,19 @@
 package hm
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"factory/go/internal/shlex"
@@ -86,7 +90,7 @@ func (r *Runner) startRelease(t *Task) error {
 		return err
 	}
 	for _, id := range live {
-		if other, err := s.Task(id); err == nil && id != t.ID && other.Project == t.Project {
+		if other, err := s.Task(id); err == nil && other.Project == t.Project {
 			return fmt.Errorf("%w: %s: %s is releasing %s now", ErrRefused, t.ID, id, t.Project)
 		}
 	}
@@ -113,7 +117,10 @@ func (r *Runner) startRelease(t *Task) error {
 	}
 	if err != nil {
 		// the task lock is held here already
-		return r.recordRelease(t, releaseResult{why: "the release job did not start: " + err.Error(), exit: -1})
+		if rerr := r.recordRelease(t, releaseResult{why: "the release job did not start: " + err.Error(), exit: -1}); rerr != nil {
+			return errors.Join(err, rerr)
+		}
+		return fmt.Errorf("%s: the release job did not start: %w", t.ID, err)
 	}
 	return nil
 }
@@ -326,13 +333,15 @@ func (r *Runner) release(t *Task) releaseResult {
 		return failed("refused: %v", err)
 	}
 
+	env := cleanEnv()
 	step := func(args ...string) (int, map[string]any) {
 		full := append(slices.Clone(argv), args...)
 		logText("$ " + strings.Join(full, " "))
-		rc, out := r.Tools.Sh(wt, releaseTimeout, cleanEnv(), full...)
+		rc, out, errs := runReleaseCmd(releaseTimeout, wt, env, full)
+		logText(errs)
 		logText(out)
 		logText(fmt.Sprintf("exit %d", rc))
-		return rc, releaseSummary(out)
+		return rc, releaseSummary(out) // the summary is on stdout; stderr is the log
 	}
 	stepFailed := func(name string, rc int, sum map[string]any) releaseResult {
 		why := name + " failed"
@@ -347,6 +356,7 @@ func (r *Runner) release(t *Task) releaseResult {
 	if rc != 0 || dry["ok"] != true {
 		return stepFailed("the dry run", rc, dry)
 	}
+	approved := "" // the build number the owner allowed to submit; the real run may cut no other
 	if submit || external {
 		build := ""
 		if n, ok := dry["build"].(float64); ok {
@@ -362,13 +372,50 @@ func (r *Runner) release(t *Task) releaseResult {
 			}
 			return failed("refused: %s; a submit of build %s needs the owner's answer \"release build %s\"", what, build, build)
 		}
+		approved = build
+		env = append(env, "HIVEMILL_RELEASE_BUILD="+approved)
 	}
 	rc, sum := step()
 	if rc != 0 || sum["ok"] != true || sum["build"] == nil {
 		return stepFailed("the release", rc, sum)
 	}
+	if n, _ := sum["build"].(float64); approved != "" && fmt.Sprintf("%.0f", n) != approved {
+		return releaseResult{why: fmt.Sprintf("the owner allowed build %s but release_cmd cut build %v; check App Store Connect",
+			approved, sum["build"]), exit: rc, tail: lastLines(all.String(), releaseTailLines), summary: sum}
+	}
 	sum["state"] = "VALID" // release_cmd ends ok only once App Store Connect has processed the build
 	return releaseResult{ok: true, summary: sum}
+}
+
+// runReleaseCmd runs release_cmd in its own process group, so a timeout also kills the build and upload it started.
+func runReleaseCmd(timeout time.Duration, dir string, env, argv []string) (int, string, string) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Dir, cmd.Env = dir, env
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = 30 * time.Second
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	err := cmd.Run()
+	if ctx.Err() == context.DeadlineExceeded {
+		return 124, out.String(), errb.String() + fmt.Sprintf("\ntimed out after %s", timeout)
+	}
+	var ee *exec.ExitError
+	switch {
+	case errors.As(err, &ee):
+		return ee.ExitCode(), out.String(), errb.String()
+	case err != nil && !errors.Is(err, exec.ErrWaitDelay): // ErrWaitDelay: it exited 0, a child kept a pipe open
+		return 127, out.String(), errb.String() + "\n" + err.Error()
+	}
+	return 0, out.String(), errb.String()
+}
+
+// CheckReleaseCmd says why cmd cannot be a release_cmd.
+func CheckReleaseCmd(cmd string) error {
+	_, err := releaseArgv(cmd, "/")
+	return err
 }
 
 // releaseArgv splits release_cmd; it runs without a shell, with a leading ~/ and variables expanded.
@@ -390,16 +437,22 @@ func releaseArgv(cmd, userHome string) ([]string, error) {
 			}
 			return os.Getenv(k)
 		})
+		flag := ""
+		if v, ok := strings.CutPrefix(a, "--config="); ok {
+			flag, a = "--config=", v
+		}
 		if rest, ok := strings.CutPrefix(a, "~/"); ok {
 			a = filepath.Join(userHome, rest)
 		}
+		a = flag + a
 		argv[i] = a
 	}
 	return argv, nil
 }
 
 // submitExternal reads the release config the command will use (--config, else .hivemill/ios-release.json of the
-// worktree). A missing file is false; one that cannot be read as JSON is an error, since nobody can tell what it asks.
+// worktree). A missing default file is false; a missing --config file, or one that cannot be read as JSON, is an error,
+// since nobody can tell what it asks.
 func submitExternal(argv []string, wt string) (bool, error) {
 	paths := []string{}
 	for i, a := range argv {
@@ -409,7 +462,8 @@ func submitExternal(argv []string, wt string) (bool, error) {
 			paths = append(paths, argv[i+1])
 		}
 	}
-	if len(paths) == 0 {
+	explicit := len(paths) > 0
+	if !explicit {
 		paths = []string{filepath.Join(".hivemill", "ios-release.json")}
 	}
 	for _, p := range paths {
@@ -417,7 +471,7 @@ func submitExternal(argv []string, wt string) (bool, error) {
 			p = filepath.Join(wt, p)
 		}
 		b, err := os.ReadFile(p)
-		if errors.Is(err, fs.ErrNotExist) {
+		if !explicit && errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
 		var c map[string]any

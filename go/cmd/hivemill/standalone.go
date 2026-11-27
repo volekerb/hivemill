@@ -284,9 +284,10 @@ func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 	}
 	setRelease := false
 	fs.Visit(func(f *flag.Flag) { setRelease = setRelease || f.Name == "release-cmd" })
-	if setRelease {
-		if err := s.SetReleaseCmd(id, strings.TrimSpace(*release)); err != nil {
-			return fail(stderr, err)
+	*release = strings.TrimSpace(*release)
+	if setRelease && *release != "" {
+		if err := hm.CheckReleaseCmd(*release); err != nil {
+			return fail(stderr, fmt.Errorf("%w: --release-cmd: %v", hm.ErrRefused, err))
 		}
 	}
 	p, err := s.Profile(id)
@@ -319,6 +320,11 @@ func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 			}
 		}
 		if err := s.SetProfile(p); err != nil {
+			return fail(stderr, err)
+		}
+	}
+	if setRelease { // after every other flag was accepted
+		if err := s.SetReleaseCmd(id, *release); err != nil {
 			return fail(stderr, err)
 		}
 	}

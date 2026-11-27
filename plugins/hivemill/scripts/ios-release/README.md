@@ -144,6 +144,8 @@ release.sh [--config PATH] [--profile NAME] [--signing xcodeAccount|apiKey] [--d
 
 `--dry-run` and `--resume-build` cannot be combined.
 
+`HIVEMILL_RELEASE_BUILD=N` in the environment limits a run to build N: when the next build number is another one, it exits 5 before it builds or uploads (the factory sets it for an approved submit).
+
 ## Order of a real run
 
 1. Parse the flags; validate the config (3); resolve the credentials and check the key (4).

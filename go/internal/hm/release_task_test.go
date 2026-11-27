@@ -73,7 +73,6 @@ func newReleaseRig(t *testing.T, config, body string) *releaseRig {
 		}
 		return 0, string(out), ""
 	}
-	r.Tools.Sh = RealTools(r.Env).Sh
 
 	calls := filepath.Join(root, "calls")
 	script := "#!/bin/sh\n" +
@@ -291,5 +290,44 @@ func TestReleaseTaskRefusesSubmit(t *testing.T) {
 	g.want(t, "blocked", releaseFailed)
 	if lines := g.lines(t); len(lines) != 0 {
 		t.Fatalf("calls: %q", lines)
+	}
+
+	// and so is a --config that is not there
+	g = newReleaseRig(t, "", releaseOK)
+	if err := g.s.SetReleaseCmd("www", "~/release.sh --config=~/missing.json"); err != nil {
+		t.Fatal(err)
+	}
+	g.start(t)
+	g.want(t, "blocked", releaseFailed)
+	if q := g.openAsk(t).Question; !strings.Contains(q, filepath.Join(g.r.Env.UserHome, "missing.json")) || len(g.lines(t)) != 0 {
+		t.Errorf("question %q", q)
+	}
+}
+
+// An approved submit cuts the approved build and no other, and a running release is not started again.
+func TestReleaseTaskGuards(t *testing.T) {
+	other := `case "$1" in --dry-run) echo '{"ok":true,"build":42}' ;; *) echo '{"ok":true,"build":43}' ;; esac
+`
+	g := newReleaseRig(t, `{"submitExternal": true}`, other)
+	g.start(t)
+	g.want(t, "blocked", releaseFailed)
+	if err := g.s.CloseAsk(g.openAsk(t).ID, "answered", "release build 42", "owner"); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.s.TaskStatus(g.task, "todo", ""); err != nil {
+		t.Fatal(err)
+	}
+	g.start(t)
+	g.want(t, "blocked", releaseFailed)
+	if q := g.openAsk(t).Question; !strings.Contains(q, "allowed build 42") {
+		t.Errorf("question %q", q)
+	}
+
+	g = newReleaseRig(t, "", releaseOK)
+	if err := g.s.SetRelease(g.task, releaseRunning, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.r.Start(g.task); err == nil || len(g.lines(t)) != 0 {
+		t.Errorf("a running release started again: %v", err)
 	}
 }
