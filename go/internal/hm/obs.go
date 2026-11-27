@@ -347,7 +347,7 @@ func BuildObs(evs []Event, f ObsFilter, me string, local map[string]SessUsage, n
 	placed, run := placements(evs)
 	inFilter := map[string]bool{} // writer/task with a line on the filter's machine
 	for i, e := range evs {
-		if e.TaskID != "" && f.onMachine(placed[i]) && (f.Harness == "" || e.Harness == f.Harness) {
+		if e.TaskID != "" && e.Event != upstreamFiledEvent && f.onMachine(placed[i]) && (f.Harness == "" || e.Harness == f.Harness) {
 			inFilter[TaskKey(e.Machine, e.TaskID)] = true
 		}
 	}

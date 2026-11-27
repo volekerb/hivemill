@@ -42,6 +42,7 @@ type Runner struct {
 	Tools Tools
 	Log   Log
 	Out   io.Writer
+	Warn  io.Writer // warnings that must stay off Out (nil: dropped)
 	Poll  time.Duration
 	// ReadyWait bounds the wait for a new session's TUI (0 = 90 s).
 	ReadyWait time.Duration

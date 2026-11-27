@@ -83,6 +83,11 @@ func PlannerBash(cmd string) string {
 		if strings.TrimSpace(lines[len(lines)-1]) != tag {
 			return "the heredoc must end with its tag on the last line"
 		}
+		for _, l := range lines[:len(lines)-1] { // the shell ends the heredoc at the first such line and runs the rest
+			if strings.TrimLeft(l, "\t") == tag {
+				return "the heredoc tag may only be on the last line"
+			}
+		}
 		cmd = strings.TrimSpace(first[:m[0]])
 	}
 	if why := unquotedMeta(cmd); why != "" {
@@ -97,6 +102,10 @@ func PlannerBash(cmd string) string {
 		if i == 0 {
 			if why := plannerCommand(argv); why != "" {
 				return why
+			}
+			// this text leaves the machine: no variable may expand into it
+			if len(argv) > 2 && filepath.Base(argv[0]) == "hivemill" && argv[1] == "upstream" && expands(seg) {
+				return "upstream: no $ outside single quotes (or use the quoted heredoc)"
 			}
 		} else if why := plannerFilter(argv); why != "" {
 			return why
@@ -130,6 +139,31 @@ func unquotedNewline(s string) int {
 	return -1
 }
 
+// expands reports a $ the shell would expand: outside single quotes and not escaped.
+func expands(s string) bool {
+	var q byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case q == '\'':
+			if c == '\'' {
+				q = 0
+			}
+		case c == '\\':
+			i++
+		case c == '$':
+			return true
+		case q == '"':
+			if c == '"' {
+				q = 0
+			}
+		case c == '\'' || c == '"':
+			q = c
+		}
+	}
+	return false
+}
+
 // unquotedMeta refuses shell control outside single quotes: command separators, redirects, substitutions and `||`.
 // A single `|` is allowed (pipes are checked per segment).
 func unquotedMeta(s string) string {
@@ -154,10 +188,14 @@ func unquotedMeta(s string) string {
 			continue
 		case c == '\'' || c == '"':
 			q = c
+		case c == '#' && (i == 0 || s[i-1] == ' ' || s[i-1] == '\t' || s[i-1] == '|'): // it would comment out a heredoc
+			return "no comments"
 		case c == ';' || c == '&' || c == '>' || c == '<' || c == '`' || c == '\n' || c == '(' || c == ')':
 			return fmt.Sprintf("one plain command per call: %q is not allowed outside quotes", c)
 		case c == '$' && i+1 < len(s) && s[i+1] == '(':
 			return "no command substitution"
+		case c == '$' && i+1 < len(s) && s[i+1] == '\'': // \' does not close $'...': the quoting would be misread
+			return "no $'...' quoting"
 		case c == '|' && i+1 < len(s) && s[i+1] == '|':
 			return "no ||"
 		}

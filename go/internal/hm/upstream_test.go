@@ -78,9 +78,14 @@ func TestUpstreamAddLintsAndFiles(t *testing.T) {
 	if _, err := r.UpstreamAdd(task); err == nil || !strings.Contains(err.Error(), "may have been filed") {
 		t.Errorf("remote failure: %v", err)
 	}
-	m.stub("hivemill", "echo 'T-0043 todo in G-007'; exit 1")
+	var warn strings.Builder
+	r.Warn = &warn
+	m.stub("hivemill", "echo 'T-0043 todo in G-007'; echo zz-late >&2; exit 1")
 	if id, err := r.UpstreamAdd(task); err != nil || id != "T-0043" {
 		t.Errorf("filed, then a failure: id %q, err %v", id, err)
+	}
+	if !strings.Contains(warn.String(), "zz-late") {
+		t.Errorf("the failure after filing was dropped: %q", warn.String())
 	}
 }
 

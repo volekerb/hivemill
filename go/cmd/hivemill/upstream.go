@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"strings"
@@ -40,6 +41,11 @@ func cmdUpstream(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io
 		fmt.Fprintln(stderr, upstreamUsage)
 		return 2
 	}
+	negative := false
+	fs.Visit(func(f *flag.Flag) { negative = negative || f.Name == "priority" && *prio < 0 })
+	if negative {
+		return fail(stderr, fmt.Errorf("--priority: 0 or more"))
+	}
 	// the text leaves this machine: the planner, whose Read is limited, must not send a file by naming it
 	if isPlanner(r) && (*specFile != "" && *specFile != "-" || *accFile != "" && *accFile != "-") {
 		return fail(stderr, fmt.Errorf("%w: the planner gives the text itself, or - for stdin", hm.ErrRefused))
@@ -55,6 +61,7 @@ func cmdUpstream(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io
 	if err != nil {
 		return fail(stderr, err)
 	}
+	r.Warn = stderr
 	id, err := r.UpstreamAdd(hm.UpstreamTask{Title: *title, Spec: sp, Acceptance: a, Priority: *prio})
 	if err != nil {
 		return fail(stderr, err)

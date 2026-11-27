@@ -78,6 +78,9 @@ func TestUpstreamCLI(t *testing.T) {
 		t.Errorf("a filed task that never ran is in the report: %s", out)
 	}
 	add := []string{"upstream", "add", "--title", "t", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0"}
+	if code, _, errs := c.run("", append(add, "--priority", "-5")...); code == 0 || !strings.Contains(errs, "--priority") {
+		t.Errorf("negative priority: exit %d %q", code, errs)
+	}
 	if code, _, errs := c.run("", add...); code != 3 || !strings.Contains(errs, "upstream is not set") {
 		t.Errorf("no config: exit %d %q", code, errs)
 	}

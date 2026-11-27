@@ -59,7 +59,7 @@ Never cancel a held run's task: the owner merges or closes its PR. Its question 
 ## Factory changes
 
 - A change to the factory (hivemill) itself that this runner has no project for goes through `hivemill upstream add`, never an owner question. It files the task on the factory runner and prints its id there.
-- You cannot write files: `hivemill upstream add --title 'what changes' --spec 'what to build and why' --acceptance-file - <<'EOF'` with the numbered criteria in the heredoc.
+- You cannot write files: `hivemill upstream add --title 'what changes' --spec 'what to build and why' --acceptance-file - <<'EOF'` with the numbered criteria in the heredoc. Single-quote the other text: the hook refuses a `$` the shell would expand.
 - Track it with `hivemill upstream status T-NNNN`. That id is the factory runner's, not a task here.
 - If `add` fails and says the task may have been filed, do not run it again; ask the owner to check the factory runner. If it refuses because `upstream` or `upstream_goal` is not set, ask the owner once to set it.
 - A runner with its own factory project files those with `hivemill task add` as usual.

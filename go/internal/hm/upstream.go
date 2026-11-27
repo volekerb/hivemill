@@ -48,6 +48,13 @@ func (r *Runner) upstreamTarget() (target, home string, err error) {
 	return target, home, nil
 }
 
+// warnf keeps warnings off stdout, which is the answer (the new task id).
+func (r *Runner) warnf(f string, a ...any) {
+	if r.Warn != nil {
+		fmt.Fprintf(r.Warn, f, a...)
+	}
+}
+
 // upstreamRun runs one hivemill command on the factory runner. A refusal there is a refusal here, and so is a usage
 // error (2) or a missing hivemill (127): in both nothing ran.
 func (r *Runner) upstreamRun(target, home, stdin string, args ...string) (string, error) {
@@ -57,6 +64,9 @@ func (r *Runner) upstreamRun(target, home, stdin string, args ...string) (string
 	script := "FACTORY_HOME=" + shlex.Quote(home) + "; export FACTORY_HOME; hivemill " + quoteAll(args)
 	rc, out, errs := r.SSH(target, stdin, upstreamTimeout, sshCommand(script))
 	if rc == 0 {
+		if w := strings.TrimSpace(errs); w != "" {
+			r.warnf("hivemill: ssh %s: %s\n", target, w)
+		}
 		return out, nil
 	}
 	err := fmt.Errorf("ssh %s: exit %d: %s", target, rc, strings.TrimSpace(errs+"\n"+out))
@@ -100,11 +110,14 @@ func (r *Runner) UpstreamAdd(t UpstreamTask) (string, error) {
 		}
 		return "", fmt.Errorf("%w\n(the task may have been filed: check the factory runner before you file it again)", err)
 	}
+	if err != nil {
+		r.warnf("hivemill: filed, but then: %v\n", err)
+	}
 	// a filed id stands even when ssh failed afterwards: reporting a failure would file it twice
 	id, g := m[len(m)-1][1], m[len(m)-1][2]
 	if err := r.Log.Emit(upstreamFiledEvent, nil, Event{Data: map[string]any{
 		"by": r.actor(), "upstream": target, "upstream_task": id, "upstream_goal": g, "title": title}}); err != nil {
-		r.printf("hivemill: %s is filed, but the event was not logged: %v\n", id, err)
+		r.warnf("hivemill: %s is filed, but the event was not logged: %v\n", id, err)
 	}
 	return id, nil
 }
