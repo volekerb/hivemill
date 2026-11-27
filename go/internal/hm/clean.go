@@ -46,6 +46,9 @@ const (
 	userCacheIdle = 7 * 24 * time.Hour
 	diskWarnPct   = 85
 	diskUsageMeta = "disk_usage" // what the last clean saw, for `hivemill health`
+	// the spec for a session machine is one command argument (128 KiB at most), so its lists are bounded
+	specTasks = 2000
+	specAttic = 200
 )
 
 var cleanKinds = []string{cleanWorktrees, cleanGoCache, cleanTranscripts, cleanAttic, cleanTmp, cleanDerived, cleanSim}
@@ -63,6 +66,7 @@ type CleanReport struct {
 	Kept    []CleanItem
 	Errors  []string
 	Skipped []string // session machines that could not be cleaned, and why
+	Absent  []string // attic call: worktree names that are not on the machine
 	Disks   []MachineDisk
 	// Sizes is the size in MB per category of each machine whose disk is above diskWarnPct.
 	Sizes map[string]map[string]int64
@@ -607,6 +611,31 @@ func (r *Runner) processCwds(m string) (cwds []string, why string) {
 	return cwds, ""
 }
 
+// openPaths lists the executables and open files of this machine's processes that this user may see.
+func (r *Runner) openPaths() (paths []string, why string) {
+	if GOOS == "darwin" {
+		rc, out := r.Tools.Sh("/", 2*time.Minute, nil, "lsof", "-w", "-Fn", "-u", strconv.Itoa(os.Getuid()))
+		for _, line := range strings.Split(out, "\n") {
+			if p, ok := strings.CutPrefix(line, "n/"); ok {
+				paths = append(paths, "/"+p)
+			}
+		}
+		if rc != 0 && len(paths) == 0 { // lsof also exits 1 after a complete list
+			return nil, "cannot check the open files"
+		}
+		return paths, ""
+	}
+	for _, pattern := range []string{"/proc/[0-9]*/exe", "/proc/[0-9]*/fd/*"} {
+		links, _ := filepath.Glob(pattern)
+		for _, l := range links {
+			if p, err := os.Readlink(l); err == nil {
+				paths = append(paths, strings.TrimSuffix(p, " (deleted)"))
+			}
+		}
+	}
+	return paths, ""
+}
+
 // diskUse is (total, available) bytes of the filesystem of path, as df counts them: total leaves out the blocks only
 // root may use.
 func (r *Runner) diskUse(path string) (uint64, uint64, error) {
@@ -952,9 +981,10 @@ func (r *Runner) atticAged(run *Run, updated string, now time.Time) bool {
 
 func (r *Runner) atticDir() string { return filepath.Join(r.Env.StateDir(), "attic") }
 
-// atticSave writes what removing wt would lose: <task>.patch (`git diff HEAD` with the untracked files) and
-// <task>.bundle (the local commits not on origin/<base>; of a clone also its other branches and stashes). Ignored files
-// are not saved. Any error means the worktree stays. An earlier entry of the task is never overwritten.
+// atticSave writes what removing wt would lose: <task>.patch (`git diff HEAD` with the untracked files), <task>.bundle
+// (the local commits not on origin/<base>; of a clone also its other branches and stashes) and, when the index differs
+// from both HEAD and the files, <task>.staged.patch. Ignored files are not saved. Any error means the worktree stays,
+// with its index as it was. An earlier entry of the task is never overwritten.
 func (r *Runner) atticSave(wt, task, base string, linked bool) (err error) {
 	git := func(args ...string) (string, error) {
 		rc, out, errs := r.Tools.Git(wt, args...)
@@ -972,12 +1002,37 @@ func (r *Runner) atticSave(wt, task, base string, linked bool) (err error) {
 		name = fmt.Sprintf("%s-%d", task, i)
 	}
 	patch, bundle := filepath.Join(dir, name+".patch"), filepath.Join(dir, name+".bundle")
+	staged := filepath.Join(dir, name+".staged.patch")
 	defer func() {
 		if err != nil {
 			_ = os.Remove(patch)
 			_ = os.Remove(bundle)
+			_ = os.Remove(staged)
 		}
 	}()
+	// a submodule's own changes and commits are in neither the diff nor the bundle
+	status, err := git("status", "--porcelain=v2", "-z", "--untracked-files=no", "--ignore-submodules=none")
+	if err != nil {
+		return err
+	}
+	for _, line := range strings.Split(status, "\x00") {
+		if f := strings.Fields(line); len(f) > 2 && (f[0] == "1" || f[0] == "2" || f[0] == "u") && strings.HasPrefix(f[2], "S") {
+			return errors.New("a changed submodule inside")
+		}
+	}
+	diff := func(file string, args ...string) error {
+		args = append([]string{"diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--src-prefix=a/",
+			"--dst-prefix=b/", "--output=" + file}, args...)
+		_, err := git(args...)
+		return err
+	}
+	unstaged, _, _ := r.Tools.Git(wt, "diff", "--quiet")
+	cached, _, _ := r.Tools.Git(wt, "diff", "--cached", "--quiet", "HEAD")
+	if unstaged != 0 && cached != 0 { // the index may hold content that no file has
+		if err := diff(staged, "--cached", "HEAD"); err != nil {
+			return err
+		}
+	}
 	untracked, err := git("ls-files", "--others", "--exclude-standard", "-z")
 	if err != nil {
 		return err
@@ -988,12 +1043,27 @@ func (r *Runner) atticSave(wt, task, base string, linked bool) (err error) {
 		}
 	}
 	if untracked != "" { // the diff then holds their content
+		index, err := git("rev-parse", "--git-path", "index")
+		if err != nil {
+			return err
+		}
+		if !filepath.IsAbs(index) {
+			index = filepath.Join(wt, index)
+		}
+		before, err := os.ReadFile(index)
+		if err != nil {
+			return err
+		}
 		if _, err := git("add", "--intent-to-add", "--", "."); err != nil {
 			return err
 		}
+		defer func() {
+			if err != nil {
+				_ = os.WriteFile(index, before, 0o600)
+			}
+		}()
 	}
-	if _, err := git("diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "--src-prefix=a/",
-		"--dst-prefix=b/", "--output="+patch, "HEAD"); err != nil {
+	if err := diff(patch, "HEAD"); err != nil {
 		return err
 	}
 	if fi, err := os.Stat(patch); err != nil {
@@ -1004,7 +1074,11 @@ func (r *Runner) atticSave(wt, task, base string, linked bool) (err error) {
 		}
 	}
 	refs := []string{"HEAD"}
-	if !linked { // the branches and stashes of a linked worktree stay in the repository
+	if linked { // its branch by name, so `git fetch <bundle> <branch>` finds it
+		if rc, branch, _ := r.Tools.Git(wt, "symbolic-ref", "-q", "HEAD"); rc == 0 {
+			refs = append(refs, strings.TrimSpace(branch))
+		}
+	} else { // the branches and stashes of a linked worktree stay in the repository
 		if rc, _, _ := r.Tools.Git(wt, "rev-parse", "--verify", "-q", "refs/stash"); rc == 0 {
 			stashes, err := git("stash", "list", "--format=%H")
 			if err != nil {
@@ -1135,8 +1209,37 @@ func (r *Runner) sameMachine(m string) string {
 	return m
 }
 
+// gateMark is the lock file that every running gate and proof rerun of machine ("" = this one) holds shared.
+func (r *Runner) gateMark(machine string) string {
+	return filepath.Join(r.Env.StateDir(), "locks", "gate-"+cmp.Or(machine, "here")+".lock")
+}
+
+// holdGate marks a gate or proof rerun of run as running until the returned func is called.
+func (r *Runner) holdGate(run *Run) (release func()) {
+	on := ""
+	if run.cloned() {
+		on = r.sameMachine(run.Machine)
+	}
+	if on != "" && !validMachine(on) {
+		return func() {}
+	}
+	_ = os.MkdirAll(filepath.Dir(r.gateMark(on)), 0o700)
+	f, err := os.OpenFile(r.gateMark(on), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		r.printf("%s: gate mark: %v\n", run.Task, err)
+		return func() {}
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
+		r.printf("%s: gate mark: %v\n", run.Task, err)
+	}
+	return func() { _ = f.Close() }
+}
+
 // gateRunning says which CI job or gate runs on machine ("" = this one) right now ("" = none).
 func (r *Runner) gateRunning(machine string) string {
+	if (machine == "" || validMachine(machine)) && lockHeld(r.gateMark(machine)) {
+		return "a gate or a proof rerun runs"
+	}
 	for _, j := range r.ciJobs() {
 		if r.sameMachine(j.Machine) != machine || j.Started.IsZero() || j.Failed != "" {
 			continue
@@ -1202,12 +1305,17 @@ func (r *Runner) cleanTmpLeftovers(ctx context.Context, rep *CleanReport, now ti
 		if !scanned {
 			scanned = true
 			cwds, why = r.processCwds("")
+			if why == "" { // a running binary and an open file count too
+				var open []string
+				open, why = r.openPaths()
+				cwds = append(cwds, open...)
+			}
 		}
 		if why != "" {
 			return why
 		}
 		if inside(cwds, path) {
-			return "a process has its cwd inside"
+			return "a process uses it"
 		}
 		return ""
 	}
@@ -1494,9 +1602,11 @@ func (r *Runner) atticRemote(a AtticWorktree, rep *CleanReport) {
 	keep := func(why string) {
 		rep.Kept = append(rep.Kept, CleanItem{Kind: cleanWorktrees, Path: a.Name, Reason: why})
 	}
-	if fi, err := os.Lstat(filepath.Join(wt, ".git")); errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Lstat(wt); errors.Is(err, fs.ErrNotExist) {
+		rep.Absent = append(rep.Absent, a.Name)
 		return
-	} else if err != nil || !fi.IsDir() {
+	}
+	if fi, err := os.Lstat(filepath.Join(wt, ".git")); err != nil || !fi.IsDir() {
 		keep("not a task clone")
 		return
 	}
@@ -1538,7 +1648,8 @@ func (r *Runner) atticRemote(a AtticWorktree, rep *CleanReport) {
 }
 
 // askMachine runs `hivemill local clean` on a session machine over its runner command.
-func (r *Runner) askMachine(machine string, spec MachineSpec) (*CleanReport, error) {
+// A stopped daemon does not wait for it: the call itself ends with its own timeout.
+func (r *Runner) askMachine(ctx context.Context, machine string, spec MachineSpec) (*CleanReport, error) {
 	if !validMachine(machine) {
 		return nil, errors.New("not a machine name")
 	}
@@ -1546,18 +1657,33 @@ func (r *Runner) askMachine(machine string, spec MachineSpec) (*CleanReport, err
 	if err != nil {
 		return nil, err
 	}
+	clone := r.cloneMode(machine)
+	type answer struct {
+		rc  int
+		out string
+	}
+	done := make(chan answer, 1)
+	go func() {
+		if clone {
+			home := path.Dir(spec.Home)
+			rc, out, errs := r.rsh(machine, "", 20*time.Minute, "exec "+shlex.Quote(remoteBin(home))+" local clean "+shlex.Quote(string(b)))
+			if rc != 0 {
+				out += errs
+			}
+			done <- answer{rc, out}
+			return
+		}
+		rc, out := r.Tools.Sh("/", 20*time.Minute, nil, "hc", "exec", "--on", machine, "--timeout", "1200",
+			"sh", "-c", `PATH="`+remotePATH+`"; export PATH; exec hivemill local clean "$1"`, "sh", string(b))
+		done <- answer{rc, out}
+	}()
 	var rc int
 	var out string
-	if r.cloneMode(machine) {
-		home := path.Dir(spec.Home)
-		var errs string
-		rc, out, errs = r.rsh(machine, "", 20*time.Minute, "exec "+shlex.Quote(remoteBin(home))+" local clean "+shlex.Quote(string(b)))
-		if rc != 0 {
-			out += errs
-		}
-	} else {
-		rc, out = r.Tools.Sh("/", 20*time.Minute, nil, "hc", "exec", "--on", machine, "--timeout", "1200",
-			"sh", "-c", `PATH="`+remotePATH+`"; export PATH; exec hivemill local clean "$1"`, "sh", string(b))
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case a := <-done:
+		rc, out = a.rc, a.out
 	}
 	for _, line := range strings.Split(out, "\n") {
 		var rep CleanReport
@@ -1596,7 +1722,13 @@ func (r *Runner) cleanMachines(ctx context.Context, dryRun bool, ended []string,
 		if ctx.Err() != nil {
 			return
 		}
-		spec := r.machineSpec(dryRun, ended)
+		on := map[string]bool{} // the tasks that ran there: the machine hears of no others
+		for _, x := range runs {
+			if x.Machine == m {
+				on[x.Task] = true
+			}
+		}
+		spec := r.machineSpec(dryRun, slices.DeleteFunc(slices.Clone(ended), func(t string) bool { return !on[t] }))
 		clone := r.cloneMode(m)
 		if clone {
 			home, err := r.remoteHomeOf(m)
@@ -1605,18 +1737,21 @@ func (r *Runner) cleanMachines(ctx context.Context, dryRun bool, ended []string,
 				continue
 			}
 			spec.Home = remoteBase(home)
-			r.atticMachine(m, spec, runs, rep, now)
+			r.atticMachine(ctx, m, spec, runs, rep, now)
 		}
 		spec.Gate = r.gateRunning(m)
 		if !clone && spec.Gate == "" { // it shares the caches with this machine
 			spec.Gate = r.gateHere()
 		}
-		for _, x := range runs {
-			if t := parseTS(x.Ended); !Active(x.State) && !t.IsZero() && t.Before(cutoff) {
-				spec.Transcripts = append(spec.Transcripts, x.Goal+"-"+x.Task)
+		if clone { // a shared home has its transcripts gzipped from here
+			for _, x := range runs {
+				if t := parseTS(x.Ended); x.Machine == m && !Active(x.State) && !t.IsZero() && t.Before(cutoff) {
+					spec.Transcripts = append(spec.Transcripts, x.Goal+"-"+x.Task)
+				}
 			}
 		}
-		got, err := r.askMachine(m, spec)
+		spec.Ended, spec.Transcripts = newest(spec.Ended), newest(spec.Transcripts)
+		got, err := r.askMachine(ctx, m, spec)
 		if err != nil {
 			rep.Skipped = append(rep.Skipped, m+": "+err.Error())
 			continue
@@ -1624,6 +1759,9 @@ func (r *Runner) cleanMachines(ctx context.Context, dryRun bool, ended []string,
 		rep.merge(m, got)
 	}
 }
+
+// newest keeps the last specTasks entries.
+func newest(s []string) []string { return s[max(0, len(s)-specTasks):] }
 
 // merge adds the report of a session machine, with its name in front of the paths.
 func (c *CleanReport) merge(machine string, got *CleanReport) {
@@ -1652,7 +1790,7 @@ func (c *CleanReport) sizes(machine string, s map[string]int64) {
 
 // atticMachine saves and removes the ended worktrees a clone-mode machine still holds (removeRemoteWorktrees keeps the
 // dirty and unpushed ones). Their task locks are held meanwhile, so no run can start on them.
-func (r *Runner) atticMachine(machine string, spec MachineSpec, runs []Run, rep *CleanReport, now time.Time) {
+func (r *Runner) atticMachine(ctx context.Context, machine string, spec MachineSpec, runs []Run, rep *CleanReport, now time.Time) {
 	var locks []*os.File
 	defer func() {
 		for _, l := range locks {
@@ -1663,7 +1801,7 @@ func (r *Runner) atticMachine(machine string, spec MachineSpec, runs []Run, rep 
 	for _, x := range runs {
 		name := x.Goal + "-" + x.Task
 		under := path.Join(spec.Home, "worktrees", name)
-		if !x.cloned() || x.RemoteDone || x.Machine != machine || x.Worktree != under || !slices.Contains(spec.Ended, x.Task) {
+		if !x.cloned() || x.RemoteGone || x.Machine != machine || x.Worktree != under || !slices.Contains(spec.Ended, x.Task) {
 			continue
 		}
 		l := r.lock(x.Task, false)
@@ -1673,25 +1811,33 @@ func (r *Runner) atticMachine(machine string, spec MachineSpec, runs []Run, rep 
 		locks = append(locks, l)
 		run, err := r.Store.Run(x.Task)
 		status, updated, serr := r.Store.TaskState(x.Task)
-		if err != nil || serr != nil || run == nil || Active(run.State) || run.RemoteDone || run.Worktree != under ||
+		if err != nil || serr != nil || run == nil || Active(run.State) || run.RemoteGone || run.Worktree != under ||
 			(status != "done" && status != "cancelled" && !failedTask(status, run)) || !r.atticAged(run, updated, now) {
 			continue
 		}
 		spec.Attic = append(spec.Attic, AtticWorktree{Name: name, Base: run.Base})
 		byName[name] = x.Task
+		if len(spec.Attic) == specAttic {
+			break // the rest on the next pass
+		}
 	}
 	if len(spec.Attic) == 0 {
 		return
 	}
-	got, err := r.askMachine(machine, spec)
+	spec.Ended, spec.Transcripts = nil, nil
+	got, err := r.askMachine(ctx, machine, spec)
 	if err != nil {
 		rep.Skipped = append(rep.Skipped, machine+": attic: "+err.Error())
 		return
 	}
 	if !spec.DryRun {
+		gone := slices.Clone(got.Absent)
 		for _, x := range got.Removed {
-			if run, err := r.Store.Run(byName[x.Path]); err == nil && run != nil {
-				run.RemoteDone = true
+			gone = append(gone, x.Path)
+		}
+		for _, name := range gone {
+			if run, err := r.Store.Run(byName[name]); err == nil && run != nil {
+				run.RemoteDone, run.RemoteGone = true, true
 				if err := r.Store.PutRun(run); err != nil {
 					rep.Errors = append(rep.Errors, run.Task+": "+err.Error())
 				}

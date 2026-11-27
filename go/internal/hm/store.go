@@ -60,7 +60,8 @@ type Run struct {
 	Unattended bool   `json:",omitempty"` // the runner merges this T3 run without the owner
 	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
 	Mirror, RemoteHome string `json:",omitempty"`
-	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
+	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for the clean's attic
+	RemoteGone         bool   `json:",omitempty"` // the remote worktree is known to be off the machine
 	// working time limit (worktime.go), per round: the highest run.long_working percent sent and the one resume
 	LongPct        int    `json:",omitempty"`
 	LongResumed    string `json:",omitempty"`

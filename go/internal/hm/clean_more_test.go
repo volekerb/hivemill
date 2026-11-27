@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -177,6 +178,13 @@ func TestCleanGoCacheCapSkipsWhileGateRuns(t *testing.T) {
 	if lock == nil {
 		t.Fatal("no lock")
 	}
+	release := f.r.holdGate(&Run{Task: "T-0001"}) // a manual gate or a proof rerun holds no task lock
+	if rep := f.clean(t, false); len(cleaned) != 0 || !slices.ContainsFunc(rep.Kept, func(x CleanItem) bool {
+		return x.Path == dir && strings.Contains(x.Reason, "a gate or a proof rerun runs")
+	}) {
+		t.Fatalf("while a rerun runs: cleaned %v, kept %+v", cleaned, rep.Kept)
+	}
+	release()
 	rep := f.clean(t, false)
 	if len(cleaned) != 0 || !slices.ContainsFunc(rep.Kept, func(x CleanItem) bool {
 		return x.Path == dir && strings.Contains(x.Reason, "the gate of T-0009 runs")
@@ -227,7 +235,13 @@ func TestCleanTmpLeftovers(t *testing.T) {
 	written := dirOf(4*time.Hour, filepath.Join(tmp, "wg-bin-written"))
 	zzWrite(t, filepath.Join(written, "sub", "now"), "x")
 	zzOld(t, 4*time.Hour, filepath.Join(written, "sub", "f"))
-	stay := []string{busy, written,
+	open := dirOf(4*time.Hour, filepath.Join(tmp, "lg-open"))
+	held, err := os.Open(filepath.Join(open, "sub", "f"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = held.Close() })
+	stay := []string{busy, written, open,
 		dirOf(time.Hour, filepath.Join(tmp, "hm-young")),
 		dirOf(4*time.Hour, filepath.Join(tmp, "someone-elses")),
 		dirOf(24*time.Hour, filepath.Join(cache, "factory-gate", "zz-recent")),
@@ -369,7 +383,7 @@ func zzRemote(t *testing.T, f *cleanFix, userHome string, specs *[]MachineSpec) 
 			t.Fatalf("spec: %v: %v", err, argv)
 		}
 		*specs = append(*specs, spec)
-		remote := &Runner{Env: Env{UserHome: userHome}, Tools: Tools{Sh: sh}, TmpRoots: []string{}, DiskFree: f.r.DiskFree}
+		remote := &Runner{Env: Env{UserHome: userHome}, Tools: Tools{Sh: sh, Git: f.r.Tools.Git}, TmpRoots: []string{}, DiskFree: f.r.DiskFree}
 		rep, err := remote.LocalClean(context.Background(), spec, time.Now())
 		if err != nil {
 			return 1, err.Error()
@@ -388,6 +402,9 @@ func TestCleanRunsOnSessionMachines(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.r.Tools.HC = func(...string) (int, string, string) { return 0, "done", "" }
+	if err := f.s.PutRun(&Run{Task: "T-0001", Goal: "G-001", State: Merged, Machine: "zz-worker"}); err != nil {
+		t.Fatal(err)
+	}
 	userHome, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -409,5 +426,72 @@ func TestCleanRunsOnSessionMachines(t *testing.T) {
 	rep, err = f.r.Clean(context.Background(), true, time.Now())
 	if err != nil || len(rep.Skipped) != 1 || !strings.HasPrefix(rep.Skipped[0], "zz-worker: ") || len(rep.Errors) != 0 {
 		t.Fatalf("unreachable machine: %v %+v", err, rep)
+	}
+}
+
+func TestCleanAtticSavesStagedContent(t *testing.T) {
+	f := newCleanFix(t)
+	f.ended(t, 5)
+	zzWrite(t, filepath.Join(f.wt, "a.txt"), "only in the index\n")
+	zzGit(t, f.wt, "add", "a.txt")
+	zzWrite(t, filepath.Join(f.wt, "a.txt"), "a\n")
+	f.clean(t, false)
+	got, err := os.ReadFile(filepath.Join(f.r.Env.StateDir(), "attic", "T-0001.staged.patch"))
+	if exists(f.wt) || err != nil || !strings.Contains(string(got), "+only in the index") {
+		t.Fatalf("staged content: %v %q", err, got)
+	}
+}
+
+func TestCleanAtticKeepsChangedSubmodule(t *testing.T) {
+	f := newCleanFix(t)
+	f.ended(t, 5)
+	zzGit(t, f.wt, "update-index", "--add", "--cacheinfo", "160000,"+f.head+",sub")
+	if err := os.Mkdir(filepath.Join(f.wt, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	f.wantKept(t, "a changed submodule")
+}
+
+// A clone-mode worktree that was kept for its unpushed work, and one that is already gone.
+func TestCleanAtticOnCloneMachine(t *testing.T) {
+	f := newCleanFix(t)
+	f.ended(t, 5)
+	zzWrite(t, filepath.Join(f.wt, "new.txt"), "work\n")
+	run := &Run{Task: "T-0001", Goal: "G-001", State: Failed, Machine: "zz-worker", Mirror: "/zz/mirror", Worktree: f.wt,
+		Base: "main", RemoteDone: true, Ended: time.Now().Add(-96 * time.Hour).Format(time.RFC3339)}
+	if err := f.s.PutRun(run); err != nil {
+		t.Fatal(err)
+	}
+	var specs []MachineSpec
+	zzRemote(t, f, t.TempDir(), &specs)
+	ask := func() *CleanReport {
+		rep := &CleanReport{}
+		f.r.atticMachine(context.Background(), "zz-worker", f.r.machineSpec(false, []string{"T-0001"}), []Run{*run}, rep, time.Now())
+		if len(rep.Errors)+len(rep.Skipped)+len(rep.Kept) != 0 {
+			t.Fatalf("%+v", rep)
+		}
+		got, err := f.s.Run("T-0001")
+		if err != nil || !got.RemoteGone {
+			t.Fatalf("the run must record that the worktree is gone: %v %+v", err, got)
+		}
+		return rep
+	}
+	if rep := ask(); exists(f.wt) || len(removedPaths(rep, cleanAttic)) != 1 {
+		t.Fatalf("not removed: %+v", rep)
+	}
+	if rep := ask(); len(rep.Removed) != 0 { // the run as it was: the machine says the worktree is absent
+		t.Fatalf("removed twice: %+v", rep)
+	}
+}
+
+func TestCleanStoppedDaemonDoesNotWaitForAMachine(t *testing.T) {
+	f := newCleanFix(t)
+	block := make(chan struct{})
+	t.Cleanup(func() { close(block) })
+	f.r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) { <-block; return 1, "" }
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := f.r.askMachine(ctx, "zz-worker", MachineSpec{Home: f.r.Env.Home}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
 	}
 }

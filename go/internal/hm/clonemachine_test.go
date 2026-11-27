@@ -165,6 +165,9 @@ func TestCloneMachineWorktree(t *testing.T) {
 	if _, err := os.Stat(wt); err != nil {
 		t.Fatal("a worktree with unpushed work must stay")
 	}
+	if got, _ := s.Run("T-0001"); !got.RemoteDone || got.RemoteGone {
+		t.Error("a kept worktree stays open for the attic")
+	}
 	mustGit(t, wt, "push", "-q", "origin", "HEAD:factory/t-0001")
 	run1.RemoteDone = false
 	_ = s.PutRun(run1)
@@ -172,7 +175,7 @@ func TestCloneMachineWorktree(t *testing.T) {
 	if _, err := os.Stat(wt); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the pushed worktree must be removed: %v", err)
 	}
-	if got, _ := s.Run("T-0001"); !got.RemoteDone {
+	if got, _ := s.Run("T-0001"); !got.RemoteDone || !got.RemoteGone {
 		t.Error("the run must record the removal")
 	}
 }

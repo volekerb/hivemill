@@ -338,6 +338,7 @@ fi
 cd / && rm -rf "$wt"`, shlex.Quote(run.Worktree), shlex.Quote(run.Branch), shlex.Quote(merged), kept, kept))
 	switch rc {
 	case 0:
+		run.RemoteGone = true
 	case kept:
 		r.printf("%s: kept %s on %s: it has work that is not pushed\n", run.Task, run.Worktree, run.Machine)
 	default:
