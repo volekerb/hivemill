@@ -57,11 +57,16 @@ func (r *Runner) AskClose(id int64, answered bool, text string) error {
 			return fmt.Errorf("%w: an empty answer", ErrRefused)
 		}
 	}
-	if err := s.CloseAsk(id, status, strings.TrimSpace(text), r.actor()); err != nil {
+	// the director session has no FACTORY_AGENT, but its answer is not the owner's: only "owner" approves a release
+	by := r.actor()
+	if r.Env.Actor == "" && r.Env.AgentSession {
+		by = "director"
+	}
+	if err := s.CloseAsk(id, status, strings.TrimSpace(text), by); err != nil {
 		return err
 	}
 	a, _ := s.Ask(id)
-	e := Event{Data: map[string]any{"id": id, "by": r.actor()}}
+	e := Event{Data: map[string]any{"id": id, "by": by}}
 	if a != nil {
 		e.Project, e.Data["task"], e.Data["goal"] = a.Project, a.Task, a.Goal
 	}

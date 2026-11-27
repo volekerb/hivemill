@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -237,9 +238,11 @@ func (r *Runner) Start(id string) error {
 		}
 	}
 	defer release()
-	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
+	old, _ := r.Store.Run(id)
+	if old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
+	retry := r.retryPending(id, old)
 	if why := r.runCapBlock(); why != "" {
 		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
@@ -344,7 +347,16 @@ func (r *Runner) Start(id string) error {
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
-	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, Kickoff(run, t))); err != nil {
+	kick := Kickoff(run, t)
+	if retry {
+		m := r.retryMark(id)
+		pr := t.PRURL
+		if open := r.TaskPR(t); open != "" {
+			pr = open
+		}
+		kick = retryBrief(m.N+1, old, branch, pr, m.Note) + kick
+	}
+	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, kick)); err != nil {
 		return err
 	}
 	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,
@@ -432,12 +444,23 @@ func (r *Runner) Clone(t *Task, branch string) (string, error) {
 		if rc != 0 || url == "" {
 			return "", fmt.Errorf("%s has no origin URL: %s", t.RepoPath, errs)
 		}
+		cow := false
+		if GOOS == "darwin" {
+			if err := r.cowClone(t, wt, url); err != nil {
+				r.printf("%s: copy-on-write clone: %v (full clone instead)\n", t.ID, err)
+			} else {
+				cow = true
+			}
+		}
 		steps := [][]string{
 			{t.RepoPath, "-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", t.RepoPath, wt},
 			{wt, "remote", "set-url", "origin", url},
 			{wt, "fetch", "-q", "origin"},
 		}
 		for _, s := range steps {
+			if cow {
+				break
+			}
 			if rc, _, errs := g(s[0], s[1:]...); rc != 0 {
 				_ = os.RemoveAll(wt)
 				return "", fmt.Errorf("clone %s: git %s: %s", wt, s[1], firstLine(errs))
@@ -459,6 +482,51 @@ func (r *Runner) Clone(t *Task, branch string) (string, error) {
 		fmt.Fprintf(os.Stderr, "hivemill: trust %s: %v (the trust dialog may show)\n", wt, err)
 	}
 	return wt, r.Store.TaskClone(t.ID, wt, branch)
+}
+
+// cloneTree copies a directory tree copy-on-write (APFS clonefile through cp -c): unchanged files share disk blocks.
+var cloneTree = func(src, dst string) error {
+	if out, err := exec.Command("cp", "-c", "-R", src, dst).CombinedOutput(); err != nil {
+		return fmt.Errorf("cp -c: %v: %s", err, firstLine(string(out)))
+	}
+	return nil
+}
+
+// cowClone makes a task clone on macOS as a copy-on-write copy of one base checkout per project and base branch
+// (<state>/base/<project>-<base>, kept at origin/<base>), so a task costs only the files it changes, not the whole
+// tree (2026-11-27: 25 clones of one app repo took 49 GB, about 2 GB of tracked files each). The caller checks out the task
+// branch; on an error the caller makes a full clone.
+func (r *Runner) cowClone(t *Task, wt, url string) error {
+	g := r.Tools.Git
+	base := filepath.Join(r.Env.StateDir(), "base", t.Project+"-"+t.Base)
+	if l := r.lock("base-"+t.Project+"-"+t.Base, true); l != nil {
+		defer l.Close()
+	}
+	if fi, err := os.Stat(filepath.Join(base, ".git")); err != nil || !fi.IsDir() {
+		_ = os.RemoveAll(base)
+		_ = os.MkdirAll(filepath.Dir(base), 0o755)
+		for _, s := range [][]string{
+			{t.RepoPath, "-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", t.RepoPath, base},
+			{base, "remote", "set-url", "origin", url},
+		} {
+			if rc, _, errs := g(s[0], s[1:]...); rc != 0 {
+				_ = os.RemoveAll(base)
+				return fmt.Errorf("base %s: git %s: %s", base, s[1], firstLine(errs))
+			}
+		}
+	}
+	for _, s := range [][]string{{"fetch", "-q", "origin"}, {"checkout", "-q", "-f", "--detach", "origin/" + t.Base}} {
+		if rc, _, errs := g(base, s...); rc != 0 {
+			return fmt.Errorf("base %s: git %s: %s", base, s[0], firstLine(errs))
+		}
+	}
+	if err := cloneTree(base, wt); err != nil {
+		_ = os.RemoveAll(wt)
+		return err
+	}
+	// the copy has new inodes, so every index entry looks changed: refresh it from content, which rewrites no file
+	_, _, _ = g(wt, "update-index", "-q", "--refresh")
+	return nil
 }
 
 func (r *Runner) prepareClone(wt string) error {
