@@ -171,6 +171,9 @@ func (r *Runner) OwnerChecks(now time.Time) []OwnerAlert {
 	if a := r.idleCheck(s, now); a != nil {
 		out = append(out, *a)
 	}
+	if a := r.diskCheck(); a != nil {
+		out = append(out, *a)
+	}
 	open, _ := s.Asks("open")
 	maxAge := time.Duration(cfgInt(r.Store, "ask_alert_h")) * time.Hour
 	var refs, lines []string
@@ -295,8 +298,12 @@ func (r *Runner) RaiseOwnerAlerts(now time.Time, checks []OwnerAlert) ([]string,
 			}
 			_ = r.Store.SetMeta("idle_alerted", now.Format(time.RFC3339))
 			sent = append(sent, a.Kind)
-		case "hivemill-asks":
-			opened, err := s.ReplaceAlert(a.Kind, a.Ref, "hivemill ask list")
+		case "hivemill-asks", "hivemill-disk":
+			next := "hivemill ask list"
+			if a.Kind == "hivemill-disk" {
+				next = "hivemill clean --dry-run"
+			}
+			opened, err := s.ReplaceAlert(a.Kind, a.Ref, next)
 			if err != nil {
 				return sent, err
 			}
@@ -309,7 +316,7 @@ func (r *Runner) RaiseOwnerAlerts(now time.Time, checks []OwnerAlert) ([]string,
 			r.ownerAlert(a.Kind, a.Text)
 		}
 	}
-	for _, k := range []string{"hivemill-idle", "hivemill-asks"} {
+	for _, k := range []string{"hivemill-idle", "hivemill-asks", "hivemill-disk"} {
 		if !have[k] {
 			_ = s.CloseAlertKind(k)
 			if k == "hivemill-idle" {

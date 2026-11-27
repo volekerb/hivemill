@@ -302,6 +302,7 @@ func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun 
 // rerunProofs is RerunProofs with the place of the worktree: a clone-mode run's proofs run there over ssh, and the logs
 // are written here.
 func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string) []Rerun {
+	defer r.holdGate(run)()
 	var out []Rerun
 	wt := run.Worktree
 	proofs := &proofRunner{r: r, run: run}
@@ -502,6 +503,7 @@ func (r *Runner) guardText(args []string, text string) (int, string) {
 
 // Gate runs every check in the task clone and returns the record (Problems empty = pass).
 func (r *Runner) Gate(run *Run) *GateRecord {
+	defer r.holdGate(run)()
 	at := r.at(run) // the worktree, its commands and its .hivemill files may be on a clone-mode machine
 	lost := false
 	at.lost = &lost
