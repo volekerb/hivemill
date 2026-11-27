@@ -49,6 +49,8 @@ type ciJob struct {
 	Dropped bool `json:",omitempty"`
 	// TimedOut: killed at its limit; exit 124 is still to be written if the result file is missing
 	TimedOut bool `json:",omitempty"`
+	// StartLost: the machine stopped answering during a start, so a process may run there that no pid here names
+	StartLost bool `json:",omitempty"`
 }
 
 const (
@@ -164,8 +166,12 @@ func (r *Runner) ciJobState(j *ciJob) (string, int, error) {
 func (r *Runner) remoteJobState(j *ciJob) (string, int, error) {
 	rc := shlex.Quote(path.Join(j.RDir, "rc"))
 	// the pid counts only while its command line still names this job's result file
-	script := fmt.Sprintf(`if [ -f %[1]s ]; then echo "done $(cat %[1]s)"; elif ps -ww -p %[2]d -o args= 2>/dev/null | grep -qF -- %[1]s; `+
-		`then echo running; elif [ -f %[1]s ]; then echo "done $(cat %[1]s)"; else echo gone; fi`, rc, j.PID)
+	pid := strconv.Itoa(j.PID)
+	if j.PID <= 1 { // started by a process that died before it recorded the pid
+		pid = fmt.Sprintf(`"$(cat %s 2>/dev/null)"`, shlex.Quote(path.Join(j.RDir, "pid")))
+	}
+	script := fmt.Sprintf(`if [ -f %[1]s ]; then echo "done $(cat %[1]s)"; elif ps -ww -p %[2]s -o args= 2>/dev/null | grep -qF -- %[1]s; `+
+		`then echo running; elif [ -f %[1]s ]; then echo "done $(cat %[1]s)"; else echo gone; fi`, rc, pid)
 	out, err := r.rshOK(j.Machine, "", 30*time.Second, script)
 	if err != nil {
 		return "", 0, fmt.Errorf("%w: %w", errLocalCIMachine, err)
@@ -217,7 +223,7 @@ func (r *Runner) startCIJob(j *ciJob) error {
 	_ = os.Remove(result)
 	_ = os.Remove(filepath.Join(j.Dir, "pid"))
 	// recorded as started before the launch: a daemon that dies in between must not start a second copy beside it
-	j.Started, j.PID = time.Now(), 0
+	j.Started, j.PID, j.StartLost = time.Now(), 0, false
 	if err := r.saveCIJob(j); err != nil {
 		return fail("%v", err)
 	}
@@ -240,7 +246,7 @@ func (r *Runner) startCIJob(j *ciJob) error {
 			return fail("%v", err)
 		}
 	default:
-		pid, err := r.Tools.Detach(j.Checkout, filepath.Join(j.Dir, "gate-cmd.log"), filepath.Join(j.Dir, "lock"), cleanEnv(),
+		pid, err := r.Tools.Detach(j.Checkout, filepath.Join(j.Dir, "gate-cmd.log"), filepath.Join(j.Dir, "lock"), jobEnv(),
 			"bash", "-c", ciWrapper, "hivemill-localci", j.Cmd, result)
 		if err != nil {
 			return fail("%v", err)
@@ -253,10 +259,14 @@ func (r *Runner) startCIJob(j *ciJob) error {
 // jobPID is the job's process: the recorded one, else (a daemon that died while it started the job) the one the wrapper
 // wrote down.
 func (r *Runner) jobPID(j *ciJob) int {
-	if j.PID > 1 || j.Machine != "" {
+	if j.PID > 1 {
 		return j.PID
 	}
-	b, err := os.ReadFile(filepath.Join(j.Dir, "pid"))
+	file := filepath.Join(j.Dir, "pid")
+	if j.Machine != "" {
+		file = path.Join(j.RDir, "pid")
+	}
+	b, err := r.jobPlace(j, nil).read(file)
 	if err != nil {
 		return 0
 	}
@@ -284,9 +294,23 @@ func (r *Runner) killCIOrphans(j *ciJob) error {
 	return nil
 }
 
+// jobEnv is cleanEnv without the caller's session identity: a queued job is started by whichever process looks next,
+// another task's gate included.
+func jobEnv() []string {
+	return slices.DeleteFunc(cleanEnv(), func(kv string) bool {
+		return strings.HasPrefix(kv, "FACTORY_AGENT=") || strings.HasPrefix(kv, "FACTORY_ROLE=")
+	})
+}
+
 // killCIJob ends a job that still runs. An error means it may still run: its machine could not be reached.
 func (r *Runner) killCIJob(j *ciJob) error {
 	st, _, err := r.ciJobState(j)
+	if err == nil && st == jobQueued && j.StartLost {
+		if _, err := r.rshOK(j.Machine, "", 30*time.Second, orphanKill(j)+"; true"); err != nil {
+			return fmt.Errorf("%w: %w", errLocalCIMachine, err)
+		}
+		return nil
+	}
 	if err == nil && st == jobGone {
 		return r.killCIOrphans(j)
 	}
@@ -305,6 +329,12 @@ func (r *Runner) killCIJob(j *ciJob) error {
 	return nil
 }
 
+// orphanKill is the script that ends the process the pid file on the machine names, while it is still this job's.
+func orphanKill(j *ciJob) string {
+	return fmt.Sprintf(`p=$(cat %s 2>/dev/null) && ps -ww -p "$p" -o args= 2>/dev/null | grep -qF -- %s && { kill -KILL -"$p" || kill -KILL "$p"; }`,
+		shlex.Quote(path.Join(j.RDir, "pid")), shlex.Quote(path.Join(j.RDir, "rc")))
+}
+
 func (r *Runner) removeCICheckout(j *ciJob) {
 	if j.Checkout == "" {
 		return
@@ -312,8 +342,7 @@ func (r *Runner) removeCICheckout(j *ciJob) {
 	p := r.jobPlace(j, nil)
 	if j.Machine != "" {
 		// a start whose answer was lost may have left a process that no record knows: end it before its files go
-		_, _, _ = p.rsh("", 60*time.Second, fmt.Sprintf(`p=$(cat %s 2>/dev/null) && ps -ww -p "$p" -o args= 2>/dev/null | grep -qF -- %s `+
-			`&& { kill -KILL -"$p" || kill -KILL "$p"; }`, shlex.Quote(path.Join(j.RDir, "pid")), shlex.Quote(path.Join(j.RDir, "rc"))))
+		_, _, _ = p.rsh("", 60*time.Second, orphanKill(j))
 	}
 	p.git(j.Clone, "worktree", "remove", "--force", j.Checkout)
 	if j.Machine == "" {
@@ -433,7 +462,7 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 			j.Started, j.PID = time.Time{}, 0
 			errs[j.key()] = err
 			if errors.Is(err, errLocalCIMachine) {
-				down[j.Machine] = err
+				down[j.Machine], j.StartLost = err, true
 			} else {
 				j.Failed, j.StartFailed = err.Error(), true
 			}

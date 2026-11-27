@@ -299,6 +299,28 @@ func TestLocalCIJobOnRunMachine(t *testing.T) {
 	r.removeCICheckout(j)
 	waitFor(t, "the orphan to end", func() bool { return syscall.Kill(orphan, 0) != nil || zombie(orphan) })
 	r.forgetCIJob(j)
+
+	// the pid on record may be missing (its starter died): the machine's pid file names the job
+	if _, err := r.requestCIJob(run, head, "sleep 60", time.Minute, logdir, false); !errors.Is(err, errLocalCIRunning) {
+		t.Fatal(err)
+	}
+	j = theJob(t, r, "T-0001")
+	pid := j.PID
+	j.PID = 0
+	if st, _, err := r.ciJobState(j); err != nil || st != jobRunning || r.jobPID(j) != pid {
+		t.Fatalf("%s %v, pid %d want %d", st, err, r.jobPID(j), pid)
+	}
+	// a start whose answer was lost leaves a queued record: it is forgotten only once the machine confirms the end
+	j.Started, j.StartLost = time.Time{}, true
+	r.SSH = func(string, string, time.Duration, string) (int, string, string) { return sshFailed, "", "no route" }
+	if r.dropCIJob(j) {
+		t.Fatal("dropped without the machine")
+	}
+	r.SSH = up
+	if !r.dropCIJob(j) || len(r.ciJobs()) != 0 {
+		t.Fatalf("jobs %v", r.ciJobs())
+	}
+	waitFor(t, "the lost start to end", func() bool { return syscall.Kill(pid, 0) != nil || zombie(pid) })
 }
 
 func zombie(pid int) bool {
