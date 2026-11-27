@@ -483,7 +483,10 @@ func (r *Runner) refresh(run *Run) {
 			r.printf("%s: %s on %s stays behind the refreshed branch: %s\n", run.Task, run.Worktree, run.Machine, firstLine(errs))
 		}
 	}
-	_ = r.Store.Verdict(run.Task, run.PRURL, run.Head, "pass", fmt.Sprintf("carried from %.12s: clean merge of origin/%s only", old, base), "hivemill")
+	// an owner-approved head the judge did not pass: Approved carries, and no judge pass is recorded for it
+	if v, _, _ := r.Store.LaneVerdict(run.Task, old); run.Approved != run.Head || v == "pass" {
+		_ = r.Store.Verdict(run.Task, run.PRURL, run.Head, "pass", fmt.Sprintf("carried from %.12s: clean merge of origin/%s only", old, base), "hivemill")
+	}
 	_ = r.Log.Emit("pr.refreshed", run, Event{Data: map[string]any{"head": run.Head, "from": old}})
 }
 
@@ -525,7 +528,11 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	rejudging := run.State == Judging
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
-	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
+	why := "task-judge MERGE"
+	if run.Approved != "" && run.Approved == pr.HeadRefOid {
+		why = "owner approval"
+	}
+	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: %s, mechanical merge", run.MergeSHA, why))
 	data := map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL, "merged_at": run.Merged}
 	if run.Unattended {
 		data["unattended"] = true

@@ -111,6 +111,26 @@ func TestApprovedAnswerMovesHeldToMerging(t *testing.T) {
 		t.Errorf("the normal merge path merges the approved head: %s %q, %d merges", got.State, got.MergeHold, len(f.merges))
 	}
 
+	var note string
+	if err := s.db.QueryRow(`SELECT detail FROM events WHERE action='merged'`).Scan(&note); err != nil || !strings.Contains(note, "owner approval") {
+		t.Errorf("the merge is recorded as the owner's: %q %v", note, err)
+	}
+	// a refresh carries the approval, never as a judge pass on the held head
+	wt := got.Worktree
+	sh(t, wt, "fetch", "-q", "origin", "main")
+	sh(t, wt, "checkout", "-q", "-b", "zz-main", "origin/main")
+	_ = os.WriteFile(filepath.Join(wt, "zz-main.txt"), []byte("zz\n"), 0o644)
+	sh(t, wt, "add", "-A")
+	sh(t, wt, "commit", "-q", "-m", "main moves")
+	sh(t, wt, "push", "-q", "origin", "HEAD:main")
+	sh(t, wt, "checkout", "-q", "factory/t-0001")
+	sh(t, wt, "fetch", "-q", "origin", "main")
+	old := got.Head
+	r.refresh(got)
+	if v, _, _ := s.LaneVerdict("T-0001", got.Head); got.Head == old || got.Approved != got.Head || v != "" {
+		t.Errorf("refresh: head %s approved %q verdict %q %q", got.Head, got.Approved, v, got.MergeHold)
+	}
+
 	// another head is not approved: it needs the judge again, and the tier rule holds
 	in := MergeInput{PRState: "OPEN", Head: "b"}
 	if d := Decide(in); d.Action != "rejudge" {
