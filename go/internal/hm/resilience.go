@@ -70,7 +70,7 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 		} else {
 			run.Resumes++
 			if name == run.Agent { // the time the session was gone is not its fault: a new message and a new grace
-				run.LongResumed, run.LongSendFailed = "", ""
+				run.LongResumed, run.LongSendFailed, run.HookStarted = "", "", ""
 			}
 			fixed = append(fixed, "session "+name+" resumed")
 		}
