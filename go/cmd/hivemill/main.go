@@ -154,6 +154,9 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			r.StopOn(ctx)
 			sig := make(chan os.Signal, 1)
 			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+			if !signal.Ignored(syscall.SIGHUP) { // a dropped terminal must not orphan the command; nohup stays nohup
+				signal.Notify(sig, syscall.SIGHUP)
+			}
 			go func() {
 				<-sig
 				signal.Stop(sig) // a second one ends the process at once

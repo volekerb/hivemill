@@ -344,7 +344,7 @@ class RedMainTests(FactoryTestCase):
             con = f.db()
             for tid in ("T-0009", "T-0007", "T-0008", "T-0002"):  # the director's task keeps the fix-forward beside it
                 self.assertIsNone(f.red_main_refusal(con, ["acme/priv"], tid), tid)
-            self.assertIn("red main", f.red_main_refusal(con, ["acme/priv"], "T-0001"))
+            self.assertIn("green post_merge_cmd", f.red_main_refusal(con, ["acme/priv"], "T-0001"))
 
     def test_redmain_fix_refusals(self):
         self.hive_setup()

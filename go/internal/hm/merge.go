@@ -436,8 +436,10 @@ func (r *Runner) checkHeld(run *Run) {
 	switch pr.State {
 	case "MERGED":
 		run.Unattended = false // merged by hand
-		_ = r.Log.Emit("run.reconciled", run, Event{Data: map[string]any{"repaired": []string{"held PR merged by the owner"}}})
 		r.finishMergedElsewhere(run, pr)
+		if run.State == Merged { // not while it waits for the merge commit: every pass would report it again
+			_ = r.Log.Emit("run.reconciled", run, Event{Data: map[string]any{"repaired": []string{"held PR merged by the owner"}}})
+		}
 	case "CLOSED":
 		r.fail(run, "the owner closed the held PR")
 	}

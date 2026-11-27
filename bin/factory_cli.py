@@ -9098,6 +9098,8 @@ def red_main_refusal(con, slugs, task_id=None):
     for slug in slugs:
         st = red_main_state(con, slug)
         if st and not red_main_may_merge(st, task_id):
+            if st.get("source") == "post_merge":
+                return f"red main: post_merge_cmd failed on {slug} ({st.get('url') or 'no url'}); merges wait for a green post_merge_cmd"
             return f"red main: run {st.get('run')} on {slug} failed ({st.get('url') or 'no url'}); merges wait for a green push run"
     return None
 
