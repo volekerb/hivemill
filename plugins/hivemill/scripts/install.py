@@ -24,7 +24,6 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import time
 import urllib.error
 import urllib.request
 
@@ -55,7 +54,13 @@ LOOPBACK = "127.0.0.1"
 DEFAULT_PORT = 8765
 TAIL_LINES = 15
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
-VERSION_RE = re.compile(r"hivemill (\d+\.\d+\.\d+)")
+VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")  # the clone's VERSION file
+GO_HINT = "install Go from https://go.dev/dl"
+# the commands the link step builds from the clone's go/ module and links into the bin dir
+BUILT_BINARIES = ("hivemill", "worker-guard")
+# the files of the clone's systemd/ folder that an install copies
+SYSTEMD_UNITS = ("hivemill.service", "hivemill-digest.service", "hivemill-digest.timer", "hivemill-health.service",
+                 "hivemill-health.timer")
 APT_HINT = "sudo apt-get install -y git python3"
 REDACT = [re.compile(p) for p in (
     r"gh[opsur]_[A-Za-z0-9]{20,}", r"gho_[A-Za-z0-9_]{10,}", r"github_pat_[A-Za-z0-9_]{10,}", r"sk-ant-[A-Za-z0-9_\-]{10,}",
@@ -146,18 +151,9 @@ class Host:
         except OSError as e:
             return 127, str(e)
 
-    def http_status(self, url):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=10) as r:
-                return r.status
-        except urllib.error.HTTPError as e:
-            return e.code
-        except (OSError, ValueError):
-            return 0
-
-    def sleep(self, s):
-        time.sleep(s)
+    def read_file(self, path):
+        with open(path) as f:
+            return f.read()
 
     # -- writes
     def mkdirs(self, path):
@@ -208,13 +204,8 @@ class Host:
             raise StepFail("%s exists and is not a symlink; move it away and re-run with --resume" % link)
         os.symlink(target, link)
 
-    def popen(self, argv, logpath):
-        fd = os.open(logpath, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-        try:
-            subprocess.Popen(argv, stdout=fd, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                             env=self.child_env(), start_new_session=True)
-        finally:
-            os.close(fd)
+    def write_text(self, path, text):
+        write_text(path, text)
 
 
 class Ctx:
@@ -225,7 +216,6 @@ class Ctx:
         self.home = host.home
         self.fh = os.path.join(self.home, "factory")
         self.bindir = os.path.join(self.home, ".local", "bin")
-        self.factory = os.path.join(self.bindir, "factory")
         self.n = 0
         self.tmp = None
         self.ref = None
@@ -338,7 +328,7 @@ def check_items(host, no_systemd=False):
     cpus = host.cpu_count()
     add("warn" if cpus < 2 else "ok", "cpu", "%d CPU%s" % (cpus, " (below 2)" if cpus < 2 else ""))
     rc, out = host.run(["go", "version"])
-    add("ok" if rc == 0 else "warn", "go", out.strip() if rc == 0 else "not found; optional, guard_impl defaults to python")
+    add("ok" if rc == 0 else "missing", "go", out.strip() if rc == 0 else "not found; " + GO_HINT)
     return items, gib
 
 
@@ -398,7 +388,6 @@ def resolve_ref(c):
 # --------------------------------------------------------------------------------------------- steps
 def check_prereqs(c):
     missing = []
-    v = c.host.py_version()
     rc, out = c.read(["python3", "--version"])
     m = re.search(r"Python (\d+)\.(\d+)", out) if rc == 0 else None
     if not m or (int(m.group(1)), int(m.group(2))) < (3, 11):
@@ -406,14 +395,18 @@ def check_prereqs(c):
     rc, _ = c.read(["git", "--version"])
     if rc != 0:
         missing.append("git")
+    hints = [APT_HINT] if missing else []
+    rc, _ = c.read(["go", "version"])
+    if rc != 0:
+        missing.append("go")
+        hints.append(GO_HINT)
     if missing:
-        raise Stop(3, "missing: %s. Run this yourself, then re-run the installer:\n  %s" % (", ".join(missing), APT_HINT))
-    return v
+        raise Stop(3, "missing: %s. Run this yourself, then re-run the installer:\n  %s" % (", ".join(missing), "\n  ".join(hints)))
 
 
 def step_prereqs(c):
-    v = check_prereqs(c)
-    return "python3>=3.11 and git present (installer runs on %d.%d)" % (v[0], v[1])
+    check_prereqs(c)
+    return "python3>=3.11, git and go present"
 
 
 def fetch_verified(c, name, url, size, sha):
@@ -517,165 +510,102 @@ def step_clone(c):
 
 
 def step_link(c):
-    if c.plan:
-        c.emit("    $ ln -s %s %s" % (os.path.join(c.fh, "bin", "factory"), c.factory))
-    else:
+    for name in BUILT_BINARIES:  # both build before either is linked
+        c.do(["go", "build", "-o", os.path.join(c.fh, "bin", name), "./cmd/" + name], "go build " + name,
+             cwd=os.path.join(c.fh, "go"), timeout=900)
+    if not c.plan:
         c.host.mkdirs(c.bindir)
-        c.host.symlink(os.path.join(c.fh, "bin", "factory"), c.factory)
+    links = []
+    for name in BUILT_BINARIES:
+        target, link = os.path.join(c.fh, "bin", name), os.path.join(c.bindir, name)
+        links.append(link)
+        if c.plan:
+            c.emit("    $ ln -s %s %s" % (target, link))
+        else:
+            c.host.symlink(target, link)
+    linked = "linked " + " and ".join(links)
     on_path = c.bindir in [p.rstrip("/") for p in c.host.environ.get("PATH", "").split(os.pathsep)]
     if not on_path:
         c.emit("    note: %s is not on your PATH. Add this line to your shell profile yourself: export PATH=\"$HOME/.local/bin:$PATH\"" % c.bindir)
-        return "linked %s; not on PATH, calling it by absolute path" % c.factory
-    return "linked %s" % c.factory
-
-
-def step_init(c):
-    if c.host.exists(os.path.join(c.fh, "db", "factory.db")):
-        return "database exists: init skipped"
-    _, out = c.do([c.factory, "init"], "factory init")
-    if not c.plan and "initialised" not in out:
-        raise StepFail("`factory init` did not print an `initialised` line:\n" + tail_of(out))
-    return "factory init done"
-
-
-def step_config(c):
-    a = c.args
-    db_existed = c.host.exists(os.path.join(c.fh, "db", "factory.db")) and not c.plan
-    sets = []
-    # the default bind is the default-route address, which would put the UI on the LAN
-    if a.resume and db_existed:
-        _, cur = c.read([c.factory, "config", "serve_bind"])
-        if cur.strip():
-            c.note("--resume: serve_bind is already %r, kept" % cur.strip())
-        else:
-            sets.append(("serve_bind", LOOPBACK))
-    else:
-        sets.append(("serve_bind", LOOPBACK))
-    if a.port is not None:
-        sets.append(("serve_port", str(a.port)))
-    if a.max_agents is not None:
-        sets.append(("max_live_agents", str(a.max_agents)))
-    if a.no_scout:
-        sets.append(("scout_enabled", "0"))
-    for k, v in sets:
-        c.do([c.factory, "config", k, v], "factory config " + k)
-    if a.port is None and a.resume and db_existed:
-        rc, out = c.read([c.factory, "config", "serve_port"])
-        if rc == 0 and out.strip().isdigit():
-            c.port = int(out.strip())
-    return "set " + ", ".join("%s=%s" % kv for kv in sets) if sets else "no config change"
-
-
-def step_project(c):
-    a = c.args
-    if not (a.project_id and a.project_repo):
-        return "no --project-id/--project-repo: skipped"
-    if not c.plan:
-        rc, out = c.read([c.factory, "project", "list"])
-        if rc == 0 and a.project_id in out.split():
-            return "project %s already listed: skipped" % a.project_id
-    argv = [c.factory, "project", "add", a.project_id, "--name", a.project_name or a.project_id, "--repo", a.project_repo]
-    if a.project_gh:
-        argv += ["--gh", a.project_gh]
-    c.do(argv, "factory project add")
-    return "project %s added" % a.project_id
+        return linked + "; not on PATH, calling them by absolute path"
+    return linked
 
 
 def step_services(c):
     a = c.args
     if a.no_systemd:
         return services_background(c)
-    c.do(["bash", os.path.join(c.fh, "systemd", "install.sh"), "--with-serve"], "systemd install", cwd=c.fh)
+    install_units(c)
     if a.linger:
         rc, out = c.do(["loginctl", "enable-linger"], "loginctl enable-linger", check=False)
         if rc != 0:
             c.emit("    warning: loginctl enable-linger was refused (rc=%s); the factory will not start at boot until you run it with the right to do so" % rc)
-    c.do(["systemctl", "--user", "start", "herdr-server.service", "factory-tick.timer", "factory-serve.service",
-          "factory-up.service"], "systemctl start")
-    return "systemd user units installed and started (the tick timer keeps the factory running)"
+    c.do(["systemctl", "--user", "daemon-reload"], "systemctl daemon-reload")
+    c.do(["systemctl", "--user", "enable", "--now", "hivemill.service", "hivemill-digest.timer", "hivemill-health.timer"],
+         "systemctl enable")
+    return "hivemill systemd user units installed, enabled and started"
+
+
+def install_units(c):
+    """Copy the hivemill units from the clone into the systemd user unit dir. write_text renames into place, so a link
+    left there by an earlier install is replaced and its target is not written through."""
+    config = c.host.environ.get("XDG_CONFIG_HOME") or os.path.join(c.home, ".config")
+    unit_dir = os.path.join(config, "systemd", "user")
+    if c.plan:
+        c.emit("    $ mkdir -p " + unit_dir)
+    else:
+        c.host.mkdirs(unit_dir)
+    for u in SYSTEMD_UNITS:
+        src, dst = os.path.join(c.fh, "systemd", u), os.path.join(unit_dir, u)
+        if c.plan:
+            c.emit("    copy %s -> %s" % (src, dst))
+            continue
+        try:
+            text = c.host.read_file(src)
+        except OSError as e:
+            raise StepFail("read %s: %s" % (u, e))
+        try:
+            c.host.write_text(dst, text)
+        except OSError as e:
+            raise StepFail("install %s: %s" % (u, e))
 
 
 def services_background(c):
-    logdir = os.path.join(c.home, ".cache", "hivemill-install")
-    if c.plan:
-        c.emit("    $ mkdir -p %s" % logdir)
-        c.emit("    $ (background) herdr server")
-    else:
-        c.host.mkdirs(logdir)
-        c.host.popen(["herdr", "server"], os.path.join(logdir, "herdr-server.log"))
-    for _ in range(1 if c.plan else 20):
-        if c.plan:
-            c.emit("    $ herdr workspace list   (until exit 0, 20 s)")
-            break
-        rc, _ = c.read(["herdr", "workspace", "list"])
-        if rc == 0:
-            break
-        c.host.sleep(1)
-    else:
-        raise StepFail("`herdr workspace list` never exited 0 within 20 s (see %s/herdr-server.log)" % logdir)
-    if c.plan:
-        c.emit("    $ (background) %s serve --bind %s" % (c.factory, LOOPBACK))
-    else:
-        c.host.popen([c.factory, "serve", "--bind", LOOPBACK], os.path.join(logdir, "factory-serve.log"))
-    _, out = c.do([c.factory, "up"], "factory up")
-    c.emit("WARNING: no tick timer: agents will not be nudged and queued spawns will not start")
-    return "herdr server and factory serve running in the background; factory up ran once"
-
-
-def agent_status(out):
-    rows = {}
-    lines = out.splitlines()
-    if not lines:
-        return rows
-    head = lines[0].split()
-    if "NAME" not in head or "STATUS" not in head:
-        return rows
-    ni, si = head.index("NAME"), head.index("STATUS")
-    for ln in lines[1:]:
-        f = ln.split()
-        if len(f) > max(ni, si):
-            rows[f[ni]] = f[si]
-    return rows
+    """--no-systemd: start nothing and say how to."""
+    c.emit("    no service was started. To run hivemill by hand: run `hivemill daemon`")
+    return "no services started; run `hivemill daemon` by hand"
 
 
 def step_smoke(c):
+    """Run the linked hivemill. A new install has no database and no daemon pass yet, and health exits 1 for both:
+    those answers show a working binary and pass; any other failure does not."""
+    hivemill = os.path.join(c.bindir, "hivemill")
     if c.plan:
-        c.emit("    $ %s --version   (expects 'hivemill X.Y.Z')" % c.factory)
-        c.emit("    $ %s agents   (boss and director live, or queued)" % c.factory)
-        c.emit("    $ GET http://%s:%d/ and /goals   (expect 200)" % (LOOPBACK, c.port))
+        c.emit("    $ %s health" % hivemill)
         return "plan"
-    rc, out = c.read([c.factory, "--version"])
-    m = VERSION_RE.search(out)
-    if rc != 0 or not m:
-        raise StepFail("`factory --version` did not print 'hivemill X.Y.Z':\n" + tail_of(out))
-    c.version = m.group(1)
-    states = {}
-    for _ in range(30):
-        rc, out = c.read([c.factory, "agents"])
-        states = agent_status(out) if rc == 0 else {}
-        if all(states.get(n) in ("live", "queued") for n in ("boss", "director")):
-            break
-        c.host.sleep(2)
+    rc, out = c.read([hivemill, "health"])
+    if rc == 0:
+        state = "healthy"
+    elif rc == 1 and "cannot open database" in out:
+        state = "no database yet (run `hivemill init`)"
+    elif rc == 1 and "last good pass" in out:
+        state = "no recent daemon pass"
     else:
-        raise StepFail("boss/director are not live or queued after 60 s:\n" + tail_of(out))
-    detail = ", ".join("%s %s" % (n, states[n]) for n in ("boss", "director"))
-    for path in ("/", "/goals"):
-        url = "http://%s:%d%s" % (LOOPBACK, c.port, path)
-        code = 0
-        for _ in range(15):
-            code = c.host.http_status(url)
-            if code == 200:
-                break
-            c.host.sleep(2)
-        if code != 200:
-            raise StepFail("GET %s answered %s, expected 200" % (url, code or "nothing"))
-    return "version %s; %s; UI answers 200" % (c.version, detail)
+        raise StepFail("`hivemill health` failed (rc=%s):\n%s" % (rc, tail_of(out)))
+    try:
+        text = c.host.read_file(os.path.join(c.fh, "VERSION"))
+    except OSError as e:
+        raise StepFail("read VERSION: %s" % e)
+    m = VERSION_RE.search(text)
+    if not m:
+        raise StepFail("%s/VERSION holds no X.Y.Z version" % c.fh)
+    c.version = m.group(1)
+    return "hivemill runs, %s; version %s" % (state, c.version)
 
 
 STEPS = [
     ("prereqs", step_prereqs), ("tools", step_tools), ("auth", step_auth), ("clone", step_clone),
-    ("link", step_link), ("init", step_init), ("config", step_config), ("project", step_project),
-    ("services", step_services), ("smoke", step_smoke),
+    ("link", step_link), ("services", step_services), ("smoke", step_smoke),
 ]
 
 
@@ -692,7 +622,7 @@ def run_steps(c):
                 rc, _ = c.read(["systemctl", "--user", "show-environment"])
                 if rc != 0:
                     raise Stop(3, "no user systemd session here. Either log in to a session that has one, or re-run with "
-                                  "--no-systemd (CI, containers: the factory then runs as plain background processes without a tick timer)")
+                                  "--no-systemd (CI, containers: no service is started; run `hivemill daemon` by hand)")
             c.tmp = "<tmpdir>" if c.plan else c.host.mkdtemp()
             for name, fn in STEPS:
                 c.n += 1

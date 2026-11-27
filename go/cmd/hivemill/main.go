@@ -31,6 +31,7 @@
 //	hivemill drain [--status|--project ID] | resume [--project ID]   no new dispatch while active runs finish / lift it
 //	hivemill release promote       make the running edge binary the stable one, after 24 h clean
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
+//	hivemill clean [--dry-run]     remove finished worktrees, trim go caches on a full disk, gzip old transcripts
 //	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
 //	hivemill planner done ID [ID...] [--note TEXT]     close planner work rows (planner status lists the open ones)
 //	hivemill ask add|list|answer|withdraw              the owner queue
@@ -71,7 +72,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
 		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close|status | " +
 		"project add|list | config [KEY [VALUE]] | daemon [--take-over] | standby check --from HOST[:DIR] | health [--alert] | drain [--status|--project ID] | resume [--project ID] | release promote | run --project ID [--no-start] | " +
-		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health|obs | planner start|stop|status|wake|done ID... [--note TEXT] | " +
+		"clean [--dry-run] | backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health|obs | planner start|stop|status|wake|done ID... [--note TEXT] | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
 		"proofs touched --base REF [--root DIR] [--ios-dir DIR --xcode-workspace PATH|--xcode-project PATH --xcode-scheme NAME] | " +
@@ -370,6 +371,18 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		var p string
 		if p, err = r.Promote(time.Now()); err == nil {
 			fmt.Fprintf(stdout, "stable: %s\n", p)
+		}
+	case "clean":
+		if len(args) > 2 || (len(args) == 2 && args[1] != "--dry-run") {
+			fmt.Fprintln(stderr, "usage: hivemill clean [--dry-run]")
+			return 2
+		}
+		var rep *hm.CleanReport
+		if rep, err = r.Clean(context.Background(), arg(1) == "--dry-run", time.Now()); rep != nil {
+			rep.Print(stdout)
+			if err == nil && len(rep.Errors) > 0 {
+				err = fmt.Errorf("clean: %d errors", len(rep.Errors))
+			}
 		}
 	case "backup":
 		var p string

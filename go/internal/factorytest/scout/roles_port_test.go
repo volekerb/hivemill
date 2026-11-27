@@ -111,8 +111,8 @@ func rpBaseline(t testing.TB) []string {
 		"Bash(gh pr merge:*)", "Bash(sqlite3:*)", "Bash(herdr server stop:*)", "Bash(herdr agent start:*)",
 		"Bash(git push origin main:*)", "Bash(git push --force:*)", "Bash(git push -f:*)",
 		"Bash(rm -rf ~/factory:*)", "Edit(/" + live + "/factory.db*)",
-		"Write(/" + live + "/exports/**)", "Edit(/" + live + "/state/**)",
-		"Write(/" + live + "/bin/**)", "Edit(/" + live + "/roles/**)",
+		"Edit(/" + live + "/exports/**)", "Edit(/" + live + "/state/**)",
+		"Edit(/" + live + "/bin/**)", "Edit(/" + live + "/roles/**)",
 	}
 }
 
@@ -208,8 +208,8 @@ func TestScoutRolesEvaluatorRules(t *testing.T) {
 	live, home := rpLiveHome(t), rpHomeDir(t)
 	for _, rule := range []string{"WebFetch", "WebSearch", "Bash(curl:*)", "Bash(wget:*)", "Bash(gh:*)", "Bash(pip:*)",
 		"Bash(npm:*)", "Bash(npx:*)", "Bash(ssh:*)", "Bash(scp:*)", "Bash(git push:*)",
-		"Bash(herdr:*)", "Edit(/" + live + "/**)", "Write(/" + live + "/**)",
-		"Edit(/" + home + "/.claude/**)", "Write(/" + home + "/.claude/**)"} {
+		"Bash(herdr:*)", "Edit(/" + live + "/**)",
+		"Edit(/" + home + "/.claude/**)"} {
 		rpHas(t, "evaluator deny", deny, rule)
 	}
 	for _, rule := range []string{"Edit", "Write"} { // the sandbox itself stays writable
