@@ -706,6 +706,25 @@ func TestPlannerWorkLevelReopens(t *testing.T) {
 }
 
 // One wake line holds a bounded items= list; the rows left out go out with the next wake.
+// A second event on an open row is typed after the wake gap, not only after planner_ack_s; a manual reason has no comma.
+func TestPlannerWorkRepeatedEvent(t *testing.T) {
+	r, s, f := plannerRunner(t, "runner")
+	_ = s.SetMeta("planner", "on")
+	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+	t0 := time.Now()
+	r.enqueuePlannerWork([]string{"goal.checked:G-001"}, nil, false)
+	r.PlannerPass(t0)
+	r.enqueuePlannerWork([]string{"goal.checked:G-001", "manual:a;b"}, nil, false)
+	r.PlannerPass(t0.Add(11 * time.Minute))
+	if got := f.sent(); len(got) != 2 || !strings.Contains(got[1], "goal.checked:G-001") {
+		t.Fatalf("wakes: %q", got)
+	}
+	r.plannerWake(t0.Add(12*time.Minute), true, true, "retry T-1, then T-2")
+	if got := f.sent(); len(got) != 3 || !strings.Contains(got[2], "manual:retry_T-1;_then_T-2") {
+		t.Fatalf("manual wake: %q", got)
+	}
+}
+
 func TestPlannerWorkWakeBatches(t *testing.T) {
 	r, s, f := plannerRunner(t, "runner")
 	_ = s.SetMeta("planner", "on")

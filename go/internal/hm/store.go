@@ -552,6 +552,12 @@ func (s *SQLite) EnqueuePlannerWork(kind, ref string) error {
 	return err
 }
 
+// RedeliverPlannerWork marks the open row of (kind, ref) as not delivered, so the next wake carries it again.
+func (s *SQLite) RedeliverPlannerWork(kind, ref string) error {
+	_, err := s.db.Exec(`UPDATE planner_work SET delivered=NULL WHERE kind=? AND ref=? AND closed IS NULL`, kind, ref)
+	return err
+}
+
 // OpenPlannerWork lists the open rows, oldest first.
 func (s *SQLite) OpenPlannerWork() ([]PlannerWork, error) {
 	rows, err := s.db.Query(`SELECT id,kind,ref,opened,COALESCE(delivered,''),attempts FROM planner_work WHERE closed IS NULL ORDER BY id`)

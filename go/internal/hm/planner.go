@@ -215,7 +215,8 @@ func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) boo
 	}
 	evs, cursor := r.wakeEvents()
 	if manual != "" {
-		evs = append(evs, "manual:"+strings.Join(strings.Fields(manual), "_"))
+		// no spaces or commas: both separate things in the wake line
+		evs = append(evs, "manual:"+strings.ReplaceAll(strings.Join(strings.Fields(manual), "_"), ",", ";"))
 	}
 	if r.enqueuePlannerWork(evs, levels, true) { // the cursor moves only once the events are rows
 		_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
@@ -287,7 +288,7 @@ func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) boo
 }
 
 // dueWork are the open rows to type now: never delivered, or delivered more than ack ago and still open (all: every open
-// row). A manual wake goes first, then the rows told least often; dead_dep goes last, as there can be many.
+// row). A manual wake not yet delivered goes first, then the rows told least often; dead_dep goes last, as there can be many.
 func dueWork(work []PlannerWork, now time.Time, ack time.Duration, all bool) []PlannerWork {
 	var due []PlannerWork
 	for _, w := range work {
@@ -298,8 +299,8 @@ func dueWork(work []PlannerWork, now time.Time, ack time.Duration, all bool) []P
 	}
 	sort.SliceStable(due, func(i, j int) bool {
 		a, b := due[i], due[j]
-		if (a.Kind == "manual") != (b.Kind == "manual") {
-			return a.Kind == "manual"
+		if first := a.Kind == "manual" && a.Attempts == 0; first != (b.Kind == "manual" && b.Attempts == 0) {
+			return first
 		}
 		if a.Attempts != b.Attempts {
 			return a.Attempts < b.Attempts
@@ -357,6 +358,10 @@ func (r *Runner) enqueuePlannerWork(events, levels []string, syncLevels bool) bo
 	for _, x := range events {
 		kind, ref, _ := strings.Cut(x, ":")
 		add(kind, ref)
+		if err := s.RedeliverPlannerWork(kind, ref); err != nil { // a repeat of an open event is news again
+			r.printf("planner: work queue: %v\n", err)
+			ok = false
+		}
 	}
 	if !syncLevels {
 		return ok
@@ -549,7 +554,7 @@ func (r *Runner) wakeEvents() ([]string, int64) {
 	cur, _ := strconv.ParseInt(r.Store.Meta("planner_cursor"), 10, 64)
 	f, err := os.Open(r.Log.Path)
 	if err != nil {
-		return nil, 0
+		return nil, cur
 	}
 	defer f.Close()
 	if fi, err := f.Stat(); err == nil && fi.Size() < cur {
