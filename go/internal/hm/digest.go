@@ -21,7 +21,10 @@ type Digest struct {
 	Asks       []Ask              `json:"asks"` // open owner questions
 	Goals      []DigestGoal       `json:"goals"`
 	Dispatched int                `json:"dispatched"`
-	Unasked    []DigestUnasked    `json:"unasked"` // changes no criterion asked for, merged that day
+	GHCalls    int                `json:"gh_calls"`      // gh calls of the daemon's passes that day
+	GHPeak     int                `json:"gh_calls_peak"` // the most in one hour
+	GHHours    int                `json:"gh_hours"`      // hours with at least one call
+	Unasked    []DigestUnasked    `json:"unasked"`       // changes no criterion asked for, merged that day
 }
 
 type DigestUnasked struct {
@@ -59,6 +62,13 @@ func (r *Runner) BuildDigest(day time.Time) (*Digest, error) {
 	in := func(ts string) bool {
 		at, err := time.Parse(time.RFC3339, ts)
 		return err == nil && !at.Before(from) && at.Before(to)
+	}
+	for at := from; at.Before(to); at = at.Add(time.Hour) {
+		var n int
+		if _, err := fmt.Sscan(r.Store.Meta(ghKey(at)), &n); err != nil || n == 0 {
+			continue
+		}
+		d.GHCalls, d.GHPeak, d.GHHours = d.GHCalls+n, max(d.GHPeak, n), d.GHHours+1
 	}
 	var mergedTasks []string
 	for _, e := range evs {
@@ -203,6 +213,8 @@ func (d *Digest) Markdown(now time.Time) string {
 		fmt.Fprintf(&b, "- %s: %s (why: %s)\n", u.Task, u.Change, u.Why)
 	}
 	fmt.Fprintf(&b, "\n## Spend\n$%.2f in sessions started that day (%s); %d runs dispatched\n", d.USD, or(strings.Join(parts, ", "), "none"), d.Dispatched)
+	fmt.Fprintf(&b, "\n## gh API use\n%d calls; %d per hour on average over %d active hours, %d in the busiest hour\n",
+		d.GHCalls, d.GHCalls/max(1, d.GHHours), d.GHHours, d.GHPeak)
 	fmt.Fprintf(&b, "\n## Failed (%d)\n", len(d.Failed))
 	for _, f := range d.Failed {
 		fmt.Fprintf(&b, "- %s: %s\n", f.Task, f.Why)

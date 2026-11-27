@@ -34,6 +34,8 @@ type MergeInput struct {
 	IdentityOK     bool     `json:"identity_ok"`
 	PublicTextOK   bool     `json:"public_text_ok"`
 	PublicTextNote string   `json:"public_text_note,omitempty"`
+	Train          bool     `json:"train,omitempty"`   // this merge may go out while main's push run is pending
+	Files          []string `json:"files,omitempty"`   // the files the PR changes, for the merge train
 	T3Auto         bool     `json:"t3_auto,omitempty"` // t3_auto_merge is on and the task has no manual: criterion
 }
 
@@ -49,7 +51,8 @@ const MaxMechTier = "T2"
 
 // Decide reproduces the safety checks of the old mechanical merger: open, not draft, not frozen, a judge MERGE on this
 // exact head, no conflict, fresh against main, green and complete checks, tier at most T2, main not red (unless this is
-// the fix task), main's own push run finished green, noreply identity and clean public text. T3Auto lets T3 through.
+// the fix task), main's own push run finished green (or the merge train allows a pending one), noreply identity and clean
+// public text. T3Auto lets T3 through.
 func Decide(in MergeInput) MergeDecision {
 	switch {
 	case in.PRState == "MERGED":
@@ -82,7 +85,7 @@ func Decide(in MergeInput) MergeDecision {
 		return MergeDecision{"block", "tier " + in.Tier + " is above " + MaxMechTier + "; the owner merges"}
 	case in.RedMain && !in.FixTask:
 		return MergeDecision{"hold", "main is red; merges wait for a green push run"}
-	case in.MainRun == "pending" || in.MainRun == "unknown":
+	case (in.MainRun == "pending" && !in.Train) || in.MainRun == "unknown":
 		return MergeDecision{"hold", "main's push run for its head is " + in.MainRun}
 	case in.MainRun == "red" && !in.FixTask:
 		return MergeDecision{"hold", "main's push run for its head failed"}
@@ -99,7 +102,7 @@ func tierAbove(t, max string) bool { return t > max } // T0 < T1 < T2 < T3 sorts
 // gatherMerge reads the PR, git and GitHub state for Decide.
 func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 	in := MergeInput{}
-	pr, err := PRView(r.Tools, run.PRURL)
+	pr, err := r.prView(run)
 	if err != nil {
 		return in, nil, err
 	}
@@ -150,7 +153,11 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 			in.T3Auto = in.T3Auto && c.Kind != "manual" // a manual: criterion is the owner's to check
 		}
 	}
-	in.MainRun = r.mainRun(slug, wt, base)
+	if rc, out, _ := r.Tools.Git(wt, "diff", "--name-only", "--no-renames", "origin/"+base+"..."+pr.HeadRefOid); rc == 0 {
+		in.Files = strings.Fields(out)
+	}
+	_, mainHead, _ := r.Tools.Git(wt, "rev-parse", "origin/"+base)
+	in.MainRun, in.Train = r.trainState(run.Repo, base, strings.TrimSpace(mainHead), r.mainRun(slug, wt, base), in.Files)
 	in.IdentityOK = true
 	_, logs, _ := r.Tools.Git(wt, "log", "--format=%ae%x09%ce", "origin/"+base+".."+pr.HeadRefOid)
 	for _, ln := range strings.Split(logs, "\n") {
@@ -187,6 +194,19 @@ func (r *Runner) tierOf(project, wt, base, head string) string {
 // workflow in the repo) or unknown (gh failed).
 func (r *Runner) mainRun(slug, wt, base string) string {
 	_, head, _ := r.Tools.Git(wt, "rev-parse", "origin/"+base)
+	if r.poll != nil {
+		b := r.poll.bases[baseKey(slug, base)]
+		if b == nil {
+			return "unknown"
+		}
+		head = strings.TrimSpace(head)
+		state := b.mainState(head)
+		// "pending" with no run for the head, or only a cancelled one: a disabled tests.yml will never add another
+		if s := b.pushState(head); state == "pending" && (s == "" || s == "cancelled") && r.poll.testsOff(r.Tools, slug) {
+			return "none"
+		}
+		return state
+	}
 	rc, out, errs := r.Tools.GH("", "run", "list", "-R", slug, "--workflow", "tests.yml", "--branch", base, "--event", "push",
 		"--limit", "10", "--json", "status,conclusion,headSha")
 	if rc != 0 {
@@ -251,6 +271,7 @@ func (r *Runner) Merge(run *Run) {
 	}
 	d := Decide(in)
 	run.MergeHold = d.Action + ": " + d.Why
+	run.mergeStage = mergeStageOf(in, d)
 	if pr.State == "OPEN" && r.ciNone(run.Project) {
 		if d.Why == ciPending {
 			// a new head (a refresh, a revert): run gate_cmd now and decide on the next pass from fresh PR data
@@ -265,6 +286,13 @@ func (r *Runner) Merge(run *Run) {
 		}
 		r.postLocalCI(run)
 		if d.Why == ciPending {
+			return
+		}
+	}
+	// before the T3 limits: a flaky red is re-run, and only a red that stays sends a T3 run to the owner
+	if d.Action == "resume" && d.Why == ciRed && !r.ciNone(run.Project) {
+		if _, failed := ciRows(pr.Checks); r.flakyRerun(run, in.Head, failed) {
+			run.MergeHold, run.mergeStage = "re-running failed jobs that passed on "+run.Base+" in the last 24 h", flowStageCI
 			return
 		}
 	}
@@ -304,14 +332,37 @@ func (r *Runner) Merge(run *Run) {
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
 		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
 	case "refresh":
+		// before the slot: a run that cannot refresh must not take it
+		if r.queueSlow {
+			run.MergeHold = "refresh: held while a PR waits for a CI runner over its budget"
+			return
+		}
 		if h := r.refreshHolder(run); h != "" {
 			run.MergeHold = "hold: waiting for " + h + " to merge (one refresh at a time per repo)"
 			return
 		}
 		r.refresh(run)
 	case "merge":
+		// kept on the run: a merge confirmed by a later pass joins the train too
+		run.Car, run.Rode = &trainCar{Files: in.Files}, in.MainRun == "pending"
 		r.mergeNow(run, in.Head, guarded)
+		if run.State == Merged {
+			_ = r.Store.PutRun(run) // before the next run of the pass reads the train
+		}
 	}
+}
+
+// mergeStageOf is the flow state a merge decision leaves the run in.
+func mergeStageOf(in MergeInput, d MergeDecision) string {
+	switch {
+	case d.Why == ciPending || (d.Action == "hold" && len(in.MissingChecks) > 0 && in.CI == "green"):
+		return flowStageCI
+	case d.Action == "refresh":
+		return FlowRefresh
+	case d.Action == "hold":
+		return FlowMainWait
+	}
+	return FlowMergeReady
 }
 
 // t3Guard runs the hard limits when a T3 merge is up for decision: Decide would merge, or sends the run back for red CI
@@ -397,6 +448,9 @@ func (r *Runner) MergeTask(task string) (*Run, error) {
 		return nil, fmt.Errorf("%w: %s is %s, not merging", ErrRefused, task, run.State)
 	}
 	r.Merge(run)
+	if run.State != Merging && run.Flow != nil {
+		r.enterFlow(run, "", "") // merged or held by hand: close what the flow opened
+	}
 	return run, r.Store.PutRun(run)
 }
 
@@ -469,7 +523,7 @@ func (r *Runner) checkHeld(run *Run) {
 	if run.PRURL == "" {
 		return
 	}
-	pr, err := PRView(r.Tools, run.PRURL)
+	pr, err := r.prView(run)
 	if err != nil {
 		return
 	}
@@ -540,6 +594,7 @@ func (r *Runner) mergeNow(run *Run, sha string, t3 bool) {
 	case rc != 0:
 		if err == nil {
 			run.Unattended = false // not merged: a later merge by hand is not the runner's
+			run.Car, run.Rode = nil, false
 		}
 		run.MergeHold = "gh pr merge failed: " + firstLine(errs)
 	default:
@@ -553,6 +608,10 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	}
 	// merged by hand while a new judge runs: JudgeHead is already the new head and the last verdict is about an old one
 	rejudging := run.State == Judging
+	if run.Car != nil {
+		r.joinTrain(run, run.Car.Files, run.Rode)
+		run.Car = nil
+	}
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
@@ -625,12 +684,12 @@ func (r *Runner) revertCheck(mine func(project string) bool) error {
 			continue
 		}
 		st, red := r.Store.RedMain(strings.ToLower(x.Repo))
-		if !red || fmt.Sprint(st["sha"]) != x.MergeSHA {
+		if !red || r.culprit(x.Repo, x.Base, fmt.Sprint(st["sha"])) != x.MergeSHA {
 			continue
 		}
 		newer := false
 		for _, y := range runs {
-			newer = newer || (y.Repo == x.Repo && y.State == Merged && y.Merged > x.Merged)
+			newer = newer || (y.Repo == x.Repo && y.State == Merged && y.Merged > x.Merged && !y.Rode) // the train shares no file
 		}
 		if newer {
 			continue
@@ -754,8 +813,8 @@ func (r *Runner) behindOK(repo, wt, base, head string) bool {
 	if rc != 0 || mb == "" {
 		return false
 	}
-	rc1, mainFiles, _ := r.Tools.Git(wt, "diff", "--name-only", mb, "origin/"+base)
-	rc2, prFiles, _ := r.Tools.Git(wt, "diff", "--name-only", mb, head)
+	rc1, mainFiles, _ := r.Tools.Git(wt, "diff", "--name-only", "--no-renames", mb, "origin/"+base)
+	rc2, prFiles, _ := r.Tools.Git(wt, "diff", "--name-only", "--no-renames", mb, head)
 	if rc1 != 0 || rc2 != 0 {
 		return false
 	}
@@ -783,6 +842,10 @@ func behindSafe(mainFiles, prFiles []string) bool {
 
 // protectionNotStrict reads required_status_checks.strict of the base branch, cached 10 minutes; unknown = strict.
 func (r *Runner) protectionNotStrict(repo, base string) bool {
+	if r.poll != nil {
+		b := r.poll.bases[baseKey(repo, base)]
+		return b != nil && b.NotStrict
+	}
 	key := "stale_strict:" + strings.ToLower(repo) + ":" + base
 	if v := r.Store.Meta(key); v != "" {
 		if f := strings.SplitN(v, " ", 2); len(f) == 2 {
