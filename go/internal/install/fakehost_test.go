@@ -41,6 +41,7 @@ type fakeHost struct {
 	ttyRun  func(f *fakeHost, argv []string) (int, string) // the fake `gh auth login`; its output goes to ttyOut only
 	ttyOut  strings.Builder                                // what the user would see on the terminal; never the installer log
 	enters  int                                            // Enter presses the test will give
+	typed   string                                         // what ReadLine returns
 	waited  int
 	onEnter func(f *fakeHost)
 
@@ -209,6 +210,8 @@ func (f *fakeHost) RunTTY(argv []string) int {
 	f.ttyOut.WriteString(out)
 	return rc
 }
+
+func (f *fakeHost) ReadLine() (string, error) { return f.typed, nil }
 
 func (f *fakeHost) WaitEnter() error {
 	f.waited++

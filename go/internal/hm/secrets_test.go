@@ -1,6 +1,8 @@
 package hm
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,7 +91,7 @@ func TestScrubSecretsLocalCI(t *testing.T) {
 		return 1, "building\n" + block + "\nkey " + key + "\n"
 	}
 	logdir := t.TempDir()
-	_, note, err := f.r.recordLocalCI(f.run, headA, "make test", time.Minute, logdir)
+	_, note, err := f.r.waitLocalCI(f.run, headA, "make test", time.Minute, logdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,6 +106,10 @@ func TestScrubSecretsLocalCI(t *testing.T) {
 	if fi, err := os.Stat(log); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Errorf("gate-cmd.log mode: %v %v", fi, err)
 	}
+	// the job's own copy is scrubbed too
+	if own, err := os.ReadFile(filepath.Join(logdir, "localci-"+headA[:12], "gate-cmd.log")); err != nil || string(own) != string(b) {
+		t.Errorf("job log: %q %v", own, err)
+	}
 	for name, text := range map[string]string{"tail": f.run.LocalCI.Tail, "note": note} {
 		if strings.Contains(text, key) || strings.Contains(text, "EXAMPLEfakeKeyLineOne") || !strings.Contains(text, "[asc-key redacted]") {
 			t.Errorf("%s: %q", name, text)
@@ -112,6 +118,38 @@ func TestScrubSecretsLocalCI(t *testing.T) {
 	// the public-text guard reads the log before the scrub: it is still withheld from the PR
 	if !f.run.LocalCI.Private {
 		t.Error("a log with a key block must stay private")
+	}
+}
+
+// The round's log cannot be rewritten (it is read-only): it does not stay, and the note says so instead of naming it.
+func TestGateLogRemovedWhenScrubFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes a read-only file")
+	}
+	noASCEnv(t)
+	key := "EXAMPLE-fake-asc-key-content"
+	t.Setenv("ASC_KEY_CONTENT", key)
+	for _, rc := range []int{0, 1, 124} {
+		f := newLocalCIFake(t, "none", "make test")
+		logdir := t.TempDir()
+		log := filepath.Join(logdir, "gate-cmd.log")
+		f.r.Tools.Sh = func(string, time.Duration, []string, ...string) (int, string) {
+			if err := os.WriteFile(log, []byte("an earlier round: "+key+"\n"), 0o400); err != nil {
+				t.Fatal(err)
+			}
+			return rc, "key " + key + "\n"
+		}
+		_, note, err := f.r.waitLocalCI(f.run, headA, "make test", time.Minute, logdir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(log); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("exit %d: the log is still there: %v", rc, err)
+		}
+		if !strings.Contains(note, "gate log removed: scrub failed") || strings.Contains(note, "gate-cmd.log") ||
+			strings.Contains(note, logdir) || strings.Contains(note, key) {
+			t.Errorf("exit %d: note %q", rc, note)
+		}
 	}
 }
 
