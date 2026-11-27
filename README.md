@@ -244,12 +244,8 @@ The read-only web UI (`factory serve`, [docs/web-ui.md](docs/web-ui.md)) belongs
 
 ## Herdr desktop dashboard
 
-The Herdr desktop dashboard ([docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md)) also belongs to the legacy pipeline and reads the same legacy API as the web UI.
+The Herdr desktop dashboard ([docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md)) shows every factory you run in one tab and in the status bar: what waits for you, the factories as one table, and every machine's resources. It reads each runner's `hivemill obs` API.
 
-<p align="center">
-  <img src="docs/film/herdr/panel-factory.png" width="420" alt="The Hivemill dashboard tab in the Herdr desktop app: lanes and tiles for the factory">
-  <img src="docs/film/herdr/panel-status-bar.png" width="420" alt="The Hivemill status bar across the bottom of the Herdr desktop app">
-</p>
 
 ## Status and limits
 

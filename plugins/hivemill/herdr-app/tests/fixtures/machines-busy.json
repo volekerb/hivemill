@@ -1,0 +1,31 @@
+{
+ "cap": 16,
+ "now": "2026-11-14T10:00:00Z",
+ "machines": [
+  {
+   "name": "box-a",
+   "coordinator": true,
+   "down": false,
+   "running": [
+    {
+     "task": "T-0101"
+    },
+    {
+     "task": "T-0102"
+    }
+   ],
+   "free_slots": 14,
+   "mem_available_mb": 5218,
+   "last_seen": "2026-11-14T09:59:00Z"
+  },
+  {
+   "name": "box-b",
+   "coordinator": false,
+   "down": true,
+   "running": [],
+   "free_slots": 16,
+   "mem_available_mb": null,
+   "last_seen": "2026-11-14T08:00:00Z"
+  }
+ ]
+}
