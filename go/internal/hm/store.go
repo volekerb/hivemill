@@ -570,6 +570,17 @@ func (s *SQLite) OpenPlannerWork() ([]PlannerWork, error) {
 	return out, rows.Err()
 }
 
+// DeliverPlannerWork records that the open rows ids were typed to the planner at `at`.
+func (s *SQLite) DeliverPlannerWork(ids []int64, at time.Time) error {
+	for _, id := range ids {
+		if _, err := s.db.Exec(`UPDATE planner_work SET delivered=?, attempts=attempts+1 WHERE id=? AND closed IS NULL`,
+			at.Format(time.RFC3339), id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ClosePlannerWork closes the open rows ids with a reason. It changes nothing and fails when any id is unknown or already closed.
 func (s *SQLite) ClosePlannerWork(ids []int64, reason string) error {
 	tx, err := s.db.Begin()
