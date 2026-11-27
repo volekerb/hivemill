@@ -485,6 +485,8 @@ func (r *Runner) finish(run *Run, pr *PR) {
 	if pr.MergeCommit != nil {
 		run.MergeSHA = pr.MergeCommit.Oid
 	}
+	// merged by hand while a new judge runs: JudgeHead is already the new head and the last verdict is about an old one
+	rejudging := run.State == Judging
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
@@ -493,6 +495,9 @@ func (r *Runner) finish(run *Run, pr *PR) {
 		data["unattended"] = true
 	}
 	_ = r.Log.Emit("pr.merged", run, Event{Data: data})
+	if !rejudging {
+		r.reportUnasked(run, pr.HeadRefOid)
+	}
 	r.checkMergeCommit(run)
 	r.closeSessions(run)
 	r.endSessions(run)
