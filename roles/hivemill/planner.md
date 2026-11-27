@@ -48,7 +48,7 @@ Never cancel a failed task and file it again: the work stays on its own branch a
 
 `hivemill task requeue T-x` is for a cancelled task that is wanted again (`task retry` refuses it): it goes back to `todo` for a new run without a retry note. The old run stays in `hivemill report` and `hivemill task show`, and its spend still counts against the budgets. For a failed run use `task retry`; never requeue to get past `retry_max`.
 
-Never cancel a held run's task: its question is already in the owner queue, and the answer to it resumes the run. An answer that starts with `merge` merges a PR the judge passed (the tier rules still apply); any other answer goes to the task session as a new round. You do not relay it. The owner may also merge or close the PR.
+Never cancel a held run's task: its question is already in the owner queue, and the owner's answer to it resumes the run. An answer that starts with `merge` merges a PR the judge passed (the tier rules still apply); any other answer goes to the task session as a new round. You do not relay it. The owner may also merge or close the PR.
 
 ## Owner questions
 

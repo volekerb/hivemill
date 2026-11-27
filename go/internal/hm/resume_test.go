@@ -76,6 +76,7 @@ func TestAnsweredHeldAskResumes(t *testing.T) {
 		{"merge a judged MERGE", VerdictMerge, " Merge it", "held:T-0001:1", false, Merging, 0, 0},
 		{"merge without a MERGE verdict", "HOLD", "merge it", "held:T-0001:1", true, Working, 1, 0},
 		{"answer of an older round", "HOLD", "split the change", "held:T-0001:7", true, Held, 0, 0},
+		{"answer of an agent session", VerdictMerge, "merge it", "held:T-0001:1", true, Held, 0, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r, s, f := resumeRunner(t)
@@ -100,6 +101,8 @@ func TestAnsweredHeldAskResumes(t *testing.T) {
 			if got, _ := s.Run("T-0001"); got.State != Held || len(f.sent) != 0 {
 				t.Fatalf("an open question moves nothing: %s, sent %q", got.State, f.sent)
 			}
+			// an answer from an agent session is recorded as the director's, not the owner's
+			r.Env.AgentSession = c.name == "answer of an agent session"
 			if c.ref == "held:T-0001:1" {
 				_ = r.AskClose(older, true, "an older answer")
 			}

@@ -88,7 +88,8 @@ func (r *Runner) answeredHeld(run *Run, list []Terminal, listed bool) {
 	}
 	var found []Ask
 	for _, x := range asks { // oldest first: the latest question wins
-		if x.Ref == "held:"+run.Task || x.Ref == fmt.Sprintf("held:%s:%d", run.Task, run.Round) {
+		// only the owner's own answer acts, as in approveHeld: a director or planner answer moves nothing
+		if x.AnsweredBy == "owner" && (x.Ref == "held:"+run.Task || x.Ref == fmt.Sprintf("held:%s:%d", run.Task, run.Round)) {
 			found = append(found, x)
 		}
 	}
