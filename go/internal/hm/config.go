@@ -12,6 +12,8 @@ import (
 // Defaults are the runner's own config keys (table hm_config). They are independent of the old pipeline's caps
 // (max_live_agents, max_total_claude, dispatch_max_per_tick are never read).
 var Defaults = map[string]string{
+	// the PR flow controller (docs/pr-flow.md)
+	"ci_queue_max_min": "40", "merge_train": "3", "stale_pr_min": "90",
 	"max_concurrent": "2",                 // working runs at one time (working, judging)
 	"max_waiting":    "20",                // waiting runs (CI, merge, held for the owner): reached = no new run
 	"projects":       "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
