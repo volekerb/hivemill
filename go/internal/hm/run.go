@@ -443,8 +443,10 @@ func (r *Runner) fail(run *Run, reason string) {
 		r.endSessions(run) // the $ and tokens of a failed run reach the event log too (evalFinish writes its own)
 	}
 	data := map[string]any{"reason": truncate(reason, 900)}
-	// the last gate block of this round found a proof that cannot pass: the planner re-files the task
-	if strings.HasPrefix(run.LastBlock, specDefect) || strings.Contains(run.LastBlock, "\n"+specDefect) {
+	// A task that ends on its gate (the block cap, or idle after a block) with a proof that cannot pass is the planner's
+	// to re-file. Budget, a closed PR and other failures are not about the proof, whatever the last block said.
+	onGate := strings.HasPrefix(reason, "gate blocked ") || strings.HasPrefix(reason, "stalled: ")
+	if onGate && (strings.HasPrefix(run.LastBlock, specDefect) || strings.Contains(run.LastBlock, "\n"+specDefect)) {
 		data["reason_kind"] = reasonSpecDefect
 	}
 	_ = r.Log.Emit("task.failed", run, Event{Data: data})

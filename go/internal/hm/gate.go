@@ -38,7 +38,12 @@ type Rerun struct {
 	Log  string `json:"log,omitempty"`
 	rc   int    // of the proof's command; with out, what a run on the base commit is compared with
 	out  string
+	took time.Duration
 }
+
+// baseRunBudget caps the head run time of the proofs run again on the base commit, so a gate with slow proofs stays
+// inside the Stop hook's timeout.
+var baseRunBudget = 5 * time.Minute
 
 // specDefect starts the problem of a proof that cannot pass as written; reasonSpecDefect is the reason_kind of a task
 // that fails with one.
@@ -339,12 +344,13 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 		var rc int
 		var text string
 		limit := proofTimeout
+		began := time.Now()
 		if run.cloned() {
 			rc, text = at.sh(dir, proofTimeout, cleanEnv(), argv...)
 		} else {
 			rc, text, limit = proofs.sh(c.ID, dir, argv)
 		}
-		x.rc, x.out = rc, text
+		x.rc, x.out, x.took = rc, text, time.Since(began)
 		x.Log = filepath.Join(logdir, fmt.Sprintf("proof-%d.log", c.ID))
 		_ = os.WriteFile(x.Log, []byte(text), 0o600)
 		ok := rc == 0
@@ -361,19 +367,33 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 	return out
 }
 
+func baseCheckout(wt string) string { return filepath.Join(wt, ".hivemill", "base") }
+
+// dropBaseCheckout removes the base checkout, also one an interrupted gate left half made: a proof that searches the
+// clone must not see the old code.
+func dropBaseCheckout(at place, wt string) {
+	if !at.isDir(baseCheckout(wt)) {
+		return
+	}
+	at.sh(wt, time.Minute, cleanEnv(), "rm", "-rf", baseCheckout(wt))
+	at.git(wt, "worktree", "prune")
+}
+
 // specDefects says which failed proofs are the spec's fault, by criterion id, and why: the command exits 2 or 127 (usage
 // error, command not found), or it fails with the same exit code and output on the base commit mb, checked out under
-// .hivemill for this. A proof that timed out or never ran is not judged.
+// .hivemill for this. A proof that timed out, never ran or is over baseRunBudget is not run on the base.
 func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Rerun, mb, logdir string) map[int]string {
 	out := map[int]string{}
 	failed := map[int]Rerun{}
 	var onBase []Criterion
+	var spent time.Duration
 	for i, x := range reruns { // reruns[i] is the run of crit[i]
 		switch {
 		case x.OK == nil || *x.OK || x.Log == "" || x.rc == 124:
 		case x.rc == 2 || x.rc == 127:
 			out[x.ID] = fmt.Sprintf("exit %d: a usage error or a command that does not exist", x.rc)
-		default:
+		case spent+x.took <= baseRunBudget:
+			spent += x.took
 			failed[x.ID] = x
 			onBase = append(onBase, crit[i])
 		}
@@ -382,17 +402,12 @@ func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Reru
 		return out
 	}
 	wt := run.Worktree
-	dir := filepath.Join(wt, ".hivemill", "base")
-	drop := func() {
-		at.git(wt, "worktree", "remove", "--force", dir)
-		at.git(wt, "worktree", "prune")
-	}
-	drop() // what an interrupted gate left behind
+	dir := baseCheckout(wt)
 	if rc, _, errs := at.git(wt, "worktree", "add", "-q", "--detach", dir, mb); rc != 0 {
 		r.printf("%s: no checkout of the base commit: %s\n", run.Task, errs)
 		return out
 	}
-	defer drop()
+	defer dropBaseCheckout(at, wt)
 	base := *run
 	base.Worktree = dir
 	logs := filepath.Join(logdir, "base")
@@ -688,6 +703,7 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 		add("evidence", false, p)
 	}
 	if len(ev) == 0 {
+		dropBaseCheckout(at, wt)
 		rec.Reruns = r.rerunProofs(at, run, crit, logdir)
 		defects := r.specDefects(at, run, crit, rec.Reruns, mb, logdir)
 		var first []string // spec defects lead, so a cut failure reason still names them

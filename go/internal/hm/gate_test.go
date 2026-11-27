@@ -91,6 +91,19 @@ func TestGateSpecDefect(t *testing.T) {
 		t.Errorf("the base checkout is removed: %v %s", err, git("worktree", "list"))
 	}
 
+	// a checkout an interrupted gate left is gone before the proofs run; over the time budget nothing runs on the base
+	write(".hivemill/base/state", "left over\n")
+	old := baseRunBudget
+	baseRunBudget = 0
+	rec = r.Gate(run)
+	baseRunBudget = old
+	if _, err := os.Stat(filepath.Join(wt, ".hivemill", "base")); !os.IsNotExist(err) {
+		t.Errorf("a left over base checkout is removed: %v", err)
+	}
+	if p := problem("3"); p == "" || strings.HasPrefix(p, "spec defect:") {
+		t.Errorf("over the budget, criterion 3 is not judged: %q", p)
+	}
+
 	failedKind := func() any {
 		t.Helper()
 		evs, err := r.Log.Read()
@@ -112,8 +125,17 @@ func TestGateSpecDefect(t *testing.T) {
 	if k := failedKind(); k != "spec_defect" {
 		t.Errorf("reason_kind %v, want spec_defect", k)
 	}
-	r.fail(&Run{Task: "T-0001", LastBlock: "pr: no open PR\ncommitted: quotes spec defect: in passing"}, "zz-test")
-	if k := failedKind(); k != nil {
-		t.Errorf("another failure has no reason_kind, got %v", k)
+	for _, c := range []struct {
+		block, reason string
+		want          any
+	}{
+		{"spec defect: x", "stalled: idle", "spec_defect"},
+		{"spec defect: x", "budget: over", nil},
+		{"pr: no open PR\ncommitted: quotes spec defect: in passing", "gate blocked 3 times", nil},
+	} {
+		r.fail(&Run{Task: "T-0001", LastBlock: c.block}, c.reason)
+		if k := failedKind(); k != c.want {
+			t.Errorf("%q after %q: reason_kind %v, want %v", c.reason, c.block, k, c.want)
+		}
 	}
 }
