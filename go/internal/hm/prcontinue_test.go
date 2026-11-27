@@ -437,3 +437,15 @@ func TestPRSweepCapCountsGHCallsOnly(t *testing.T) {
 		t.Errorf("%d gh calls right after a failure", views)
 	}
 }
+
+// An eval deletes its branch when it ends: never one that another task's run works on.
+func TestEvalRefusesASharedBranch(t *testing.T) {
+	r, s := testRunner(t, "")
+	f := newFakePRs(r, openPRof(1, "factory/t-0001"))
+	other := endedRun("T-0099", Failed, "", time.Hour)
+	other.Branch = "factory/t-0001"
+	putRuns(t, s, other)
+	if err := r.EvalStart("T-0001", EvalFull); err == nil || !strings.Contains(err.Error(), "shared") {
+		t.Errorf("err %v, calls %v", err, f.calls)
+	}
+}
