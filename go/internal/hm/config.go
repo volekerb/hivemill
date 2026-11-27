@@ -92,6 +92,8 @@ type Env struct {
 	Home     string // factory home (FACTORY_HOME, default ~/factory)
 	UserHome string
 	Actor    string // FACTORY_AGENT of the caller, "" for the owner
+	// AgentSession is true inside a Claude Code session (CLAUDECODE is set).
+	AgentSession bool
 }
 
 // LoadEnv reads the environment.
@@ -101,7 +103,7 @@ func LoadEnv() Env {
 	if home == "" {
 		home = filepath.Join(uh, "factory")
 	}
-	return Env{Home: home, UserHome: uh, Actor: os.Getenv("FACTORY_AGENT")}
+	return Env{Home: home, UserHome: uh, Actor: os.Getenv("FACTORY_AGENT"), AgentSession: os.Getenv("CLAUDECODE") != ""}
 }
 
 // DBPath is the factory DB (db/factory.db, else the legacy file).
