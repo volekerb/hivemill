@@ -362,7 +362,7 @@ func checkGate(f DiffFile, add addLimit) {
 	switch f.Path {
 	case "go/internal/hm/merguard.go":
 		add("f", f.Path, "changes the merge guard")
-	case "go/internal/hm/merge.go":
+	case "go/internal/hm/merge.go", "go/internal/hm/store.go":
 		add("f", f.Path, "changes the merge step")
 	case "go/internal/hm/tierrules.go", "go/internal/hm/assets/tier_rules.json", "ci/risk_tier.py", "ci/tier_rules.json":
 		add("f", f.Path, "changes the tier classification")
