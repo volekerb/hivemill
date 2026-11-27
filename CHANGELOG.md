@@ -21,6 +21,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A task board and full traces in the obs API.** `GET /api/obs/v1/board` puts every task of a factory in its column (queued, working, in CI, to merge, held, done today) under the reason it waits there, with its title. `GET /api/obs/v1/task?k=<key>` is the trace with the task's title, stage, PR and the text of each prompt the runner sent (64 KB per prompt at most). Both are read-only, like the rest of the page. See [docs/hivemill-observability.md](docs/hivemill-observability.md).
+
 - **A summary API and a hub for several factories.** `GET /api/obs/v1/summary` gives one factory's identity (`obs_label`), run counts, one "needs you" list (questions with their text, held runs with reason and PR, failures that were not re-filed, runs over a per-stage limit, system lines), planner state, merges, spend, budget and machines. With `obs_peers` set, a factory's obs serves the All factories page at `/all`; `hivemill obs --hub --peers ...` serves it on a machine with no factory. Bound beyond loopback, obs no longer names file paths or pull sources. See [docs/hivemill-observability.md](docs/hivemill-observability.md#several-factories-the-summary-api-and-the-hub).
 
 - **The Go guard no longer runs python3.** It lists tar/zip archive members itself and treats a DB value with no export row as absent; `--py-hook` is accepted and only locates the checkout (T-2112). Where it cannot follow Python it refuses: xz, a gzip FEXTRA field, a second bzip2 stream, and any non-zero data after the first gzip member, which `gzip -d` would also extract (T-2132).

@@ -511,6 +511,25 @@ func (s *obsServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonOut(sum)
 		return
+	case "/api/obs/v1/board", "/api/obs/v1/task":
+		o, _, err := s.load(ObsFilter{})
+		if err != nil {
+			http.Error(w, "obs: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if req.URL.Path == "/api/obs/v1/board" {
+			jsonOut(s.buildBoard(o, req.URL.Query().Get("project")))
+			return
+		}
+		t := o.Tasks[req.URL.Query().Get("k")]
+		if t == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "no task " + req.URL.Query().Get("k")})
+			return
+		}
+		jsonOut(s.traceV1(o, t))
+		return
 	case "/api/obs/v1/factories":
 		if s.hub == nil {
 			break
