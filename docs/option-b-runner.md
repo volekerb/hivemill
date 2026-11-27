@@ -129,7 +129,7 @@ hivemill upstream status T-0042
 ```
 
 - `add` runs the spec gate here, files with `hivemill task add` there and prints the new task id. `status` prints that task's state, PR and run.
-- The planner and the owner may call them. The planner gives the text itself or on stdin, never as a file path, and its hook refuses what the shell would expand there (`$`, `~`, `*`, `?`, `[`).
+- The planner and the owner may call them. The planner gives the text itself or on stdin, never as a file path, and its hook refuses what the shell would expand there (`$`, `~`, `*`, `?`, `[`, a leading `=`). The factory runner refuses a filing into a goal that is not active.
 - Both runners write an `upstream.filed` event. Here the remote id is in `data.upstream_task` (it is not a local task id); `data.by` names who filed it. On the factory runner `data.from` names the filing machine, and the event adds no row to `report` or `obs`.
 - ssh runs in batch mode, so the key and host key must already be set up. The factory runner needs a `hivemill` that has `upstream`.
 - If `add` fails without a clear refusal, the task may exist: check the factory runner before filing again.

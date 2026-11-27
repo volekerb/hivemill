@@ -448,6 +448,8 @@ func TestPlannerBash(t *testing.T) {
 		{"hivemill upstream add --title x --spec /etc/host? --acceptance a", false},
 		{"hivemill upstream add --title x --spec /etc/[h]osts --acceptance a", false},
 		{"git show 'stash@{0}'", true},
+		{"hivemill upstream add --title x --spec =hivemill --acceptance a", false},
+		{"hivemill upstream add --title x --spec='a=b' --priority=1 --acceptance '=c'", true},
 		{"gh run list | sort -R --ignore-leading-blanks --check", true},
 		{"hivemill report --json | jq '.rows[0]'", true},
 		{"hivemill ask add --task T-0001 'Merge now; or wait?'", true},

@@ -515,6 +515,15 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			fmt.Fprint(stderr, lint.String())
 			return fail(stderr, fmt.Errorf("%w: the criteria fail the spec gate; fix them, or file it with --draft", hm.ErrRefused))
 		}
+		if *from != "" { // the filer cannot see this goal: a task in a goal that is not active would never start
+			g, err := s.Goal(strings.ToUpper(*goal))
+			if err != nil {
+				return fail(stderr, fmt.Errorf("%w: %v", hm.ErrRefused, err))
+			}
+			if g.Status != "active" {
+				return fail(stderr, fmt.Errorf("%w: goal %s is %s, not active: update upstream_goal on the filing runner", hm.ErrRefused, strings.ToUpper(*goal), g.Status))
+			}
+		}
 		of := strings.ToUpper(strings.TrimSpace(*refileOf))
 		if of != "" {
 			if !taskRe.MatchString(of) {

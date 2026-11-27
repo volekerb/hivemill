@@ -113,7 +113,7 @@ func PlannerBash(cmd string) string {
 			// this text leaves the machine: no variable, home or file name may expand into it (the program may be ~/…)
 			if len(argv) > 2 && filepath.Base(argv[0]) == "hivemill" && argv[1] == "upstream" {
 				if t := strings.TrimLeft(seg, " \t"); expands(t[strings.IndexAny(t, " \t")+1:]) {
-					return "upstream: no $ ~ * ? [ the shell would expand: single-quote the text (or use the quoted heredoc)"
+					return "upstream: no $ ~ * ? [ or leading = the shell would expand: single-quote the text (or use the quoted heredoc)"
 				}
 			}
 		} else if why := plannerFilter(argv); why != "" {
@@ -148,7 +148,8 @@ func unquotedNewline(s string) int {
 	return -1
 }
 
-// expands reports what the shell would expand: an unescaped $ outside single quotes, or ~ * ? [ outside any quotes.
+// expands reports what the shell would expand: an unescaped $ outside single quotes, or ~ * ? [ and a leading = outside
+// any quotes.
 func expands(s string) bool {
 	var q byte
 	for i := 0; i < len(s); i++ {
@@ -169,6 +170,8 @@ func expands(s string) bool {
 		case c == '\'' || c == '"':
 			q = c
 		case strings.IndexByte("~*?[", c) >= 0:
+			return true
+		case c == '=' && (i == 0 || s[i-1] == ' ' || s[i-1] == '\t'): // zsh turns =name into that program's path
 			return true
 		}
 	}

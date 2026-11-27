@@ -77,6 +77,11 @@ func TestUpstreamCLI(t *testing.T) {
 	if out := c.ok("report", "--json"); strings.Contains(out, "T-0001") {
 		t.Errorf("a filed task that never ran is in the report: %s", out)
 	}
+	c.ok("goal", "status", "G-001", "blocked")
+	if code, _, errs := c.run("", "task", "add", "--goal", "G-001", "--title", "t", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0",
+		"--upstream-from", "zz-box"); code != 3 || !strings.Contains(errs, "not active") {
+		t.Errorf("inactive goal: exit %d %q", code, errs)
+	}
 	add := []string{"upstream", "add", "--title", "t", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0"}
 	if code, _, errs := c.run("", append(add, "--priority", "-5")...); code == 0 || !strings.Contains(errs, "--priority") {
 		t.Errorf("negative priority: exit %d %q", code, errs)
