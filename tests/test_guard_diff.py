@@ -266,7 +266,7 @@ class EvaluatorRunTests(GuardDiffCase):
             wf = f.read()
         block = _job_block(wf, "guard-self-compare")
         self.assertRegex(block, r"(?m)^    name: guard-self-compare\n")
-        self.assertIn("timeout-minutes: 30", block)
+        self.assertIn("timeout-minutes: 60", block)
         self.assertIn("git diff --exit-code -- roles/hooks/worker-guard.py || exit 1", block)
         self.assertRegex(block, r'-le 100 \]')
         self.assertIn(
@@ -281,7 +281,7 @@ class EvaluatorRunTests(GuardDiffCase):
             wf = f.read()
         block = _job_block(wf, "guard-evaluator-home-loosen")
         self.assertRegex(block, r"(?m)^    name: guard-evaluator-home-loosen\n")
-        self.assertIn("timeout-minutes: 30", block)
+        self.assertIn("timeout-minutes: 60", block)
         self.assertRegex(block, r'-le 100 \]')
         self.assertIn(
             "old = '        if not ok:\\n            raise Block(\"the evaluator may run factory'",
