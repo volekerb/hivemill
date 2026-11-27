@@ -1,0 +1,38 @@
+{
+ "spend": {
+  "days": 7,
+  "by": "task",
+  "usd": 123.0,
+  "polling_pct": 33.0,
+  "daily": [
+   {
+    "day": "2026-11-13",
+    "task": 30.0,
+    "judge": 3.0,
+    "planner": 2.0
+   },
+   {
+    "day": "2026-11-14",
+    "task": 36.0,
+    "judge": 3.0,
+    "planner": 1.0
+   }
+  ],
+  "rows": [
+   {
+    "key": "(no task)",
+    "usd": 75.0
+   },
+   {
+    "key": "box-a/T-0110",
+    "usd": 6.15,
+    "task_key": "box-a/T-0110"
+   },
+   {
+    "key": "box-a/T-0101",
+    "usd": 9.5,
+    "task_key": "box-a/T-0101"
+   }
+  ]
+ }
+}

@@ -17,7 +17,68 @@ import (
 )
 
 const obsUsage = "usage: hivemill obs [--listen HOST] [--port N] [--json] [--days N] [--machine M] [--harness H] | " +
-	"obs pull --from HOST:PATH [--from ...] [--as NAME] | obs sources"
+	"obs --hub [--peers URL,URL] [--listen HOST] [--port N] | obs pull --from HOST:PATH [--from ...] [--as NAME] | obs sources"
+
+// hubWithoutRunner reports whether the arguments ask for a hub whose peers are all on the command line: that one
+// needs no factory on this machine.
+func hubWithoutRunner(args []string) bool {
+	hub, peers := false, false
+	for _, a := range args {
+		hub = hub || a == "--hub" || a == "-hub"
+		peers = peers || a == "--peers" || a == "-peers" || strings.HasPrefix(a, "--peers=") || strings.HasPrefix(a, "-peers=")
+	}
+	return hub && peers
+}
+
+// cmdObsHub serves only the All factories page over the peers: `hivemill obs --hub`. cfg reads a config key of this
+// machine's factory, or is nil when there is none.
+func cmdObsHub(args []string, cfg func(string) string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("obs --hub", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.Bool("hub", true, "serve only the All factories page")
+	peersFlag := fs.String("peers", "", "the factories' obs URLs, comma-separated (default: config obs_peers)")
+	listen := fs.String("listen", "", "bind IP address or localhost (default: config obs_listen, 127.0.0.1)")
+	port := fs.Int("port", 0, "port (default: config obs_port, 7461)")
+	if fs.Parse(args) != nil || fs.NArg() > 0 {
+		fmt.Fprintln(stderr, obsUsage)
+		return 2
+	}
+	get := func(k string) string {
+		if cfg == nil {
+			return ""
+		}
+		return cfg(k)
+	}
+	peers, err := hm.ParsePeers(or(*peersFlag, get("obs_peers")))
+	if err != nil || len(peers) == 0 {
+		if err == nil {
+			err = fmt.Errorf("no factory to show: pass --peers URL,URL or set config obs_peers")
+		}
+		fmt.Fprintln(stderr, "hivemill: obs --hub:", err)
+		return 2
+	}
+	if *port == 0 {
+		*port, _ = strconv.Atoi(strings.TrimSpace(or(get("obs_port"), "7461")))
+	}
+	if *port <= 0 || *port > 65535 {
+		fmt.Fprintln(stderr, "hivemill: obs: bad port (config obs_port)")
+		return 2
+	}
+	host, err := hm.ObsListen(*listen, get("obs_listen"), stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, "hivemill:", err)
+		return 2
+	}
+	addr := hm.ObsAddr(host, *port)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	fmt.Fprintf(stdout, "hivemill obs hub: http://%s/ over %d factor%s (read-only; Ctrl-C stops)\n", addr, len(peers), map[bool]string{true: "y", false: "ies"}[len(peers) == 1])
+	if err := hm.ServeHub(ctx, addr, peers); err != nil {
+		fmt.Fprintln(stderr, "hivemill: obs:", err)
+		return 1
+	}
+	return 0
+}
 
 const otelUsage = "usage: hivemill otel export [--since 24h|YYYY-MM-DD] [--endpoint URL] [--pulled] [--dry-run]"
 
@@ -50,6 +111,11 @@ func cmdObs(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "%s\t%s\tpulled=%s\t%s\n", s.Label, s.Path, or(s.Pulled, "-"), or(s.From, "local"))
 		}
 		return 0
+	}
+	for _, a := range args {
+		if a == "--hub" || a == "-hub" {
+			return cmdObsHub(args, r.Store.Cfg, stdout, stderr)
+		}
 	}
 	fs := flag.NewFlagSet("obs", flag.ContinueOnError)
 	fs.SetOutput(stderr)

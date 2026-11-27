@@ -1,0 +1,115 @@
+{
+ "filter": {},
+ "now": "2026-11-14T10:00:00Z",
+ "project": "",
+ "flow": {
+  "days": 14,
+  "stages": [
+   "dispatched",
+   "gate",
+   "ci",
+   "judge",
+   "merge"
+  ],
+  "tasks": [],
+  "stuck": [
+   {
+    "key": "box-a/T-0106",
+    "task": "T-0106",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-b",
+    "outcome": "open",
+    "stage": "merge",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 7200,
+    "seconds": {
+     "merge": 7200
+    },
+    "total_sec": 7800,
+    "usd": 1.5,
+    "sessions": 2
+   },
+   {
+    "key": "box-a/T-0107",
+    "task": "T-0107",
+    "goal": "G-001",
+    "project": "app",
+    "machine": "box-a",
+    "outcome": "open",
+    "stage": "merge",
+    "since": "2026-11-14T09:00:00Z",
+    "age_sec": 4000,
+    "seconds": {
+     "merge": 4000
+    },
+    "total_sec": 4600,
+    "usd": 1.5,
+    "sessions": 2
+   }
+  ],
+  "stuck_after": "1h0m0s",
+  "merged_per_day": [
+   {
+    "day": "2026-11-01",
+    "n": 0
+   },
+   {
+    "day": "2026-11-02",
+    "n": 0
+   },
+   {
+    "day": "2026-11-03",
+    "n": 0
+   },
+   {
+    "day": "2026-11-04",
+    "n": 0
+   },
+   {
+    "day": "2026-11-05",
+    "n": 0
+   },
+   {
+    "day": "2026-11-06",
+    "n": 0
+   },
+   {
+    "day": "2026-11-07",
+    "n": 0
+   },
+   {
+    "day": "2026-11-08",
+    "n": 0
+   },
+   {
+    "day": "2026-11-09",
+    "n": 0
+   },
+   {
+    "day": "2026-11-10",
+    "n": 0
+   },
+   {
+    "day": "2026-11-11",
+    "n": 0
+   },
+   {
+    "day": "2026-11-12",
+    "n": 8
+   },
+   {
+    "day": "2026-11-13",
+    "n": 6
+   },
+   {
+    "day": "2026-11-14",
+    "n": 64
+   }
+  ],
+  "merged": 78,
+  "prs": 80,
+  "prs_2plus_rounds": 9,
+  "banners": []
+ }
+}
