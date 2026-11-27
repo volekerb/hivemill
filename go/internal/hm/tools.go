@@ -25,6 +25,8 @@ type Tools struct {
 	Sh  func(dir string, timeout time.Duration, env []string, argv ...string) (int, string)
 	// ShGroup is Sh in its own process group, which the timeout or the end of ctx kills whole (nil: Sh is used).
 	ShGroup func(ctx context.Context, dir string, timeout time.Duration, env []string, argv ...string) (int, string)
+	// Detach starts a background job that outlives this process (localjob.go). nil: local CI jobs run inline.
+	Detach func(dir, logfile, lockfile string, env []string, argv ...string) (int, error)
 }
 
 // RealTools runs git through gitx (hooks off, https only, live-checkout moves refused), gh and hc.
@@ -51,6 +53,7 @@ func RealTools(e Env) Tools {
 			return rc, out + errs
 		},
 		ShGroup: shGroup,
+		Detach:  detach,
 	}
 }
 

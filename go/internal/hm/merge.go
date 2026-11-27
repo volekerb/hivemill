@@ -229,6 +229,11 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 
 // Merge is one merge attempt of a run in state merging.
 func (r *Runner) Merge(run *Run) {
+	defer func() {
+		if run.State != Merging && run.State != Gated {
+			r.endCIWait(run) // `hivemill merge T` has no Advance around it to close the wait's alert
+		}
+	}()
 	if run.Eval {
 		run.MergeHold = "eval run: never merged"
 		r.fail(run, "eval run reached the merge step: refused, eval runs are never merged")
@@ -249,8 +254,12 @@ func (r *Runner) Merge(run *Run) {
 			// a new head (a refresh, a revert): run gate_cmd now and decide on the next pass from fresh PR data
 			if err := r.localCI(run, in.Head); err != nil {
 				run.MergeHold = err.Error()
+				r.localCIWaits(run, in.Head, time.Now())
 				return
 			}
+		}
+		if run.LocalCI != nil && run.LocalCI.Head == in.Head {
+			r.endCIWait(run) // the result is in, whoever read it
 		}
 		r.postLocalCI(run)
 		if d.Why == ciPending {
@@ -530,39 +539,42 @@ func (r *Runner) awaitsMergeCommit(run *Run, pr *PR) bool {
 // the rest (a goal check can run for long) must not hold other projects' merges.
 func (r *Runner) finishMergedElsewhere(run *Run, pr *PR) {
 	l := r.lock("merge", true)
-	waits := r.awaitsMergeCommit(run, pr)
+	waits, rejudging := r.awaitsMergeCommit(run, pr), false
 	if !waits {
-		r.recordMerged(run, pr)
+		rejudging = r.recordMerged(run, pr)
 	}
 	if l != nil {
 		l.Close()
 	}
 	if !waits {
-		r.closeOut(run)
+		r.closeOut(run, pr, rejudging)
 	}
 }
 
 // finish records the merge of a run and closes it out. The caller holds the merge lock.
 func (r *Runner) finish(run *Run, pr *PR) {
-	r.recordMerged(run, pr)
-	r.closeOut(run)
+	r.closeOut(run, pr, r.recordMerged(run, pr))
 }
 
-// recordMerged marks the run merged and, with a post_merge_cmd, stores it as pending.
-func (r *Runner) recordMerged(run *Run, pr *PR) {
+// recordMerged marks the run merged and, with a post_merge_cmd, stores it as pending. It reports whether the run was
+// being judged again when it merged.
+func (r *Runner) recordMerged(run *Run, pr *PR) (rejudging bool) {
 	if pr.MergeCommit != nil {
 		run.MergeSHA = pr.MergeCommit.Oid
 	}
+	// merged by hand while a new judge runs: JudgeHead is already the new head and the last verdict is about an old one
+	rejudging = run.State == Judging
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	run.PostMerge = "" // a marker of the unconfirmed merge goes; below says whether a command is due
 	if cmd, _, err := r.postMergeCfg(run.Project); (err != nil || cmd != "") && run.MergeSHA != "" {
 		run.PostMerge = PostMergePending
 		_ = r.Store.PutRun(run) // now, under the merge lock: the project's next merge must see it
 	}
+	return rejudging
 }
 
 // closeOut is what follows a recorded merge.
-func (r *Runner) closeOut(run *Run) {
+func (r *Runner) closeOut(run *Run, pr *PR, rejudging bool) {
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
 	data := map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL, "merged_at": run.Merged}
@@ -570,6 +582,9 @@ func (r *Runner) closeOut(run *Run) {
 		data["unattended"] = true
 	}
 	_ = r.Log.Emit("pr.merged", run, Event{Data: data})
+	if !rejudging {
+		r.reportUnasked(run, pr.HeadRefOid)
+	}
 	r.checkMergeCommit(run)
 	r.closeSessions(run)
 	r.endSessions(run)

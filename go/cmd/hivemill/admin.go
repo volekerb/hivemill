@@ -15,7 +15,7 @@ import (
 )
 
 // The standalone commands: `init` makes a factory home without the old CLI, `project`, `goal` and `task` file and
-// change the rows the runner reads, `launchd daemon` renders the daemon's LaunchAgent.
+// change the rows the runner reads, `launchd` renders the LaunchAgents.
 
 var (
 	repoRe    = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
@@ -65,14 +65,17 @@ func absHome(h string) (string, error) {
 	return filepath.Abs(h)
 }
 
-// cmdInit is `hivemill init [--home DIR] [--noreply-email E] [--scrub-terms FILE]`. It needs no existing DB.
+// cmdInit is `hivemill init [--home DIR] [--noreply-email E] [--scrub-terms FILE] [--obs-listen ADDR] [--no-service]`. It
+// needs no existing DB. Where this home has a daemon service, it also installs and starts the obs service next to it.
 func cmdInit(args []string, stdout, stderr io.Writer) int {
 	fs := newFlags("init", stderr)
 	home := fs.String("home", "", "factory home (default FACTORY_HOME, else ~/factory)")
 	email := fs.String("noreply-email", "", "factory config noreply_email: the commit identity sessions use and the merge checks")
 	terms := fs.String("scrub-terms", "", "factory config scrub_terms_file")
+	obsListen := fs.String("obs-listen", "", "runner setting obs_listen: the IP address `hivemill obs` binds (default loopback)")
+	noService := fs.Bool("no-service", false, "install, start and restart no service")
 	if fs.Parse(args) != nil || fs.NArg() > 0 {
-		fmt.Fprintln(stderr, "usage: hivemill init [--home DIR] [--noreply-email EMAIL] [--scrub-terms FILE]")
+		fmt.Fprintln(stderr, "usage: hivemill init [--home DIR] [--noreply-email EMAIL] [--scrub-terms FILE] [--obs-listen ADDR] [--no-service]")
 		return 2
 	}
 	h, err := absHome(*home)
@@ -80,7 +83,13 @@ func cmdInit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "hivemill:", err)
 		return 1
 	}
-	notes, err := hm.InitHome(h, hm.InitOptions{NoreplyEmail: *email, ScrubTermsFile: *terms})
+	if *obsListen != "" { // refuses a bad host and warns about a LAN one, as `hivemill obs` does
+		if *obsListen, err = hm.ObsListen(*obsListen, "", stderr); err != nil {
+			fmt.Fprintln(stderr, "hivemill:", err)
+			return 2
+		}
+	}
+	notes, err := hm.InitHome(h, hm.InitOptions{NoreplyEmail: *email, ScrubTermsFile: *terms, ObsListen: *obsListen})
 	for _, n := range notes {
 		fmt.Fprintln(stdout, n)
 	}
@@ -91,15 +100,22 @@ func cmdInit(args []string, stdout, stderr io.Writer) int {
 	for _, n := range hm.TrustNotes(hm.LoadEnv().UserHome, h) { // read-only: the owner accepts the prompt once
 		fmt.Fprintln(stdout, n)
 	}
+	e := hm.LoadEnv()
+	e.Home = h
+	if !*noService {
+		for _, n := range hm.InstallObsService(e, hm.LocalServiceHost(e.UserHome), *obsListen != "") {
+			fmt.Fprintln(stdout, n)
+		}
+	}
 	fmt.Fprintf(stdout, "factory home %s ready; use FACTORY_HOME=%s\n", h, h)
 	return 0
 }
 
-// cmdLaunchd is `hivemill launchd daemon|digest|health [--home DIR] [--path PATH] [--out FILE]`: the pass loop
-// (KeepAlive), the morning digest, or the dead-man check (`hivemill health --alert` every 5 minutes).
+// cmdLaunchd is `hivemill launchd daemon|digest|health|obs [--home DIR] [--path PATH] [--out FILE]`: the pass loop
+// (KeepAlive), the morning digest, the dead-man check (`hivemill health --alert` every 5 minutes), or the dashboard.
 func cmdLaunchd(args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill launchd daemon|digest|health [--home DIR] [--path PATH] [--out FILE]"
-	if len(args) == 0 || (args[0] != "daemon" && args[0] != "digest" && args[0] != "health") {
+	usage := "usage: hivemill launchd daemon|digest|health|obs [--home DIR] [--path PATH] [--out FILE]"
+	if len(args) == 0 || (args[0] != "daemon" && args[0] != "digest" && args[0] != "health" && args[0] != "obs") {
 		fmt.Fprintln(stderr, usage)
 		return 2
 	}

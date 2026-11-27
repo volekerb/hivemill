@@ -264,6 +264,11 @@ func TestT3TierRulesJSONEditHeld(t *testing.T) {
 	f.held(t, "f) ci/tier_rules.json: changes the tier classification")
 }
 
+func TestT3StoreGoEditHeld(t *testing.T) {
+	f := newT3(t, map[string]string{"go/internal/hm/store.go": "package hm\n\n// zz\n"})
+	f.held(t, "f) go/internal/hm/store.go: changes the merge step")
+}
+
 // limitsOf is what Check finds in one changed file of a green, mergeable PR.
 func limitsOf(f DiffFile) string {
 	return strings.Join(limitList(Check(Diff{f}, PRStatus{CI: "green", Mergeable: "MERGEABLE"})), "; ")
