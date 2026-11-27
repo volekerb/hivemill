@@ -58,6 +58,11 @@ func plannerRunner(t *testing.T, actor string) (*Runner, *SQLite, *fakeHC) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
+	// Tests that move the clock by hours check other wake rules, so open rows are not redelivered under them.
+	// TestPlannerWorkRedelivers puts the default back.
+	if err := s.SetCfg("planner_ack_s", "86400"); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.AddProject(Project{ID: "www", RepoPath: "/nonexistent", GHRepo: "zz-test/www"}); err != nil {
 		t.Fatal(err)
 	}
@@ -634,5 +639,124 @@ func TestPlannerWorkStartableLevelsClear(t *testing.T) {
 	}
 	if work, _ = s.OpenPlannerWork(); len(work) != 0 || cleared != 3 {
 		t.Fatalf("want all rows closed as cleared, got %d cleared, open %+v", cleared, work)
+	}
+}
+
+// An item the planner was told and did not close is typed again once planner_ack_s has passed.
+func TestPlannerWorkRedelivers(t *testing.T) {
+	r, s, f := plannerRunner(t, "runner")
+	_ = s.SetMeta("planner", "on")
+	_ = s.SetCfg("planner_ack_s", Defaults["planner_ack_s"]) // 900, which the clock steps below straddle
+	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+	t0 := time.Now().Truncate(time.Second)
+	attempts := func() (out []int) {
+		work, err := s.OpenPlannerWork()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range work {
+			out = append(out, w.Attempts)
+		}
+		return out
+	}
+	r.PlannerPass(t0)
+	got := f.sent()
+	if len(got) != 1 || !strings.HasPrefix(got[0], "hivemill-wake v1 ") || !strings.Contains(got[0], " reasons=not_dispatched:www queue_low:www=0/3") ||
+		!strings.Contains(got[0], " items=1:not_dispatched:www,2:queue_low:www") {
+		t.Fatalf("first wake: %q", got)
+	}
+	r.PlannerPass(t0.Add(899 * time.Second))
+	if n := len(f.sent()); n != 1 || fmt.Sprint(attempts()) != "[1 1]" {
+		t.Fatalf("redelivered after 899 s: %d wakes, attempts %v", n, attempts())
+	}
+	if err := r.PlannerDone([]int64{1}, ""); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.SetCfg("projects", "www") // not_dispatched stays gone, so only queue_low is left to redeliver
+	r.PlannerPass(t0.Add(901 * time.Second))
+	got = f.sent()
+	if len(got) != 2 || !strings.HasSuffix(got[1], " items=2:queue_low:www") || fmt.Sprint(attempts()) != "[2]" {
+		t.Fatalf("not redelivered after 901 s: %q, attempts %v", got, attempts())
+	}
+}
+
+// A level row closed while its level holds is opened again by the next pass; once the level is gone it closes as cleared.
+func TestPlannerWorkLevelReopens(t *testing.T) {
+	r, s, f := plannerRunner(t, "runner")
+	_ = s.SetMeta("planner", "on")
+	_ = s.SetCfg("projects", "www")
+	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+	t0 := time.Now()
+	r.PlannerPass(t0)
+	work, _ := s.OpenPlannerWork()
+	if len(work) != 1 || work[0].Kind != "queue_low" {
+		t.Fatalf("open: %+v", work)
+	}
+	first := work[0].ID
+	if err := r.PlannerDone([]int64{first}, ""); err != nil {
+		t.Fatal(err)
+	}
+	r.PlannerPass(t0.Add(time.Minute))
+	work, _ = s.OpenPlannerWork()
+	if len(work) != 1 || work[0].ID == first || work[0].Kind != "queue_low" || work[0].Attempts != 0 || len(f.sent()) != 1 {
+		t.Fatalf("want a new undelivered row inside the gap, got %+v, %d wakes", work, len(f.sent()))
+	}
+	r.PlannerPass(t0.Add(11 * time.Minute))
+	if got := f.sent(); len(got) != 2 || !strings.HasSuffix(got[1], fmt.Sprintf(" items=%d:queue_low:www", work[0].ID)) {
+		t.Fatalf("reopened row not delivered: %q", got)
+	}
+	addReady(t, s, 3)
+	r.PlannerPass(t0.Add(12 * time.Minute))
+	var why string
+	if err := s.db.QueryRow(`SELECT close_reason FROM planner_work WHERE id=?`, work[0].ID).Scan(&why); err != nil || why != "cleared" {
+		t.Fatalf("close reason %q, %v", why, err)
+	}
+	if left, _ := s.OpenPlannerWork(); len(left) != 0 || len(f.sent()) != 2 {
+		t.Fatalf("cleared level: open %+v, %d wakes", left, len(f.sent()))
+	}
+}
+
+// One wake line holds a bounded items= list; the rows left out go out with the next wake.
+// A second event on an open row is typed after the wake gap, not only after planner_ack_s; a manual reason has no comma.
+func TestPlannerWorkRepeatedEvent(t *testing.T) {
+	r, s, f := plannerRunner(t, "runner")
+	_ = s.SetMeta("planner", "on")
+	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+	t0 := time.Now()
+	r.enqueuePlannerWork([]string{"goal.checked:G-001"}, nil, false)
+	r.PlannerPass(t0)
+	r.enqueuePlannerWork([]string{"goal.checked:G-001", "manual:a;b"}, nil, false)
+	r.PlannerPass(t0.Add(11 * time.Minute))
+	if got := f.sent(); len(got) != 2 || !strings.Contains(got[1], "goal.checked:G-001") {
+		t.Fatalf("wakes: %q", got)
+	}
+	r.plannerWake(t0.Add(12*time.Minute), true, true, "retry T-1, then T-2")
+	if got := f.sent(); len(got) != 3 || !strings.Contains(got[2], "manual:retry_T-1;_then_T-2") {
+		t.Fatalf("manual wake: %q", got)
+	}
+}
+
+func TestPlannerWorkWakeBatches(t *testing.T) {
+	r, s, f := plannerRunner(t, "runner")
+	_ = s.SetMeta("planner", "on")
+	f.terms = []Terminal{{Name: PlannerName, State: "live", Agent: "claude-code", Status: "idle"}}
+	for i := range 40 {
+		_ = s.EnqueuePlannerWork("task.failed", fmt.Sprintf("T-%04d", i))
+	}
+	t0 := time.Now()
+	r.PlannerPass(t0)
+	work, _ := s.OpenPlannerWork()
+	left := 0
+	for _, w := range work {
+		if w.Attempts == 0 {
+			left++
+		}
+	}
+	if got := f.sent(); len(got) != 1 || left == 0 || strings.Contains(got[0], "T-0039") {
+		t.Fatalf("first wake: %d left, %q", left, got)
+	}
+	r.PlannerPass(t0.Add(11 * time.Minute))
+	if got := f.sent(); len(got) != 2 || !strings.Contains(got[1], "task.failed:T-0039") || strings.Contains(got[1], "T-0000") {
+		t.Fatalf("second wake: %q", got)
 	}
 }

@@ -61,6 +61,7 @@ var Defaults = map[string]string{
 	"planner_model":      "claude-opus-5-5", // the planner session's model (never Fable)
 	"planner_effort":     "medium",          // its --effort
 	"planner_wake_gap_s": "600",             // at most one wake per this many seconds; reasons in between are coalesced
+	"planner_ack_s":      "900",             // a delivered work item still open after this many seconds is delivered again
 	"idle_alert_min":     "20",              // `health --alert`: no dispatch for this many minutes while an active goal exists
 	"idle_alert_h":       "2",               // used in hours instead when idle_alert_min is 0
 	"ask_alert_h":        "1",               // `health --alert`: open owner questions older than this go out in one digest

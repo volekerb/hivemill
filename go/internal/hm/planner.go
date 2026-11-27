@@ -199,9 +199,15 @@ func (r *Runner) PlannerWake(now time.Time, why string) error {
 	return nil
 }
 
-// plannerWake decides and, when due, sends one wake line. Reasons that cannot go out now (debounce, busy, a failed
-// send) stay pending: the event cursor only moves once the planner has them.
+// plannerWake is one delivery pass: it records the new events and the current levels as work rows, then types one wake
+// line for the rows that are due, past the gap and only while the planner is idle (force skips both and sends every open
+// row). A row that could not go out stays undelivered, so a later pass sends it.
 func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) bool {
+	s, err := r.sq()
+	if err != nil {
+		r.printf("planner: %v\n", err)
+		return false
+	}
 	levels, err := r.PlannerLevels()
 	if err != nil {
 		r.printf("planner: %v\n", err)
@@ -209,84 +215,174 @@ func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) boo
 	}
 	evs, cursor := r.wakeEvents()
 	if manual != "" {
-		evs = append(evs, "manual:"+strings.ReplaceAll(manual, " ", "_"))
+		// no spaces or commas: both separate things in the wake line
+		evs = append(evs, "manual:"+strings.ReplaceAll(strings.Join(strings.Fields(manual), "_"), ",", ";"))
 	}
-	r.enqueuePlannerWork(nil, levels, true)
+	if r.enqueuePlannerWork(evs, levels, true) { // the cursor moves only once the events are rows
+		_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
+	}
+	work, err := s.OpenPlannerWork()
+	if err != nil {
+		r.printf("planner: work queue: %v\n", err)
+		return false
+	}
+	batch, items := wakeBatch(dueWork(work, now, time.Duration(cfgInt(r.Store, "planner_ack_s"))*time.Second, force))
+	live := map[string]string{}
+	for _, x := range levels {
+		kind, ref := levelRow(x)
+		live[kind+":"+ref] = x
+	}
+	var dueEvents, dueLevels []string
+	for _, w := range batch {
+		if x, ok := live[w.Kind+":"+w.Ref]; ok && plannerLevelKinds[w.Kind] {
+			dueLevels = append(dueLevels, x)
+		} else if w.Ref == "" {
+			dueEvents = append(dueEvents, w.Kind)
+		} else {
+			dueEvents = append(dueEvents, w.Kind+":"+w.Ref)
+		}
+	}
 	var last time.Time
 	if ts, err := strconv.ParseInt(r.Store.Meta("planner_last_wake"), 10, 64); err == nil {
 		last = time.Unix(ts, 0)
 	}
-	d := DecideWake(WakeInput{Now: now, LastWake: last, Levels: levels, Events: evs, LastFingerprint: r.Store.Meta("planner_fp"),
+	d := DecideWake(WakeInput{Now: now, LastWake: last, Levels: dueLevels, Events: dueEvents,
 		MinGap: time.Duration(cfgInt(r.Store, "planner_wake_gap_s")) * time.Second, Idle: idle, Force: force})
+	// planner_fp keeps a none_startable level the planner heard: noneStartable then holds it while every slot is busy
+	fp := ""
+	if strings.Contains(r.Store.Meta("planner_fp"), "none_startable:") {
+		fp = live["none_startable:"]
+	}
+	_ = r.Store.SetMeta("planner_fp", fp)
 	if !d.Wake {
-		if d.Advance {
-			_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
-			_ = r.Store.SetMeta("planner_fp", d.Fingerprint)
-			_ = r.Store.SetMeta("planner_pending", "")
-		} else {
-			_ = r.Store.SetMeta("planner_pending", d.Why+": "+strings.Join(d.Reasons, " "))
+		pending := ""
+		if len(d.Reasons) > 0 {
+			pending = d.Why + ": " + strings.Join(d.Reasons, " ")
 		}
+		_ = r.Store.SetMeta("planner_pending", pending)
 		return false
 	}
-	asks := 0
-	if s, err := r.sq(); err == nil {
-		open, _ := s.Asks("open")
-		asks = len(open)
+	open, _ := s.Asks("open")
+	msg := WakeMessage(now, d.Reasons, len(open))
+	if items != "" {
+		msg += " items=" + items
 	}
-	msg := WakeMessage(now, d.Reasons, asks)
 	if err := r.Prompt(PlannerName, msg); err != nil {
 		_ = r.Store.SetMeta("planner_pending", "send failed: "+firstLine(err.Error()))
 		return false
 	}
-	r.enqueuePlannerWork(evs, nil, false)
-	_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
-	_ = r.Store.SetMeta("planner_fp", d.Fingerprint)
+	ids := make([]int64, len(batch))
+	for i, w := range batch {
+		ids[i] = w.ID
+		if w.Kind == "none_startable" {
+			_ = r.Store.SetMeta("planner_fp", live["none_startable:"])
+		}
+	}
+	if err := s.DeliverPlannerWork(ids, now); err != nil {
+		r.printf("planner: work queue: %v\n", err)
+	}
 	_ = r.Store.SetMeta("planner_last_wake", strconv.FormatInt(now.Unix(), 10))
 	_ = r.Store.SetMeta("planner_pending", "")
-	_ = r.Log.Emit("planner.woken", nil, Event{Role: "planner", Data: map[string]any{"reasons": d.Reasons}})
+	_ = r.Log.Emit("planner.woken", nil, Event{Role: "planner", Data: map[string]any{"reasons": d.Reasons, "items": ids}})
 	return true
 }
 
+// dueWork are the open rows to type now: never delivered, or delivered more than ack ago and still open (all: every open
+// row). A manual wake not yet delivered goes first, then the rows told least often; dead_dep goes last, as there can be many.
+func dueWork(work []PlannerWork, now time.Time, ack time.Duration, all bool) []PlannerWork {
+	var due []PlannerWork
+	for _, w := range work {
+		t, err := time.Parse(time.RFC3339, w.Delivered)
+		if all || err != nil || now.Sub(t) > ack {
+			due = append(due, w)
+		}
+	}
+	sort.SliceStable(due, func(i, j int) bool {
+		a, b := due[i], due[j]
+		if first := a.Kind == "manual" && a.Attempts == 0; first != (b.Kind == "manual" && b.Attempts == 0) {
+			return first
+		}
+		if a.Attempts != b.Attempts {
+			return a.Attempts < b.Attempts
+		}
+		return a.Kind != "dead_dep" && b.Kind == "dead_dep"
+	})
+	return due
+}
+
+// maxWakeItems bounds the items= list of one wake line, in bytes.
+const maxWakeItems = 600
+
+// wakeBatch takes the rows that fit one wake line (at least one) and writes them as "<id>:<kind>:<ref>,...". The rows
+// left out are not marked delivered, so the next wake carries them.
+func wakeBatch(due []PlannerWork) ([]PlannerWork, string) {
+	var b strings.Builder
+	for i, w := range due {
+		item := fmt.Sprintf("%d:%s:%s", w.ID, w.Kind, w.Ref)
+		if i > 0 {
+			if b.Len()+1+len(item) > maxWakeItems {
+				return due[:i], b.String()
+			}
+			b.WriteByte(',')
+		}
+		b.WriteString(item)
+	}
+	return due, b.String()
+}
+
+// levelRow is the work row of a level: "queue_low:www=0/3" is kind queue_low, ref www.
+func levelRow(level string) (kind, ref string) {
+	kind, ref, _ = strings.Cut(level, ":")
+	ref, _, _ = strings.Cut(ref, "=")
+	if kind == "none_startable" {
+		ref = "" // what follows is live counts, not a subject
+	}
+	return kind, ref
+}
+
 // enqueuePlannerWork records wake reasons as open planner_work rows ("task.failed:T-1" is kind task.failed, ref T-1). A level
-// ("queue_low:www=0/3", kind queue_low, ref www) is a state: its row is opened while it holds and closed as cleared once it
-// no longer does. Events are enqueued only when the event cursor moves past them, so a replayed event never reopens a row.
-func (r *Runner) enqueuePlannerWork(events, levels []string, syncLevels bool) {
+// ("queue_low:www=0/3", kind queue_low, ref www) is a state: its row is open while it holds, a closed one is opened again,
+// and it is closed as cleared once the level no longer holds. It reports whether every row was recorded.
+func (r *Runner) enqueuePlannerWork(events, levels []string, syncLevels bool) bool {
 	s, err := r.sq()
 	if err != nil {
-		return
+		return false
 	}
+	ok := true
 	add := func(kind, ref string) {
 		if err := s.EnqueuePlannerWork(kind, ref); err != nil {
 			r.printf("planner: work queue: %v\n", err)
+			ok = false
 		}
 	}
 	for _, x := range events {
 		kind, ref, _ := strings.Cut(x, ":")
 		add(kind, ref)
+		if err := s.RedeliverPlannerWork(kind, ref); err != nil { // a repeat of an open event is news again
+			r.printf("planner: work queue: %v\n", err)
+			ok = false
+		}
 	}
 	if !syncLevels {
-		return
+		return ok
 	}
 	live := map[string]bool{}
 	for _, x := range levels {
-		kind, ref, _ := strings.Cut(x, ":")
-		ref, _, _ = strings.Cut(ref, "=")
-		if kind == "none_startable" {
-			ref = "" // what follows is live counts, not a subject
-		}
+		kind, ref := levelRow(x)
 		add(kind, ref)
 		live[kind+":"+ref] = true
 	}
 	open, err := s.OpenPlannerWork()
 	if err != nil {
 		r.printf("planner: work queue: %v\n", err)
-		return
+		return false
 	}
 	for _, w := range open {
 		if plannerLevelKinds[w.Kind] && !live[w.Kind+":"+w.Ref] {
 			_ = s.ClosePlannerWork([]int64{w.ID}, "cleared")
 		}
 	}
+	return ok
 }
 
 var plannerLevelKinds = map[string]bool{"queue_low": true, "not_dispatched": true, "goal_done": true, "unstartable": true,
@@ -324,9 +420,8 @@ type WakeDecision struct {
 	Why         string // why there is no wake
 }
 
-// DecideWake is the pure wake rule: wake when an event happened or a level appeared that the planner has not heard about,
-// at most once per MinGap and only while the planner is idle. A level that has not changed never wakes it again, and
-// neither does one that went away.
+// DecideWake is the pure wake rule: wake when there is an event or a level not in LastFingerprint, at most once per MinGap
+// and only while the planner is idle. The delivery pass gives it the due work rows only, so every one of them counts.
 func DecideWake(in WakeInput) WakeDecision {
 	levels := append([]string(nil), in.Levels...)
 	sort.Strings(levels)
@@ -459,7 +554,7 @@ func (r *Runner) wakeEvents() ([]string, int64) {
 	cur, _ := strconv.ParseInt(r.Store.Meta("planner_cursor"), 10, 64)
 	f, err := os.Open(r.Log.Path)
 	if err != nil {
-		return nil, 0
+		return nil, cur
 	}
 	defer f.Close()
 	if fi, err := f.Stat(); err == nil && fi.Size() < cur {

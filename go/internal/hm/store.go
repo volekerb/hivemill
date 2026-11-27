@@ -567,6 +567,12 @@ func (s *SQLite) EnqueuePlannerWork(kind, ref string) error {
 	return err
 }
 
+// RedeliverPlannerWork marks the open row of (kind, ref) as not delivered, so the next wake carries it again.
+func (s *SQLite) RedeliverPlannerWork(kind, ref string) error {
+	_, err := s.db.Exec(`UPDATE planner_work SET delivered=NULL WHERE kind=? AND ref=? AND closed IS NULL`, kind, ref)
+	return err
+}
+
 // OpenPlannerWork lists the open rows, oldest first.
 func (s *SQLite) OpenPlannerWork() ([]PlannerWork, error) {
 	rows, err := s.db.Query(`SELECT id,kind,ref,opened,COALESCE(delivered,''),attempts FROM planner_work WHERE closed IS NULL ORDER BY id`)
@@ -583,6 +589,17 @@ func (s *SQLite) OpenPlannerWork() ([]PlannerWork, error) {
 		out = append(out, w)
 	}
 	return out, rows.Err()
+}
+
+// DeliverPlannerWork records that the open rows ids were typed to the planner at `at`.
+func (s *SQLite) DeliverPlannerWork(ids []int64, at time.Time) error {
+	for _, id := range ids {
+		if _, err := s.db.Exec(`UPDATE planner_work SET delivered=?, attempts=attempts+1 WHERE id=? AND closed IS NULL`,
+			at.Format(time.RFC3339), id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ClosePlannerWork closes the open rows ids with a reason. It changes nothing and fails when any id is unknown or already closed.
