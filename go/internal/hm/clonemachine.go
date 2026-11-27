@@ -367,8 +367,9 @@ func (r *Runner) mapHome(p, remoteHome string) string {
 	return p
 }
 
-// pushGuardExport writes the guard export of a clone-mode machine: the coordinator's, with this machine's paths. The
-// guard there fails closed when the file is missing or old, as it does here.
+// pushGuardExport writes the guard export of a clone-mode machine: the coordinator's, with this machine's paths.
+// Known gap: with no factory database under remoteHome the guard there never reads this file for its DB-backed
+// decisions (exportNeeded in internal/guard), so a missing, old or unread export does not fail closed.
 func (r *Runner) pushGuardExport(machine, remoteHome string, now time.Time) error {
 	s, ok := r.Store.(*SQLite)
 	if !ok {
