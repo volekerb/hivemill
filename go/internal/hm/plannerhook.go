@@ -223,6 +223,8 @@ func unquotedMeta(s string) string {
 			q = c
 		case c == '#' && (i == 0 || s[i-1] == ' ' || s[i-1] == '\t' || s[i-1] == '|'): // it would comment out a heredoc
 			return "no comments"
+		case c == '{': // brace expansion makes words the checks below never see
+			return "no { outside quotes"
 		case c == ';' || c == '&' || c == '>' || c == '<' || c == '`' || c == '\n' || c == '(' || c == ')':
 			return fmt.Sprintf("one plain command per call: %q is not allowed outside quotes", c)
 		case c == '$' && i+1 < len(s) && s[i+1] == '(':
@@ -331,13 +333,15 @@ var filters = map[string]filterRule{
 	"tail": {value: map[string]int{"-n": 1, "-c": 1, "--lines": 1, "--bytes": 1}, refused: []string{"-f", "-F", "--follow"}},
 	"wc":   {refused: []string{"--files0-from"}},
 	"cut":  {value: map[string]int{"-d": 1, "-f": 1, "-c": 1, "-b": 1, "--delimiter": 1, "--fields": 1}},
-	"sort": {value: map[string]int{"-k": 1, "-t": 1, "--key": 1}, refused: []string{"-o", "--output", "--files0-from", "-T", "--temporary-directory"},
-		only: regexp.MustCompile(`^(-[bdfghiMnrsuV]+|-[bdfghiMnrsuV]*[kt].*|--(reverse|unique|numeric-sort|human-numeric-sort|version-sort|ignore-case)|--(key|field-separator)(=.*)?)$`)},
+	"sort": {value: map[string]int{"-k": 1, "-t": 1, "--key": 1, "--field-separator": 1}, refused: []string{"-o", "--output", "--files0-from", "-T", "--temporary-directory"},
+		only: regexp.MustCompile(`^(-[bcCdfghiMmnrsuVz]+|-[bcCdfghiMmnrsuVz]*[kt].*|--(reverse|unique|stable|numeric-sort|human-numeric-sort|version-sort|ignore-case)|--(key|field-separator)(=.*)?)$`)},
 	"grep": {value: map[string]int{"-e": 1, "-m": 1, "-A": 1, "-B": 1, "-C": 1, "--regexp": 1, "--max-count": 1}, positional: 1,
 		refused: []string{"-f", "--file", "-r", "-R", "--recursive", "--dereference-recursive", "-d", "--directories", "--exclude-from"}},
 	"jq": {value: map[string]int{"--arg": 2, "--argjson": 2, "--indent": 1}, positional: 1,
 		refused: []string{"-f", "--from-file", "--rawfile", "--slurpfile", "--argfile", "-L", "--jsonargs", "--args"}},
 }
+
+var bundledValueRe = regexp.MustCompile(`^-[bcCdfghiMmnrsuVz]+[kt]$`)
 
 func plannerFilter(argv []string) string {
 	name := filepath.Base(argv[0])
@@ -361,6 +365,9 @@ func plannerFilter(argv []string) string {
 				pos = rule.positional // the pattern comes with -e: no positional pattern is left
 			}
 			i += rule.value[a]
+			if rule.only != nil && bundledValueRe.MatchString(a) { // -rk 2: the value is the next token
+				i++
+			}
 			continue
 		}
 		pos++
