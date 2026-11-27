@@ -523,11 +523,22 @@ class GoImplTests(GuardDiffCase):
         self.assertEqual(self.run_tool("--strict").returncode, 2)
 
 
+LB_RUN = "~/.local/bin/factory whoami"  # the corpus run of ~/.local/bin/factory (go/internal/guard g2LbRun)
+
+
 class CorpusSanityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         with open(CORPUS) as f:
             cls.corpus = json.load(f)
+        # T-2168: a temp home whose ~/.local/bin/factory is a Python script, as in the Go g2LbPyFactory (T-2041), so
+        # the LB_RUN verdict does not depend on this machine's ~/.local/bin (a bash forwarder there is blocked)
+        tmp = tempfile.TemporaryDirectory(prefix="zz-test-lbhome-")
+        cls.addClassCleanup(tmp.cleanup)
+        cls.lb_home = tmp.name
+        os.makedirs(os.path.join(cls.lb_home, ".local", "bin"))
+        with open(os.path.join(cls.lb_home, ".local", "bin", "factory"), "w") as f:
+            f.write("#!/usr/bin/env python3\nimport sys\nprint(sys.argv)\n")
 
     def check(self, key, want):
         jobs = []
@@ -541,6 +552,8 @@ class CorpusSanityTests(unittest.TestCase):
                 modes = ["worker", "hq"]
             it = guard_diff.entry_item(e)  # a seeded entry (T-0762) runs against its own seeded temp home
             seed, xenv = (it[2] if len(it) > 2 else None), (it[3] if len(it) > 3 else None)
+            if cmd == LB_RUN and xenv is None:  # the guard reads the script it runs through $HOME: not this box's
+                xenv = (("HOME", self.lb_home),)
             jobs += [(cmd, m, role or "coder", seed, xenv) for m in modes]
         with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
             specs = dict.fromkeys((j[3] or (), guard_diff.agent_task(j[4])) for j in jobs
