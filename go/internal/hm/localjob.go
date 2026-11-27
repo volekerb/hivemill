@@ -73,8 +73,13 @@ func detach(dir, logfile, lockfile string, env []string, argv ...string) (int, e
 		return 0, err
 	}
 	defer lock.Close()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		return 0, fmt.Errorf("lock %s: %w", lockfile, err)
+	// a job just killed holds the lock until the kernel has ended it
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err == nil {
+			break
+		} else if time.Now().After(end) {
+			return 0, fmt.Errorf("lock %s: %w", lockfile, err)
+		}
 	}
 	out, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
@@ -721,9 +726,9 @@ func (r *Runner) adoptFinished(j *ciJob) {
 		return
 	}
 	j = jobs[i]
-	cmd, limit := r.projectGate(run.Project)
-	if cmd == "" {
-		return // unread or removed: nothing to compare the job with
+	cmd, limit, err := r.readProjectGate(run.Project)
+	if err != nil {
+		return // unread: nothing to compare the job with
 	}
 	if j.Cmd != cmd || j.LimitS != int(limit/time.Second) {
 		r.dropCIJob(j) // the project's gate_cmd or limit changed: this result says nothing about the new one

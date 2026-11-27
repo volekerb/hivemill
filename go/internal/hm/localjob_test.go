@@ -244,8 +244,7 @@ func TestLocalCIOldCommandResultDropped(t *testing.T) {
 	j := theJob(t, f.r, "T-0001")
 	release(t, dir, "T-0001", 0)
 	waitFor(t, "the result", ended(f.r, j))
-	j.Cmd = "zz-the-old-command"
-	if err := f.r.saveCIJob(j); err != nil {
+	if _, err := f.s.db.Exec(`UPDATE projects SET gate_cmd=''`); err != nil { // removed, which counts as changed
 		t.Fatal(err)
 	}
 	f.r.sweepLocalCI()
