@@ -95,6 +95,8 @@ None of these guards changes a config key.
 | `backup_target` | empty | `file:///path`, `s3://…` or `sftp://…` (see Backup) |
 | `standby_from` | empty | on a standby machine: where the primary's snapshots are, for the daemon's `standby check` ([standby.md](standby.md)); empty = no check |
 | `standby_check_days` | `30` | days between those checks; `0` = off |
+| `upstream` | empty | `TARGET:/FACTORY_HOME` of the factory runner, over ssh (see [Filing upstream](#filing-upstream)); empty = none |
+| `upstream_goal` | empty | the factory runner's goal that `upstream add` files under |
 | `max_five_hour_pct` | `92` | a fresh (under 3 h old) plan 5-hour usage reading at or over this holds new runs; same file and meaning as the old pipeline (`~/.claude/usage-limits.json`) |
 | `max_seven_day_pct` | `95` | the same for the 7-day usage |
 | `mem_floor_mb` | `1024` | MemAvailable below this holds new runs |
@@ -114,6 +116,23 @@ None of these guards changes a config key.
 The usage, memory and budget caps only hold new runs: active runs finish, except a run over `task_budget_usd`, which is stopped. The usage gate fails closed: a missing reading, a reading older than `usage_max_age_s`, an empty 7-day field or an empty 5-hour field (with `usage_require_5h=on`) holds new runs and writes one `usage.unknown` event a day per reason. The reading is `~/.claude/usage-limits.json`, which the status line writes from Claude Code's `rate_limits`. Claude Code includes `rate_limits.five_hour` only while the API reports a 5-hour window, which is why that field can be empty. The reading is refreshed only while some Claude session renders its status line, so an idle box goes stale. To avoid that deadlock, a **probe** is allowed: when the reading is stale, no run is active and its last values were under the caps, exactly one run may start (the effective `max_concurrent` is 1 until a fresh reading arrives) and a `usage.probe` event is written. If the fresh reading is over a cap, the gate closes as usual. A missing reading, or a stale one whose last values were over a cap, stays closed and alerts the owner once (owner alert feed `hivemill-usage`). The report header shows `UNKNOWN: <why>; dispatch held` while dispatch is held. On a plan whose API reports no 5-hour window, set `usage_require_5h off`: the field only appears while the API reports such a window. `hivemill report` starts with one line that shows every cap's current state, for example `usage 5h 42% / 7d 61% (caps 92%/95%), today $3.10 (cap $20.00 per project), 7d $9.80, task cap $5, mem 2.1 GB free (floor 1.0 GB)`.
 
 The settings files set the worker context caps from [token-discipline.md](token-discipline.md), `promptCacheTtl` and `subagentPromptCacheTtl` to `5m` (Claude Code 2.1.331 accepts `5m` or `1h`), and they disable the design, product-management, productivity, cowork and caveman plugins. They load no MCP servers. Fable is refused as a model.
+
+## Filing upstream
+
+A standalone runner's database has no factory backlog. Until one runner serves all projects, its planner files factory tasks on the factory runner over ssh:
+
+```
+hivemill config upstream TARGET:/path/to/factory-home   # ssh target, then FACTORY_HOME there
+hivemill config upstream_goal G-001                     # a goal of the factory runner
+hivemill upstream add --title T (--spec TEXT|--spec-file F) (--acceptance TEXT|--acceptance-file F) [--priority N]
+hivemill upstream status T-0042
+```
+
+- `add` runs the spec gate here, files with `hivemill task add` there and prints the new task id. `status` prints that task's state, PR and run.
+- The planner and the owner may call them. The planner gives the text itself or on stdin, never as a file path.
+- Both runners write an `upstream.filed` event. Here the remote id is in `data.upstream_task` (it is not a local task id); there `data.from` names the filing machine.
+- ssh runs in batch mode, so the key and host key must already be set up. The factory runner needs a `hivemill` that has `upstream`.
+- If `add` fails without a clear refusal, the task may exist: check the factory runner before filing again.
 
 ## Running it
 
@@ -266,7 +285,7 @@ Each run writes one `eval.done` event (mode, outcome, gate problems, review find
 
 ## Event log and report
 
-Each step appends one line to `state/hivemill/events.jsonl`. The events are `task.dispatched`, `session.started`, `session.ended`, `session.closed`, `gate.blocked`, `gate.passed`, `review.findings`, `ci.red`, `pr.refreshed`, `judge.verdict`, `judge.unasked_ok` (`data.change`, `data.why`, `data.pr`), `merge.guarded`, `pr.merged`, `pr.reverted`, `task.depends_repointed`, `task.failed`, `task.cancelled`, `goal.checked`, `clean.kept` and `clean.done`. Each line has `ts`, `task_id`, `goal_id`, `project`, `harness` (`claude-code`) and `machine` (config `machine_name`, else the hostname). Where they apply, it also has `session_id`, `role` (task, judge or review), `model`, `effort` and `cost_usd`. `session.ended` (written when a run is merged, fails or is cancelled) carries the session's cost and tokens. When a run is merged, fails, is cancelled or is evaluated, the runner also ends its task and judge sessions on the machine they run on, and writes `session.closed` (with `data.agent` and `data.machine`) for each one that was still live. The worktree stays until `hivemill clean` removes it. `hivemill obs` and `hivemill otel export` read this log: see [hivemill-observability.md](hivemill-observability.md). Run records (state, rounds, gate results, verdicts) are in the `hm_runs` table, sessions in `hm_sessions`, and gate logs and verdicts in `state/hivemill/runs/<task>/`.
+Each step appends one line to `state/hivemill/events.jsonl`. The events are `task.dispatched`, `session.started`, `session.ended`, `session.closed`, `gate.blocked`, `gate.passed`, `review.findings`, `ci.red`, `pr.refreshed`, `judge.verdict`, `judge.unasked_ok` (`data.change`, `data.why`, `data.pr`), `merge.guarded`, `pr.merged`, `pr.reverted`, `task.depends_repointed`, `task.failed`, `task.cancelled`, `goal.checked`, `clean.kept`, `clean.done` and `upstream.filed`. Each line has `ts`, `task_id`, `goal_id`, `project`, `harness` (`claude-code`) and `machine` (config `machine_name`, else the hostname). Where they apply, it also has `session_id`, `role` (task, judge or review), `model`, `effort` and `cost_usd`. `session.ended` (written when a run is merged, fails or is cancelled) carries the session's cost and tokens. When a run is merged, fails, is cancelled or is evaluated, the runner also ends its task and judge sessions on the machine they run on, and writes `session.closed` (with `data.agent` and `data.machine`) for each one that was still live. The worktree stays until `hivemill clean` removes it. `hivemill obs` and `hivemill otel export` read this log: see [hivemill-observability.md](hivemill-observability.md). Run records (state, rounds, gate results, verdicts) are in the `hm_runs` table, sessions in `hm_sessions`, and gate logs and verdicts in `state/hivemill/runs/<task>/`.
 
 `GET /api/obs/task?k=<machine>/<task>` on the `hivemill obs` server is one task's timeline as JSON: `task`, `goal`, `project`, `total_usd` (its sessions' costs summed) and `steps` in time order (dispatch, sessions, gate, review findings, red CI, judge verdicts, held, merged or failed, and `prompt.sent` with kind and path only). Each step has `ts`, `kind`, `role`, `summary`, `cost_usd` when known and `links` (the PR URL and the `/session` page). It takes the same `machine` and `harness` filters as the pages; an unknown key answers 404 with a JSON error, any method but GET 405.
 

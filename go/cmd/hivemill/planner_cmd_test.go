@@ -62,6 +62,51 @@ func TestPlannerSessionPermissions(t *testing.T) {
 	}
 }
 
+// upstream: the planner and the owner only, the planner never by file name; the factory side logs what it was sent.
+func TestUpstreamCLI(t *testing.T) {
+	c, home := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "g")
+	c.ok("task", "add", "--goal", "G-001", "--title", "t", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0",
+		"--upstream-from", "zz-box")
+	ev, err := (hm.Log{Path: filepath.Join(home, "state", "hivemill", "events.jsonl")}).Read()
+	if err != nil || len(ev) != 1 || ev[0].Event != "upstream.filed" || ev[0].TaskID != "T-0001" || ev[0].GoalID != "G-001" ||
+		ev[0].Project != "www" || ev[0].Data["from"] != "zz-box" {
+		t.Errorf("events %+v, err %v", ev, err)
+	}
+	add := []string{"upstream", "add", "--title", "t", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0"}
+	if code, _, errs := c.run("", add...); code != 3 || !strings.Contains(errs, "upstream is not set") {
+		t.Errorf("no config: exit %d %q", code, errs)
+	}
+	s, err := hm.OpenSQLite(filepath.Join(home, "db", "factory.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for name, role := range map[string]string{"planner": "planner", "zz-director": "director"} {
+		if err := s.AgentLive(name, role, name, "", "", "claude-opus-5-5", name, home, "{}"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("FACTORY_AGENT", "planner")
+	file := filepath.Join(t.TempDir(), "spec")
+	if err := os.WriteFile(file, []byte("s"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, flag := range []string{"--spec-file", "--acceptance-file"} {
+		if code, _, errs := c.run("", "upstream", "add", "--title", "t", flag, file); code != 3 || !strings.Contains(errs, "stdin") {
+			t.Errorf("planner %s: exit %d %q", flag, code, errs)
+		}
+	}
+	if code, _, errs := c.run("", add...); code != 3 || !strings.Contains(errs, "upstream is not set") {
+		t.Errorf("planner add: exit %d %q", code, errs)
+	}
+	t.Setenv("FACTORY_AGENT", "zz-director")
+	if code, _, errs := c.run("", add...); code != 3 || !strings.Contains(errs, "only the planner or the owner") {
+		t.Errorf("director add: exit %d %q", code, errs)
+	}
+}
+
 func TestPlannerHookCLI(t *testing.T) {
 	c := cli{t}
 	if code, _, errs := c.run(`{"tool_name":"Bash","tool_input":{"command":"hivemill run"}}`, "planner", "hook"); code != 2 || !strings.Contains(errs, "planner may") {

@@ -484,6 +484,7 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		depends := fs.String("depends", "", "comma-separated task ids that must be done first")
 		refileOf := fs.String("refile-of", "", "the cancelled or failed task this one files again: its dependents move to the new id")
 		draft := fs.Bool("draft", false, "store it as status draft: never dispatched, criteria may still fail the spec gate")
+		from := fs.String("upstream-from", "", "set by `upstream add`: the machine that files this task from another runner")
 		if fs.Parse(args[1:]) != nil || fs.NArg() > 0 || !goalRe.MatchString(*goal) || strings.TrimSpace(*title) == "" {
 			fmt.Fprintln(stderr, taskUsage)
 			return 2
@@ -539,6 +540,9 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		}
 		fmt.Fprint(stdout, strings.Replace(lint.String(), "new task", id, 1))
 		fmt.Fprintf(stdout, "%s %s in %s\n", id, status, strings.ToUpper(*goal))
+		if *from != "" {
+			logUpstreamFiled(r, s, id, strings.ToUpper(*goal), *from, stderr)
+		}
 		repoint(r, stderr)
 	case "list":
 		fs := newFlags("task list", stderr)

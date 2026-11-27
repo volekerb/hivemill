@@ -15,8 +15,9 @@ import (
 // The planner commands: `planner start|stop|wake|status|hook`, the owner queue `ask add|list|answer|withdraw` and the
 // morning `digest` (docs/hivemill-planner.md).
 
-// plannerMay is what the planner session may run: goals and tasks, run status, the report, health and its side of the
-// owner queue. Never a dispatch, a merge, the config or an answer to its own question.
+// plannerMay is what the planner session may run: goals and tasks, run status, the report, health, filing and following
+// factory tasks upstream and its side of the owner queue. Never a dispatch, a merge, the config or an answer to its own
+// question.
 func plannerMay(args []string) bool {
 	sub := ""
 	if len(args) > 1 {
@@ -27,6 +28,8 @@ func plannerMay(args []string) bool {
 		return true
 	case "run":
 		return sub == "status"
+	case "upstream":
+		return sub == "add" || sub == "status"
 	case "ask":
 		return sub == "add" || sub == "list" || sub == "withdraw"
 	}

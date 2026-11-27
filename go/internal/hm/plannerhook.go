@@ -201,7 +201,7 @@ var (
 	ghRead = map[string]map[string]bool{"pr": {"list": true, "view": true, "diff": true, "checks": true, "status": true},
 		"issue": {"list": true, "view": true}, "run": {"list": true, "view": true}, "repo": {"view": true}}
 	hmPlanner = map[string]map[string]bool{"goal": nil, "task": nil, "report": nil, "health": nil,
-		"run": {"status": true}, "ask": {"add": true, "list": true, "withdraw": true}}
+		"run": {"status": true}, "ask": {"add": true, "list": true, "withdraw": true}, "upstream": {"add": true, "status": true}}
 )
 
 func plannerCommand(argv []string) string {
@@ -216,7 +216,7 @@ func plannerCommand(argv []string) string {
 		}
 		subs, ok := hmPlanner[argv[1]]
 		if !ok {
-			return fmt.Sprintf("the planner may run hivemill goal, task, run status, report, health and ask add|list|withdraw, not %q", argv[1])
+			return fmt.Sprintf("the planner may run hivemill goal, task, run status, report, health, upstream add|status and ask add|list|withdraw, not %q", argv[1])
 		}
 		if subs != nil && (len(argv) < 3 || !subs[argv[2]]) {
 			return fmt.Sprintf("hivemill %s: the planner may only run %s", argv[1], strings.Join(keys(subs), ", "))
