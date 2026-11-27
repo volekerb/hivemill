@@ -70,7 +70,9 @@ func (r *Runner) upstreamRun(target, home, stdin string, args ...string) (string
 		return out, nil
 	}
 	err := fmt.Errorf("ssh %s: exit %d: %s", target, rc, strings.TrimSpace(errs+"\n"+out))
-	if rc == 2 || rc == 3 || rc == 127 {
+	// a Go crash exits 2 as well, and it may come after the task was stored
+	crashed := strings.Contains(errs, "panic:") || strings.Contains(errs, "fatal error:")
+	if rc == 2 && !crashed || rc == 3 || rc == 127 {
 		err = fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return out, err

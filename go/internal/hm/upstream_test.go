@@ -74,6 +74,10 @@ func TestUpstreamAddLintsAndFiles(t *testing.T) {
 			t.Errorf("remote exit %s: %v", rc, err)
 		}
 	}
+	m.stub("hivemill", "echo 'panic: zz' >&2; exit 2") // a crash, not a usage error: it may have stored the task
+	if _, err := r.UpstreamAdd(task); errors.Is(err, ErrRefused) || err == nil || !strings.Contains(err.Error(), "may have been filed") {
+		t.Errorf("remote crash: %v", err)
+	}
 	m.stub("hivemill", "exit 1")
 	if _, err := r.UpstreamAdd(task); err == nil || !strings.Contains(err.Error(), "may have been filed") {
 		t.Errorf("remote failure: %v", err)

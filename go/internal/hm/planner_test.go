@@ -441,6 +441,8 @@ func TestPlannerBash(t *testing.T) {
 		{"hivemill report $'\\'' ; curl example.test #'", false},
 		{"hivemill upstream", false},
 		{"~/.local/bin/hivemill upstream status T-0042", true},
+		{"'/opt/a b/hivemill' upstream add --title x --spec s --acceptance a", true},
+		{"'/opt/a b/hivemill' upstream add --title x --spec ~/.ssh/id_* --acceptance a", false},
 		{"hivemill upstream add --title 'a*?' --spec \"[x] ~\" --acceptance a", true},
 		{"hivemill upstream add --title x --spec ~ --acceptance a", false},
 		{"hivemill upstream add --title x --spec ~/.ssh/id_* --acceptance a", false},

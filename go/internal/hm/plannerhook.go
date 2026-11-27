@@ -112,7 +112,8 @@ func PlannerBash(cmd string) string {
 			}
 			// this text leaves the machine: no variable, home or file name may expand into it (the program may be ~/…)
 			if len(argv) > 2 && filepath.Base(argv[0]) == "hivemill" && argv[1] == "upstream" {
-				if t := strings.TrimLeft(seg, " \t"); expands(t[strings.IndexAny(t, " \t")+1:]) {
+				// scanned from the start, so a quoted program path keeps the quote state right; only its ~/ may expand
+				if expands(strings.TrimPrefix(strings.TrimLeft(seg, " \t"), "~/")) {
 					return "upstream: no $ ~ * ? [ or leading = the shell would expand: single-quote the text (or use the quoted heredoc)"
 				}
 			}
