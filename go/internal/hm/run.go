@@ -187,6 +187,9 @@ func (r *Runner) Start(id string) error {
 	if t.Status != "todo" && t.Status != "in_progress" {
 		return fmt.Errorf("%w: %s is %s; the runner starts todo or in_progress tasks", ErrRefused, id, t.Status)
 	}
+	if t.Kind == KindRelease { // no session: no spec gate, run cap or model usage applies
+		return r.startRelease(t)
+	}
 	if probs := LintProblems(t.Acceptance); len(probs) > 0 {
 		return fmt.Errorf("%w: %s fails the spec gate (`hivemill task lint %s`):\n  - %s", ErrRefused, id, id, strings.Join(probs, "\n  - "))
 	}
@@ -523,6 +526,7 @@ func (r *Runner) Pass(startNew bool) error {
 		return err
 	}
 	r.sweepLocalCI() // results first: they free job slots, and the runs below read them
+	r.sweepReleases()
 	if runs, err = r.Store.Runs(); err != nil {
 		return err
 	}
@@ -556,6 +560,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if !startNew || r.Draining() {
 		return nil
 	}
+	r.startReleases()
 	pre := r.ReadCaps(time.Now())
 	if why := pre.DispatchBlock(r.Store, ""); why != "" {
 		r.budgetEvent(why)
@@ -572,6 +577,9 @@ func (r *Runner) Pass(startNew bool) error {
 		return err
 	}
 	for _, t := range cands {
+		if t.Kind == KindRelease {
+			continue
+		}
 		if r.runCapBlock() != "" {
 			break
 		}

@@ -177,6 +177,12 @@ func (x *Row) apply(e Event) {
 		x.Outcome = "FAIL: " + truncate(fmt.Sprint(e.Data["reason"]), 60)
 	case "task.cancelled":
 		x.Outcome = "cancelled"
+	case "release.started":
+		x.Outcome = "open"
+	case "release.done":
+		x.Outcome = "released"
+	case "release.failed":
+		x.Outcome = "FAIL: " + truncate(fmt.Sprint(e.Data["why"]), 60)
 	case "eval.done":
 		x.Outcome = "eval: " + fmt.Sprint(e.Data["outcome"])
 	case "goal.checked":

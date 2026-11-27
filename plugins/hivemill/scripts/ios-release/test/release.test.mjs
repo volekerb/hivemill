@@ -320,6 +320,14 @@ describe("release.sh", { concurrency: 4 }, () => {
     });
   });
 
+  it("HIVEMILL_RELEASE_BUILD other than the next build exits 5 before any build", async (t) => {
+    const ctx = await setup(t);
+    const r = await run(ctx, [], { HIVEMILL_RELEASE_BUILD: "4" });
+    assert.equal(r.code, 5, r.out);
+    assert.match(r.stderr, /the next build is 5, but only build 4 is approved/);
+    assert.equal(byKind(ctx, "archive").length, 0);
+  });
+
   it("unknown group name exits 6 before any build", async (t) => {
     const ctx = await setup(t, { config: { testerGroup: ["No Such Group"] } });
     const r = await run(ctx);

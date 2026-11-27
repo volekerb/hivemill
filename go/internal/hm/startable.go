@@ -39,11 +39,12 @@ func (r *Runner) Queue(projects []string) (ready []Task, blocked []BlockedTask, 
 			skip(BlockedRun, "has a run")
 			continue
 		}
-		if strings.TrimSpace(t.Spec) == "" {
+		release := t.Kind == KindRelease // it has no session, so no spec and no criteria to gate
+		if !release && strings.TrimSpace(t.Spec) == "" {
 			skip(BlockedLint, "lint: no spec")
 			continue
 		}
-		if probs := LintProblems(t.Acceptance); len(probs) > 0 {
+		if probs := LintProblems(t.Acceptance); !release && len(probs) > 0 {
 			skip(BlockedLint, "lint: "+probs[0])
 			continue
 		}
@@ -154,7 +155,7 @@ func (r *Runner) reportUnstartable() error {
 		now = append(now, b.Task.ID)
 	}
 	for _, id := range told {
-		if t, err := r.Store.Task(id); err == nil && !queued[id] && t.Status == "todo" &&
+		if t, err := r.Store.Task(id); err == nil && !queued[id] && t.Status == "todo" && t.Kind != KindRelease &&
 			(strings.TrimSpace(t.Spec) == "" || len(LintProblems(t.Acceptance)) > 0) {
 			now = append(now, id)
 		}

@@ -21,6 +21,7 @@ type Task struct {
 	ID, Goal, Team, Title, Spec, Acceptance, Role, Status, DependsOn, Branch, Worktree, PRURL, Tier string
 	Project, RepoPath, GHRepo, Base                                                                 string
 	Priority                                                                                        sql.NullInt64
+	Kind                                                                                            string // KindRelease, or "" for a coding task
 }
 
 // Run is the runner's record of one task. It is stored as JSON in hm_runs so new fields need no migration.
@@ -137,6 +138,8 @@ CREATE TABLE IF NOT EXISTS planner_work (id INTEGER PRIMARY KEY AUTOINCREMENT, k
   opened TEXT NOT NULL, delivered TEXT, attempts INTEGER NOT NULL DEFAULT 0, closed TEXT, close_reason TEXT);
 CREATE UNIQUE INDEX IF NOT EXISTS planner_work_open ON planner_work(kind, ref) WHERE closed IS NULL;
 CREATE TABLE IF NOT EXISTS hm_refile (task TEXT PRIMARY KEY, refile_of TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS hm_release (task TEXT PRIMARY KEY, state TEXT NOT NULL DEFAULT '', result TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS hm_release_project (project TEXT PRIMARY KEY, cmd TEXT NOT NULL);
 `
 
 // OpenSQLite opens an existing factory DB read-write (never creates one) and makes sure the hm_* tables exist.
@@ -184,12 +187,13 @@ func (s *SQLite) now() string { return s.Now().Format("2006-01-02T15:04:05-07:00
 
 const taskCols = `t.id, t.goal_id, COALESCE(t.team_id,''), t.title, COALESCE(t.spec,''), COALESCE(t.acceptance,''), t.role, t.status,
  t.depends_on, COALESCE(t.branch,''), COALESCE(t.worktree,''), COALESCE(t.pr_url,''), COALESCE(t.tier,''), COALESCE(g.project_id,''),
- COALESCE(p.repo_path,''), COALESCE(p.gh_repo,''), COALESCE(p.base_branch,'main'), t.priority`
+ COALESCE(p.repo_path,''), COALESCE(p.gh_repo,''), COALESCE(p.base_branch,'main'), t.priority,
+ COALESCE((SELECT 'release' FROM hm_release hr WHERE hr.task=t.id),'')`
 
 func scanTask(sc interface{ Scan(...any) error }) (*Task, error) {
 	var t Task
 	err := sc.Scan(&t.ID, &t.Goal, &t.Team, &t.Title, &t.Spec, &t.Acceptance, &t.Role, &t.Status, &t.DependsOn, &t.Branch,
-		&t.Worktree, &t.PRURL, &t.Tier, &t.Project, &t.RepoPath, &t.GHRepo, &t.Base, &t.Priority)
+		&t.Worktree, &t.PRURL, &t.Tier, &t.Project, &t.RepoPath, &t.GHRepo, &t.Base, &t.Priority, &t.Kind)
 	return &t, err
 }
 
@@ -802,6 +806,19 @@ func (s *SQLite) SetGoalStatus(id, status string) error {
 // AddTask files a coder task in an existing goal with the next free T-NNNN id. status is todo or draft. refileOf, when
 // given and not empty, is the task this one files again.
 func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string, priority int, refileOf ...string) (string, error) {
+	of := ""
+	if len(refileOf) > 0 {
+		of = refileOf[0]
+	}
+	return s.addTask(goal, title, spec, acceptance, status, dependsOn, priority, of, false)
+}
+
+// AddReleaseTask files a task of kind release.
+func (s *SQLite) AddReleaseTask(goal, title, spec, status, dependsOn string, priority int) (string, error) {
+	return s.addTask(goal, title, spec, "", status, dependsOn, priority, "", true)
+}
+
+func (s *SQLite) addTask(goal, title, spec, acceptance, status, dependsOn string, priority int, refileOf string, release bool) (string, error) {
 	var n int
 	if err := s.db.QueryRow(`SELECT count(*) FROM goals WHERE id=?`, goal).Scan(&n); err != nil {
 		return "", err
@@ -826,8 +843,13 @@ func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string
 		VALUES(?,?,?,?,?,'coder',?,?,?,?,?)`, id, goal, title, spec, acceptance, status, dependsOn, s.now(), s.now(), priority); err != nil {
 		return "", err
 	}
-	if len(refileOf) > 0 && refileOf[0] != "" {
-		if _, err := tx.Exec(`INSERT OR REPLACE INTO hm_refile(task,refile_of) VALUES(?,?)`, id, refileOf[0]); err != nil {
+	if release {
+		if _, err := tx.Exec(`INSERT OR REPLACE INTO hm_release(task) VALUES(?)`, id); err != nil {
+			return "", err
+		}
+	}
+	if refileOf != "" {
+		if _, err := tx.Exec(`INSERT OR REPLACE INTO hm_refile(task,refile_of) VALUES(?,?)`, id, refileOf); err != nil {
 			return "", err
 		}
 	}
@@ -1015,4 +1037,64 @@ func (s *SQLite) CloseAlert(kind, ref string) error {
 func (s *SQLite) CloseAlertKind(kind string) error {
 	_, err := s.db.Exec(`UPDATE owner_alert_feed SET closed=? WHERE kind=? AND closed IS NULL`, s.now(), kind)
 	return err
+}
+
+// ReleaseCmd is the project's release_cmd ("" = none).
+func (s *SQLite) ReleaseCmd(project string) (string, error) {
+	var cmd string
+	err := s.db.QueryRow(`SELECT cmd FROM hm_release_project WHERE project=?`, project).Scan(&cmd)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return cmd, err
+}
+
+// SetReleaseCmd sets the project's release_cmd; "" drops it.
+func (s *SQLite) SetReleaseCmd(project, cmd string) error {
+	if cmd == "" {
+		_, err := s.db.Exec(`DELETE FROM hm_release_project WHERE project=?`, project)
+		return err
+	}
+	_, err := s.db.Exec(`INSERT OR REPLACE INTO hm_release_project(project,cmd) VALUES(?,?)`, project, cmd)
+	return err
+}
+
+// Release is the state and the summary JSON of a release task.
+func (s *SQLite) Release(task string) (state, result string, err error) {
+	err = s.db.QueryRow(`SELECT state, result FROM hm_release WHERE task=?`, task).Scan(&state, &result)
+	return state, result, err
+}
+
+// SetRelease writes the state and the summary JSON of a release task.
+func (s *SQLite) SetRelease(task, state, result string) error {
+	_, err := s.db.Exec(`UPDATE hm_release SET state=?, result=? WHERE task=?`, state, result, task)
+	return err
+}
+
+// ClaimRelease moves a queued release to running; false when it was not queued.
+func (s *SQLite) ClaimRelease(task string) (bool, error) {
+	res, err := s.db.Exec(`UPDATE hm_release SET state=? WHERE task=? AND state=?`, releaseRunning, task, releaseQueued)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+// LiveReleases are the release tasks that are queued or running.
+func (s *SQLite) LiveReleases() ([]string, error) {
+	rows, err := s.db.Query(`SELECT task FROM hm_release WHERE state IN (?,?) ORDER BY task`, releaseQueued, releaseRunning)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }

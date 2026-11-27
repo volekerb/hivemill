@@ -300,6 +300,10 @@ if [ -n "$RESUME" ]; then
 else
   BUILD="$(asc next-build --app-id "$APP_ID" --version "$VERSION")" || fail "$?" "could not compute the next build number"
 fi
+# set by a caller whose approval names one build number: refuse before anything is built or uploaded
+if [ -n "${HIVEMILL_RELEASE_BUILD:-}" ] && [ "$BUILD" != "$HIVEMILL_RELEASE_BUILD" ]; then
+  fail 5 "the next build is $BUILD, but only build $HIVEMILL_RELEASE_BUILD is approved"
+fi
 
 TG_NAME=()
 TG_ID=()
