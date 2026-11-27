@@ -221,6 +221,11 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 
 // Merge is one merge attempt of a run in state merging.
 func (r *Runner) Merge(run *Run) {
+	defer func() {
+		if run.State != Merging && run.State != Gated {
+			r.endCIWait(run) // `hivemill merge T` has no Advance around it to close the wait's alert
+		}
+	}()
 	if run.Eval {
 		run.MergeHold = "eval run: never merged"
 		r.fail(run, "eval run reached the merge step: refused, eval runs are never merged")
@@ -241,7 +246,9 @@ func (r *Runner) Merge(run *Run) {
 				r.localCIWaits(run, in.Head, time.Now())
 				return
 			}
-			r.endCIWait(run)
+		}
+		if run.LocalCI != nil && run.LocalCI.Head == in.Head {
+			r.endCIWait(run) // the result is in, whoever read it
 		}
 		r.postLocalCI(run)
 		if d.Why == ciPending {

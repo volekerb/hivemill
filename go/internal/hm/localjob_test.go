@@ -356,3 +356,47 @@ func TestLocalCIMergeWaitAlerts(t *testing.T) {
 		t.Fatalf("%+v", f.run.CI)
 	}
 }
+
+// A daemon that died while it started a job (no pid recorded) neither starts a second copy nor loses the first; a wrapper
+// that dies alone takes what it ran with it; a changed gate_cmd gets its own job.
+func TestLocalCIJobLeftovers(t *testing.T) {
+	f, dir := jobFake(t)
+	if err := f.r.localCI(f.run, headA); !errors.Is(err, errLocalCIRunning) {
+		t.Fatal(err)
+	}
+	j := theJob(t, f.r, "T-0001")
+	waitFor(t, "gate_cmd", func() bool { return started(dir) == "T-0001" })
+	pid := j.PID
+	j.PID = 0
+	if err := f.r.saveCIJob(j); err != nil {
+		t.Fatal(err)
+	}
+	f.r.sweepLocalCI()
+	if got := f.r.jobPID(theJob(t, f.r, "T-0001")); got != pid || started(dir) != "T-0001" {
+		t.Fatalf("pid %d, want %d; started %q", got, pid, started(dir))
+	}
+
+	group := func() bool { return syscall.Kill(-pid, 0) == nil }
+	if err := syscall.Kill(pid, syscall.SIGKILL); err != nil { // the wrapper alone
+		t.Fatal(err)
+	}
+	waitFor(t, "the wrapper to end", func() bool { st, _, _ := f.r.ciJobState(j); return st == jobGone })
+	if !group() {
+		t.Fatal("gate_cmd should still run")
+	}
+	f.r.sweepLocalCI()
+	waitFor(t, "the old group to end", func() bool { return !group() })
+	waitFor(t, "the second start", func() bool { return started(dir) == "T-0001 T-0001" })
+
+	old := theJob(t, f.r, "T-0001").PID
+	if _, err := f.r.requestCIJob(f.run, headA, "exit 0", time.Minute, f.r.logDir(f.run), false); err != nil &&
+		!errors.Is(err, errLocalCIRunning) {
+		t.Fatal(err)
+	}
+	waitFor(t, "the old job to end", func() bool { return syscall.Kill(old, 0) != nil || zombie(old) })
+	for _, j := range f.r.ciJobs() {
+		if j.Cmd != "exit 0" {
+			t.Errorf("job of the old command: %+v", j)
+		}
+	}
+}

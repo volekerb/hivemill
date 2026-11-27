@@ -47,6 +47,8 @@ type ciJob struct {
 	StartFailed bool `json:",omitempty"`
 	// Dropped: no longer wanted, but not yet confirmed ended (its machine was unreachable)
 	Dropped bool `json:",omitempty"`
+	// TimedOut: killed at its limit; exit 124 is still to be written if the result file is missing
+	TimedOut bool `json:",omitempty"`
 }
 
 const (
@@ -59,7 +61,7 @@ const (
 
 // ciWrapper runs gate_cmd ($1) and then puts its exit code in $2. The lock on fd 3 is the wrapper's alone: gate_cmd and
 // whatever it leaves behind do not hold it.
-const ciWrapper = `bash -c "$1" 3>&-; rc=$?; echo "$rc" >"$2.tmp" && mv -f "$2.tmp" "$2"`
+const ciWrapper = `echo $$ >"${2%/*}/pid"; bash -c "$1" 3>&-; rc=$?; echo "$rc" >"$2.tmp" && mv -f "$2.tmp" "$2"`
 
 // detach starts argv in its own session with its output in logfile. The process holds an flock on lockfile for as long
 // as it lives, which is how any later process tells that it still runs (a pid alone may be reused).
@@ -213,6 +215,12 @@ func (r *Runner) startCIJob(j *ciJob) error {
 	}
 	result := filepath.Join(j.Dir, "result")
 	_ = os.Remove(result)
+	_ = os.Remove(filepath.Join(j.Dir, "pid"))
+	// recorded as started before the launch: a daemon that dies in between must not start a second copy beside it
+	j.Started, j.PID = time.Now(), 0
+	if err := r.saveCIJob(j); err != nil {
+		return fail("%v", err)
+	}
 	switch {
 	case j.Machine != "":
 		rcFile := path.Join(j.RDir, "rc")
@@ -239,24 +247,61 @@ func (r *Runner) startCIJob(j *ciJob) error {
 		}
 		j.PID = pid
 	}
-	j.Started = time.Now()
+	return nil
+}
+
+// jobPID is the job's process: the recorded one, else (a daemon that died while it started the job) the one the wrapper
+// wrote down.
+func (r *Runner) jobPID(j *ciJob) int {
+	if j.PID > 1 || j.Machine != "" {
+		return j.PID
+	}
+	b, err := os.ReadFile(filepath.Join(j.Dir, "pid"))
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	return n
+}
+
+// killCIOrphans ends what still runs in the group of a job whose wrapper died alone (gate_cmd would run on beside its
+// replacement). Only while no process has the wrapper's pid: a reused pid is someone else's.
+func (r *Runner) killCIOrphans(j *ciJob) error {
+	pid := r.jobPID(j)
+	if pid <= 1 {
+		return nil
+	}
+	if j.Machine != "" {
+		if _, err := r.rshOK(j.Machine, "", 30*time.Second,
+			fmt.Sprintf("ps -p %[1]d >/dev/null 2>&1 || kill -KILL -%[1]d 2>/dev/null || true", pid)); err != nil {
+			return fmt.Errorf("%w: %w", errLocalCIMachine, err)
+		}
+		return nil
+	}
+	if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+	}
 	return nil
 }
 
 // killCIJob ends a job that still runs. An error means it may still run: its machine could not be reached.
 func (r *Runner) killCIJob(j *ciJob) error {
 	st, _, err := r.ciJobState(j)
-	if err != nil || st != jobRunning || j.PID <= 1 {
+	if err == nil && st == jobGone {
+		return r.killCIOrphans(j)
+	}
+	pid := r.jobPID(j)
+	if err != nil || st != jobRunning || pid <= 1 {
 		return err
 	}
 	if j.Machine != "" {
 		if _, err := r.rshOK(j.Machine, "", 30*time.Second,
-			fmt.Sprintf("kill -KILL -%[1]d 2>/dev/null || kill -KILL %[1]d 2>/dev/null || true", j.PID)); err != nil {
+			fmt.Sprintf("kill -KILL -%[1]d 2>/dev/null || kill -KILL %[1]d 2>/dev/null || true", pid)); err != nil {
 			return fmt.Errorf("%w: %w", errLocalCIMachine, err)
 		}
 		return nil
 	}
-	_ = syscall.Kill(-j.PID, syscall.SIGKILL)
+	_ = syscall.Kill(-pid, syscall.SIGKILL)
 	return nil
 }
 
@@ -341,8 +386,22 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 				unknown(j, err)
 				continue
 			}
-			r.timeOutCIJob(j, limit)
+			j.TimedOut = true
+			_ = r.saveCIJob(j)
+			if err := r.timeOutCIJob(j, limit); err != nil {
+				unknown(j, err)
+			}
 		case jobGone:
+			if j.TimedOut { // killed at its limit, and 124 did not get written then: never a restart
+				if err := r.timeOutCIJob(j, time.Duration(j.LimitS)*time.Second); err != nil {
+					unknown(j, err)
+				}
+				continue
+			}
+			if err := r.killCIOrphans(j); err != nil {
+				unknown(j, err)
+				continue
+			}
 			if j.Restarts > 0 {
 				j.Failed = "the local gate job ended twice without a result"
 			} else {
@@ -371,13 +430,14 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 			continue
 		}
 		if err := r.startCIJob(j); err != nil {
+			j.Started, j.PID = time.Time{}, 0
 			errs[j.key()] = err
 			if errors.Is(err, errLocalCIMachine) {
 				down[j.Machine] = err
 			} else {
 				j.Failed, j.StartFailed = err.Error(), true
-				_ = r.saveCIJob(j)
 			}
+			_ = r.saveCIJob(j)
 			continue
 		}
 		if err := r.saveCIJob(j); err != nil {
@@ -393,21 +453,23 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 }
 
 // timeOutCIJob records exit 124 for a job that was killed at its limit, unless it finished before the kill.
-func (r *Runner) timeOutCIJob(j *ciJob, limit time.Duration) {
+func (r *Runner) timeOutCIJob(j *ciJob, limit time.Duration) error {
 	note := fmt.Sprintf("\ntimed out after %s\n", limit)
 	if j.Machine != "" {
-		_, _, _ = r.rsh(j.Machine, "", 30*time.Second, fmt.Sprintf("[ -f %[3]s ] || { printf %%s %[1]s >>%[2]s; echo 124 >%[3]s; }",
-			shlex.Quote(note), shlex.Quote(path.Join(j.RDir, "log")), shlex.Quote(path.Join(j.RDir, "rc"))))
-		return
+		if _, err := r.rshOK(j.Machine, "", 30*time.Second, fmt.Sprintf("[ -f %[3]s ] || { printf %%s %[1]s >>%[2]s; echo 124 >%[3]s; }",
+			shlex.Quote(note), shlex.Quote(path.Join(j.RDir, "log")), shlex.Quote(path.Join(j.RDir, "rc")))); err != nil {
+			return fmt.Errorf("%w: %w", errLocalCIMachine, err)
+		}
+		return nil
 	}
 	if _, err := os.Stat(filepath.Join(j.Dir, "result")); err == nil {
-		return
+		return nil
 	}
 	if f, err := os.OpenFile(filepath.Join(j.Dir, "gate-cmd.log"), os.O_APPEND|os.O_WRONLY, 0o600); err == nil {
 		_, _ = f.WriteString(note)
 		_ = f.Close()
 	}
-	_ = writeFile(filepath.Join(j.Dir, "result"), "124", 0o600)
+	return writeFile(filepath.Join(j.Dir, "result"), "124", 0o600)
 }
 
 // requestCIJob is one look at the (run, head) job, made and queued when there is none. With a result it records it on
@@ -426,6 +488,11 @@ func (r *Runner) requestCIJob(run *Run, head, cmd string, limit time.Duration, l
 		case j.Task != run.Task:
 		case j.key() != want.key() || j.Head != head || (retry && j.Failed != ""):
 			r.dropCIJob(j) // an older head's job has no use any more
+		case j.Cmd != cmd || j.LimitS != int(limit/time.Second):
+			// the project's gate_cmd or limit changed: the old one's result says nothing about the new one
+			if !r.dropCIJob(j) {
+				return "", fmt.Errorf("%w: %s: a dropped job is not confirmed ended", errLocalCIMachine, j.Machine)
+			}
 		case j.Dropped:
 			if !r.dropCIJob(j) {
 				return "", fmt.Errorf("%w: %s: a dropped job is not confirmed ended", errLocalCIMachine, j.Machine)
