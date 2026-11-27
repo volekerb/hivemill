@@ -39,6 +39,8 @@ func fxHome(t testing.TB, factory string) string {
 	}
 	write(".gitconfig", "[user]\n\tname = fixture\n", 0o644)
 	write(".config/git/config", "", 0o644)
+	write(".bashrc", "", 0o644) // symlink cases link to the rc files: the targets exist, as on a real box
+	write(".zshrc", "", 0o644)
 	write(".local/go/bin/go", "\x7fELF", 0o755)
 	write(".local/go/bin/gofmt", "\x7fELF", 0o755)
 	write("factory/bin/factory", "#!/usr/bin/env python3\nimport sys\nprint(sys.argv)\n", 0o755)
