@@ -1,8 +1,34 @@
 {
-  "teams": [{ "machine": "buildbox" }],
-  "machine_labels": { "local": "MacBook", "buildbox": "Lenovo", "macmini": "Mac mini" },
-  "projects": [
-    { "name": "Team B", "space": "macmini/teamb", "boss": "teamb-boss",
-      "wait_patterns": [{ "match": "SIM GO", "clear": "GO GIVEN", "label": "waits for SIM GO", "after_min": 15 }] }
-  ]
+ "factories": [
+  {
+   "label": "Workshop",
+   "url": "http://192.0.2.10:7461",
+   "space": "buildbox/hivemill"
+  },
+  {
+   "label": "Pilot",
+   "url": "http://127.0.0.1:7461",
+   "machine": "macmini"
+  }
+ ],
+ "machine_labels": {
+  "local": "MacBook",
+  "buildbox": "Lenovo",
+  "macmini": "Mac mini",
+  "box-b": "Bench 2"
+ },
+ "projects": [
+  {
+   "name": "Team B",
+   "space": "macmini/teamb",
+   "wait_patterns": [
+    {
+     "match": "SIM GO",
+     "clear": "GO GIVEN",
+     "label": "waits for SIM GO",
+     "after_min": 15
+    }
+   ]
+  }
+ ]
 }

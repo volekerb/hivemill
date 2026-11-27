@@ -7,5 +7,5 @@ func resetHookState() {
 	cachedExport.done = false
 	cachedExport.path, cachedExport.exp, cachedExport.err = "", nil, nil
 	SessionID = ""
-	SetPyHook("")
+	SetHookPath("")
 }

@@ -598,8 +598,8 @@ func mkTmpFactory(t *testing.T) string {
 func TestAnalyzerLiveHomesAddTheHooksRepoRoot(t *testing.T) {
 	root := t.TempDir()
 	hook := filepath.Join(root, "roles", "hooks", "worker-guard.py")
-	SetPyHook(hook)
-	t.Cleanup(func() { SetPyHook("") })
+	SetHookPath(hook)
+	t.Cleanup(func() { SetHookPath("") })
 	found := false
 	for _, h := range analyzerLiveHomes() {
 		if h == pyRealpath(root) {
@@ -609,7 +609,7 @@ func TestAnalyzerLiveHomesAddTheHooksRepoRoot(t *testing.T) {
 	if !found {
 		t.Errorf("analyzerLiveHomes() = %v, want it to hold %s (dirname^3 of the hook)", analyzerLiveHomes(), root)
 	}
-	SetPyHook("")
+	SetHookPath("")
 	for _, h := range analyzerLiveHomes() {
 		if h == pyRealpath(root) {
 			t.Error("repo root of an unnamed hook counted as live")

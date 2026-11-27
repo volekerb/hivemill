@@ -1,40 +1,35 @@
 // Data for the Hivemill dashboard's two faces (status bar and dashboard tab).
 // One copy at a time collects (a lease in shared state); every copy reads shared("hivemill.data").
-// Settings: ~/.config/hivemill/dashboard.json (see config.example.json and docs/herdr-app-dashboard.md).
+// The source is each factory's read-only obs API (`hivemill obs`: /api/obs/now, flow, machines, spend, task).
+// Settings: ~/.config/hivemill/dashboard.json (see dashboard.example.json and docs/herdr-app-dashboard.md).
 
 import { exec, hc, agents, terminals, spaces, machines, readTextFile, home, shared, setShared } from "herdr";
 
 const DATA = "hivemill.data";
 const LEASE = "hivemill.lease";
-const EVERY = { config: 60_000, factory: 45_000, usage: 60_000, prs: 120_000, scan: 120_000, res: 60_000, cost: 300_000, machines: 60_000 };
+const EVERY = { config: 60_000, now: 30_000, flow: 120_000, mach: 60_000, spend: 300_000, usage: 60_000, scan: 120_000, machines: 60_000 };
 const LEASE_MS = 40_000;
+export const OBS_URL = "http://127.0.0.1:7461";
 
 export const DEFAULTS = {
-  // url: where the factory web UI answers. machine: an `hc machine ls` name; when set, the dashboard asks the
-  // factory from that machine (curl there), so a factory bound to 127.0.0.1 works without opening a port.
-  // web_url: what the "Open" buttons use; default url when machine is unset.
-  factory: { url: "http://127.0.0.1:8765", machine: null, web_url: null },
-  // teams: one entry per Hivemill team (each with its own boss), {machine, url, web_url, label}; machine is an
-  // `hc machine ls` name or null for this computer, label overrides the machine's display name. Without teams,
-  // the single "factory" entry above is the only team. A team without a Hivemill API is declared per project
-  // with projects[].boss (see below).
-  teams: [],
-  // "auto": show an org (claude, cursor) only while it has a boss, goals or agents. Or a list: ["claude"].
-  orgs: "auto",
-  // Optional: projects whose agents run in this Herdr app. github: OWNER/NAME for the PR list (needs gh).
-  // space: the Herdr space id or name holding the project's agents. wait_patterns: screen text that means an
-  // agent waits on a person, e.g. {"match": "NEEDS REVIEW", "clear": "REVIEWED", "label": "waits for review",
-  // "after_min": 15}. space may name a space on an hc machine: "macmini/teamb" (machine/space). boss: the name of
-  // the project's boss terminal, or {"match": "<regex>"}; the dashboard then shows that boss and the project's
-  // other agents as its lanes, for a team that runs no Hivemill API.
+  // One entry per factory (a hivemill runner with its own obs server): {url, label, machine, web_url, space}.
+  // url: where `hivemill obs` answers. label: the factory's name on this computer. machine: an `hc machine ls` name;
+  // when set, the dashboard asks from that machine (curl there), so an obs bound to 127.0.0.1 needs no open port.
+  // web_url: what the "Open" links use; default url when machine is unset. space: the Herdr space of the factory's
+  // planner ("machine/space" for a space on an hc machine); the card's Planner button selects it.
+  factories: [{ url: OBS_URL }],
+  // Optional: spaces whose agents' screens are read. space: the Herdr space id or name ("machine/space" on an hc
+  // machine). wait_patterns: screen text that means an agent waits on a person, e.g. {"match": "NEEDS REVIEW",
+  // "clear": "REVIEWED", "label": "waits for review", "after_min": 15}.
   projects: [],
   // Optional: a JSON file with {five_hour_pct, seven_day_pct, updated_at} for this machine's Claude usage.
   usage_file: null,
-  alerts: { context_below_pct: 10, stall_minutes: 60, usage_warn_pct: 80, usage_danger_pct: 90, factory_down_minutes: 5 },
+  alerts: { context_below_pct: 10, usage_warn_pct: 80, usage_danger_pct: 90, factory_down_minutes: 5, stale_minutes: 3 },
   // A regex with one group: the percent of context left, as the agents' status line prints it.
   context_pattern: "ctx (\\d+)% left",
-  // Machines in the Resources card: "auto" (this computer and every `hc machine ls` machine) or a list of names,
-  // "local" for this computer. machine_labels: display names, e.g. {"local": "Laptop", "box": "Build server"}.
+  // Machines in the Machines card: "auto" (this computer and every `hc machine ls` machine) or a list of names,
+  // "local" for this computer. machine_labels: display names, by hc name or by the name a factory reports,
+  // e.g. {"local": "Laptop", "box": "Build server"}.
   machines: "auto",
   machine_labels: {},
   // Screens for docs and films: see demo() below.
@@ -72,6 +67,7 @@ function merge(base, over) {
 
 const expand = (p) => (typeof p === "string" && p.startsWith("~/") ? `${home()}${p.slice(1)}` : p);
 
+
 // One collector at a time across all copies; a copy that stops renewing loses the lease.
 export function tick(me, cx, force = false) {
   const lease = shared(LEASE);
@@ -90,69 +86,55 @@ export function tick(me, cx, force = false) {
 }
 
 function collect(cx, due) {
-  if (due("factory")) loadFactory(cx);
   if (due("usage")) loadUsage(cx);
-  if (due("prs")) loadPrs(cx);
   if (due("scan")) scanAgents(cx);
   if (due("machines")) loadMachines(cx);
-  // Each team is asked in its own spawned fetch, so a slow team does not delay another.
-  for (const team of teamsOf()) {
-    if (due("res"))
-      loadJson(cx, "res", team, "resources", (r) => ({
-        res: { rows: r.gate?.rows ?? [], machine: r.machine ?? {}, cursor: r.system?.cursor ?? null, usage: r.system?.usage ?? null },
-      }));
-    if (due("cost")) {
-      loadJson(cx, "cost", team, "throughput", (r) => ({
-        through: { cost: r.cost ?? {}, median_s: r.median_s, p90_s: r.p90_s, merges: r.merges, days: r.days, perDay: r.merges_per_day ?? [] },
-      }));
-      loadJson(cx, "cost", team, "tokens", (r) => {
-        const rows = (x) => (Array.isArray(x) && Array.isArray(x[0]) ? x[0] : Array.isArray(x) ? x : []); // by_* come as [rows, count]
-        return {
-          tokens: {
-            period: r.period, total: r.totals?.cost ?? null, byOrg: rows(r.by_org), byDay: rows(r.by_day),
-            byTask: rows(r.by_task).filter((x) => x.key !== "unattributed").sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0)).slice(0, 8),
-          },
-        };
-      });
-    }
+  for (const k of ["now", "flow", "mach", "spend"]) if (due(k)) put({ at: stamp(k) });
+  // Each factory is asked in its own spawned fetches, so a slow one does not delay another.
+  for (const f of factoriesOf()) {
+    if (due("now")) loadNow(cx, f);
+    if (due("flow")) loadFlow(cx, f);
+    if (due("mach")) loadPart(cx, f, "machines", (r) => ({ mach: { cap: r.cap ?? null, rows: (r.machines ?? []).map(machRow) } }));
+    if (due("spend")) loadPart(cx, f, "spend?days=7&by=task", (r) => ({ spend: spendOf(r.spend ?? {}) }));
   }
 }
 
-// ---- teams -------------------------------------------------------------------------------------------------------
-// A team is one Hivemill API (with its own boss, lanes, goals). "teams" in the settings lists them; the old single
-// "factory" entry is read as the only team when "teams" is absent.
+// ---- factories -----------------------------------------------------------------------------------------------------
+// A factory is one hivemill runner and its obs server. "factories" in the settings lists them.
 
-export const ROLE = "factory"; // the role tag on a team's machine; a tag, never part of a name
+export const ROLE = "factory"; // the tag on a factory's card and machine; a tag, never part of a name
 
 const isLoopback = (url) => /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(url ?? "");
 
-export function teamsOf(cfg = config()) {
-  const list = Array.isArray(cfg.teams) && cfg.teams.length ? cfg.teams : [cfg.factory ?? DEFAULTS.factory];
+export function factoriesOf(cfg = config()) {
+  const list = Array.isArray(cfg.factories) && cfg.factories.length ? cfg.factories : DEFAULTS.factories;
   const seen = new Set();
-  return list.map((t, i) => {
-    const machine = t?.machine || null;
-    let key = machine ?? "local";
+  return list.map((f, i) => {
+    const machine = f?.machine || null;
+    const url = String(f?.url || OBS_URL).replace(/\/+$/, "");
+    let key = machine ? `${machine} ${url}` : url;
     if (seen.has(key)) key = `${key}#${i}`;
     seen.add(key);
-    return { key, machine, url: t?.url || DEFAULTS.factory.url, web_url: t?.web_url ?? null, label: t?.label ?? null };
+    return { key, index: i, machine, url, web_url: f?.web_url ?? null, label: f?.label ?? null, space: f?.space ?? null };
   });
 }
 
-const teamState = (d, key) => d.team?.[key] ?? {};
+const facState = (d, key) => d.fac?.[key] ?? {};
 
-function putTeam(key, patch) {
-  const all = data().team ?? {};
-  put({ team: { ...all, [key]: { ...(all[key] ?? {}), ...patch } } });
+function putFac(key, patch) {
+  const all = data().fac ?? {};
+  put({ fac: { ...all, [key]: { ...(all[key] ?? {}), ...patch } } });
 }
 
 // The machines, as the dashboard names them: machine_labels first, then the hc name ("This computer" for local).
-// Demo mode never shows a raw hc name or a hidden word: those become "Machine N" / "This computer".
+// Demo mode never shows a raw name or a hidden word: those become "Machine N" / "This computer".
 function machineOrder(d) {
   const names = [];
   const add = (n) => n != null && !names.includes(n) && names.push(n);
   for (const m of Object.values(d.machines ?? {})) add(m.name);
-  for (const t of teamsOf()) add(t.machine);
+  for (const f of factoriesOf()) add(f.machine);
   for (const p of config().projects ?? []) add(resolveSpace(p.space, spaces())?.machine);
+  for (const st of Object.values(d.fac ?? {})) for (const m of st?.mach?.rows ?? []) add(m.name);
   return names;
 }
 
@@ -165,13 +147,14 @@ export function labelFor(machine, d = data()) {
   return machine;
 }
 
-// What a team is called: its own "label", else its machine's name. A Hivemill team reached by a network URL (no hc
-// machine, not this computer) has no machine name to show, so it needs a "label".
-export function teamLabel(team, d = data()) {
-  // Demo mode shows only machine_labels values or generic names, so a team's own "label" is not used there.
-  if (team.label && !demo()) return String(team.label);
-  if (team.machine || isLoopback(team.url)) return labelFor(team.machine, d);
-  return demo() ? `Machine ${teamsOf().findIndex((t) => t.key === team.key) + 1}` : "Server";
+// What a factory is called: its own "label", else its hc machine's name, else "Factory N". Demo mode shows only
+// generic names, unless the label is a machine_labels value.
+export function factoryLabel(f, d = data()) {
+  const generic = `Factory ${f.index + 1}`;
+  if (f.label && !demo()) return String(f.label);
+  if (f.label && Object.values(config().machine_labels ?? {}).includes(f.label) && !hidden(f.label)) return String(f.label);
+  if (f.machine) return labelFor(f.machine, d);
+  return isLoopback(f.url) && !demo() ? labelFor(null, d) : generic;
 }
 
 // Where this machine's screen text comes from: an agents() row names its machine, else the address prefix
@@ -214,78 +197,6 @@ export function scanTargets(agentList = agents(), spaceList = spaces(), termList
     out.push({ agent: a, machine, project: proj, name: shownName(names.get(a.address) || a.tab_name || a.address) });
   }
   return out;
-}
-
-const bossMatches = (boss, row) => {
-  const names = [row.name, row.tab, row.address].filter(Boolean);
-  if (typeof boss === "string") return names.includes(boss);
-  try {
-    const re = new RegExp(boss?.match ?? "(?!)");
-    return names.some((n) => re.test(n));
-  } catch {
-    return false;
-  }
-};
-
-// A team with no Hivemill API, declared by projects[].boss: its boss and lanes come from the app's agents list.
-export function projectTeams(cfg = config(), spaceList = spaces(), agentList = agents(), termList = terminals(), d = data()) {
-  const names = new Map(termList.map((t) => [t.address, t.name]));
-  const out = [];
-  for (const p of cfg.projects ?? []) {
-    if (!p.boss) continue;
-    const sp = resolveSpace(p.space, spaceList);
-    if (!sp) continue;
-    const machine = sp.machine ?? null;
-    const row = (a) => ({ address: a.address, tab: a.tab_name, name: clean(shownName(names.get(a.address) || a.tab_name || a.address)), status: a.status ?? "unknown" });
-    const onMachine = agentList.filter((a) => agentMachine(a, spaceList) === machine);
-    const members = onMachine.filter((a) => a.space === sp.id).map(row);
-    const boss = members.find((r) => bossMatches(p.boss, r)) ?? onMachine.map(row).find((r) => bossMatches(p.boss, r)) ?? null;
-    out.push({
-      key: `project:${p.name ?? p.space}`, kind: "project", machine, label: labelFor(machine, d), project: p.name ?? null,
-      role: null, boss, lanes: members.filter((r) => r !== boss),
-    });
-  }
-  return out;
-}
-
-// What a lane says: its boss and director, then its counts.
-const laneText = (l) =>
-  [l.boss ? `boss ${l.boss.status ?? "–"}` : null, l.director ? `director ${l.director.status ?? "–"}` : null,
-    `${l.workers_live ?? 0} workers · ${l.leads_awake ?? 0} leads awake · ${l.goals_active ?? 0} goals`].filter(Boolean).join(" · ");
-
-// The teams to show, in order: each Hivemill team, then each project-declared one. One team's trouble stays its own.
-export function teamViews(d = data(), inp = {}) {
-  const views = teamsOf().map((team) => {
-    const st = teamState(d, team.key);
-    const orgs = orgsShown(d, team.key);
-    const home = st.home ?? null;
-    return {
-      key: team.key, kind: "hivemill", team, machine: team.machine, label: teamLabel(team, d), role: ROLE, orgs, state: st, home,
-      error: st.error ?? null, downSince: st.downSince ?? null, at: st.at ?? null,
-      lanes: (home?.lanes ?? []).filter((l) => orgs.has(l.org)).map((l) => ({ org: l.org, label: l.label ?? l.org, boss: l.boss?.status ?? null, director: l.director?.status ?? null, tone: l.health?.tone, text: laneText(l), health: l.health?.text ?? "" })),
-    };
-  });
-  return [...views, ...projectTeams(config(), inp.spaces ?? spaces(), inp.agents ?? agents(), inp.terminals ?? terminals(), d)];
-}
-
-// The status bar's team segments: "<label> factory 3 live", "<label> offline", "<label>…", or a project team's boss.
-export function barSegments(d = data(), inp = {}) {
-  return teamViews(d, inp).map((v) => {
-    if (v.kind === "project") {
-      const live = v.lanes.filter((l) => l.status === "working" || l.status === "idle" || l.status === "done" || l.status === "blocked").length;
-      return { key: v.key, kind: v.kind, label: v.label, tag: null, offline: false, needs: 0, perPR: null, today: null, text: v.boss ? `${v.label} boss ${v.boss.status} · ${live} lanes` : `${v.label} no boss` };
-    }
-    const f = v.home;
-    const live = f ? f.system?.agents?.live ?? f.live_agents ?? 0 : null;
-    const needs = f ? (f.needs_you ?? []).filter((n) => (!n.org || v.orgs.has(n.org)) && !hidden(n.subject)).length : 0;
-    const st = v.state;
-    return {
-      key: v.key, kind: v.kind, label: v.label, tag: f ? ROLE : null, offline: Boolean(v.error), needs,
-      text: v.error && !f ? `${v.label} offline` : f ? `${v.label} ${ROLE} ${live} live` : `${v.label}…`,
-      perPR: st.through?.cost?.cost_median != null ? `${money(st.through.cost.cost_median)}/PR` : null,
-      today: st.tokens?.byDay?.[0]?.cost != null ? `${money(st.tokens.byDay[0].cost)} today` : null,
-    };
-  });
 }
 
 // The bar's leftmost label: the machine of the active space.
@@ -353,60 +264,167 @@ function stamp(k) {
   return { ...(data().at ?? {}), [k]: Date.now() };
 }
 
+
 function loadConfig(cx, then) {
   put({ at: stamp("config") });
   cx.spawn(async (cx) => {
     let cfg = DEFAULTS, error = null;
     try {
       const text = await readTextFile(`${home()}/.config/hivemill/dashboard.json`);
-      if (text) cfg = merge(DEFAULTS, JSON.parse(text));
+      if (text) {
+        const own = JSON.parse(text);
+        cfg = merge(DEFAULTS, own);
+        // Settings written for the old dashboard name a server that no longer exists.
+        if (!Array.isArray(own.factories) && (own.teams || own.factory))
+          error = 'dashboard.json: list your factories under "factories" ("teams" and "factory" are no longer read)';
+      }
     } catch (e) {
       error = `dashboard.json: ${e?.message ?? e}`;
     }
-    const before = data().config ? JSON.stringify(teamsOf(data().config)) : null;
+    const before = data().config ? JSON.stringify(factoriesOf(data().config)) : null;
     put({ config: cfg, configError: error });
-    // A changed team address: drop what the old one said and ask the new one now.
-    if (before !== null && before !== JSON.stringify(teamsOf(cfg))) put({ at: { config: Date.now() }, team: null });
+    // A changed factory address: drop what the old one said and ask the new one now.
+    if (before !== null && before !== JSON.stringify(factoriesOf(cfg))) put({ at: { config: Date.now() }, fac: null });
     then?.(cx);
     cx.notify();
   });
 }
 
-// GET <team>/api/<path> as JSON, from the team's machine when one is configured.
-async function teamGet(team, path, maxS) {
-  const url = `${team.url.replace(/\/$/, "")}/api/${path}`;
-  // curl, not fetch: a hard timeout when the team is off the network.
-  const r = await exec("curl", ["-sS", "-m", String(maxS), "--connect-timeout", "4", url], { timeout: (maxS + 5) * 1000, on: team.machine || undefined });
+// GET <factory>/api/obs/<path> as JSON, from the factory's machine when one is configured.
+async function factoryGet(f, path, maxS) {
+  const url = `${f.url}/api/obs/${path}`;
+  // curl, not fetch: a hard timeout when the factory is off the network.
+  const r = await exec("curl", ["-sS", "-m", String(maxS), "--connect-timeout", "4", url], { timeout: (maxS + 5) * 1000, on: f.machine || undefined });
   if (r.code !== 0) throw new Error(r.stderr.trim().replace(/^curl: \(\d+\)\s*/, "") || `curl exit ${r.code}`);
   return JSON.parse(r.stdout);
 }
 
-export function webUrl(path = "", team = teamsOf()[0]) {
-  const base = team.web_url || (team.machine ? null : team.url) || null;
-  return base ? `${base.replace(/\/$/, "")}${path}` : null;
+export function webUrl(path = "", f = factoriesOf()[0]) {
+  const base = f?.web_url || (f?.machine ? null : f?.url) || null;
+  return base ? `${String(base).replace(/\/+$/, "")}${path}` : null;
 }
+export const taskUrl = (f, key) => webUrl(`/task?k=${encodeURIComponent(key)}`, f);
 
-function loadFactory(cx) {
-  put({ at: stamp("factory") });
-  for (const team of teamsOf())
-    cx.spawn(async (cx) => {
-      try {
-        putTeam(team.key, { home: await teamGet(team, "home.json", 8), at: Date.now(), error: null, downSince: null });
-      } catch (e) {
-        putTeam(team.key, { error: String(e?.message ?? e), downSince: teamState(data(), team.key).downSince ?? Date.now() });
-      }
-      cx.notify();
-    });
-}
-
-function loadJson(cx, stampKey, team, name, pick) {
-  put({ at: stamp(stampKey) });
+// The Now page: what runs, what is held, the planner, the projects. One answer sets the factory's "last heard" time;
+// a failure keeps the last answer and starts the down clock.
+function loadNow(cx, f) {
   cx.spawn(async (cx) => {
     try {
-      putTeam(team.key, pick(await teamGet(team, `${name}.json`, 20)));
+      const r = await factoryGet(f, "now", 8);
+      putFac(f.key, { now: nowOf(r.page ?? {}), at: Date.now(), error: null, downSince: null });
+      cx.notify();
+      await loadHeld(f, r.page?.held ?? []);
+    } catch (e) {
+      putFac(f.key, { error: String(e?.message ?? e), downSince: facState(data(), f.key).downSince ?? Date.now() });
+    }
+    cx.notify();
+  });
+}
+
+// Why a run is held, and its PR: the Now page has neither, the task's trace has both (its last run.held step).
+async function loadHeld(f, held) {
+  const prev = facState(data(), f.key).held ?? {};
+  const out = {};
+  for (const h of held) {
+    const id = `${h.key}@${h.since ?? ""}`;
+    if (prev[id]) {
+      out[id] = prev[id];
+      continue;
+    }
+    try {
+      const tr = await factoryGet(f, `task?k=${encodeURIComponent(h.key)}`, 8);
+      const step = [...(tr.steps ?? [])].reverse().find((s) => s.kind === "run.held");
+      const pr = step?.links?.pr ?? [...(tr.steps ?? [])].reverse().find((s) => s.links?.pr)?.links.pr ?? null;
+      out[id] = { reason: step ? String(step.summary ?? "").replace(/^held:\s*/, "") : null, pr: /^https:\/\//.test(pr ?? "") ? pr : null };
+    } catch {}
+  }
+  putFac(f.key, { held: out });
+}
+
+// The Flow page: runs stuck in a stage, merges per day, and today's failed runs. The task list itself is not kept.
+function loadFlow(cx, f) {
+  cx.spawn(async (cx) => {
+    try {
+      const r = (await factoryGet(f, "flow?days=14", 20)).flow ?? {};
+      putFac(f.key, {
+        flow: { stuck: (r.stuck ?? []).map(runRow), stuckAfter: r.stuck_after ?? null, perDay: r.merged_per_day ?? [], merged: r.merged ?? 0, days: r.days ?? 14, at: Date.now() },
+      });
+      const day = (await factoryGet(f, "flow?days=1", 20)).flow ?? {};
+      putFac(f.key, { failed: failedOf(day.tasks ?? []), today: (day.tasks ?? []).slice(0, 200).map(runRow) });
     } catch {}
     cx.notify();
   });
+}
+
+// One task's trace (its steps from dispatch to merge), asked when someone opens it.
+export function loadTrace(cx, f, key) {
+  putFac(f.key, { trace: { key, loading: true } });
+  cx.spawn(async (cx) => {
+    try {
+      const tr = await factoryGet(f, `task?k=${encodeURIComponent(key)}`, 12);
+      putFac(f.key, { trace: { key, task: tr.task, goal: tr.goal ?? null, project: tr.project ?? null, usd: tr.total_usd ?? null,
+        steps: (tr.steps ?? []).slice(-400).map((s) => ({ ts: s.ts, kind: s.kind, role: s.role ?? null, model: s.model ?? null, machine: s.machine ?? null, summary: String(s.summary ?? "").slice(0, 600), usd: s.cost_usd ?? null, pr: s.links?.pr ?? null })) } });
+    } catch (e) {
+      putFac(f.key, { trace: { key, error: String(e?.message ?? e) } });
+    }
+    cx.notify();
+  });
+}
+
+function loadPart(cx, f, path, pick) {
+  cx.spawn(async (cx) => {
+    try {
+      putFac(f.key, pick(await factoryGet(f, path, 20)));
+    } catch {}
+    cx.notify();
+  });
+}
+
+// ---- what is kept of each answer (small: the shared state is copied on every read) ---------------------------------
+
+const runRow = (r) => ({
+  key: r.key, task: r.task, goal: r.goal ?? null, project: r.project ?? null, machine: r.machine ?? null, stage: r.stage ?? null,
+  title: r.title || null, since: r.since ?? null, age_sec: r.age_sec ?? 0, usd: r.usd ?? null, sessions: r.sessions ?? null, outcome: r.outcome ?? null,
+});
+
+function nowOf(p) {
+  return {
+    running: (p.running ?? []).map(runRow), held: (p.held ?? []).map(runRow),
+    asks: (p.open_asks ?? []).filter((a) => a.open > 0).map((a) => ({ project: a.project, open: a.open })),
+    planner: (p.planner ?? []).map((x) => ({ machine: x.machine ?? null, last_event: x.last_event ?? null, last_at: x.last_at ?? null, usd: x.usd ?? null })),
+    projects: (p.projects ?? []).map((x) => ({
+      project: x.project, usd_today: x.usd_today, usd_7d: x.usd_7d, usd_30d: x.usd_30d, active: x.active, merged: x.merged,
+      per_pr: x.usd_per_merged_pr, hours: x.median_hours_to_merge, pending: x.cost_pending ?? 0,
+    })),
+  };
+}
+
+const machRow = (m) => ({
+  name: m.name, coordinator: Boolean(m.coordinator), down: Boolean(m.down), running: (m.running ?? []).length, free_slots: m.free_slots ?? null,
+  mem_available_mb: m.mem_available_mb ?? null, last_seen: m.last_seen || null,
+});
+
+function spendOf(s) {
+  return {
+    usd: s.usd ?? null, days: s.days ?? 7, pollingPct: s.polling_pct ?? null,
+    daily: (s.daily ?? []).map((x) => ({ day: x.day, usd: (x.task ?? 0) + (x.judge ?? 0) + (x.planner ?? 0) })),
+    top: (s.rows ?? []).filter((x) => x.task_key).sort((a, b) => (b.usd ?? 0) - (a.usd ?? 0)).slice(0, 12).map((x) => ({ key: x.task_key, usd: x.usd, sessions: x.sessions ?? null })),
+    roles: (s.roles ?? []).map((x) => ({ role: x.role, usd: x.usd, pollingPct: x.polling_pct ?? null })), unattributed: s.unattributed_usd ?? null,
+  };
+}
+
+// Today's failed runs, grouped by what failed: "stalled", "gate blocked 3 times in round 1", "budget", ...
+export function failedOf(tasks) {
+  const rows = tasks.filter((t) => String(t.outcome ?? "").startsWith("FAIL"));
+  const groups = new Map();
+  for (const t of rows) {
+    const reason = String(t.outcome).replace(/^FAIL:?\s*/, "").split(":")[0].trim() || "failed";
+    const g = groups.get(reason) ?? { reason, n: 0, keys: [] };
+    g.n++;
+    if (g.keys.length < 3) g.keys.push({ key: t.key, task: t.task });
+    groups.set(reason, g);
+  }
+  return { n: rows.length, groups: [...groups.values()].sort((a, b) => b.n - a.n) };
 }
 
 function loadUsage(cx) {
@@ -417,38 +435,10 @@ function loadUsage(cx) {
     try {
       const u = JSON.parse((await readTextFile(file)) ?? "null");
       const at = Number(u?.updated_at) * 1000;
-      put({ usage: u ? { five: num(u.five_hour_pct), seven: num(u.seven_day_pct), at, stale: !at || Date.now() - at > 3600_000 } : null });
+      put({ usage: u ? { five: num(u.five_hour_pct), seven: num(u.seven_day_pct), resets: num(u.seven_day_resets_at), at, stale: !at || Date.now() - at > 3600_000 } : null });
     } catch {
       put({ usage: null });
     }
-    cx.notify();
-  });
-}
-
-function loadPrs(cx) {
-  put({ at: stamp("prs") });
-  const projects = (config().projects ?? []).filter((p) => p.github);
-  if (!projects.length) return;
-  cx.spawn(async (cx) => {
-    const out = { ...(data().projects ?? {}) };
-    for (const p of projects) {
-      try {
-        const open = await exec("gh", ["pr", "list", "--repo", p.github, "--state", "open", "--limit", "60", "--json", "number,title,isDraft,updatedAt,url,labels"], { timeout: 30000 });
-        if (open.code !== 0) throw new Error(open.stderr.trim() || `gh exit ${open.code}`);
-        const merged = await exec("gh", ["pr", "list", "--repo", p.github, "--state", "merged", "--limit", "5", "--json", "number,title,mergedAt,url"], { timeout: 30000 });
-        out[p.github] = {
-          prs: JSON.parse(open.stdout).map((x) => ({
-            number: x.number, title: x.title, draft: x.isDraft, updated: Date.parse(x.updatedAt), url: x.url,
-            hold: (x.labels ?? []).some((l) => l.name === "hold"),
-          })),
-          merged: merged.code === 0 ? JSON.parse(merged.stdout).map((m) => ({ ...m, merged: Date.parse(m.mergedAt) })) : out[p.github]?.merged ?? [],
-          error: null,
-        };
-      } catch (e) {
-        out[p.github] = { ...(out[p.github] ?? {}), error: String(e?.message ?? e) };
-      }
-    }
-    put({ projects: out });
     cx.notify();
   });
 }
@@ -513,93 +503,192 @@ export function dur(s) {
   return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.round(m / 1440)}d`;
 }
 
-// The orgs to show: the config's list, or (auto) those the factory reports in use.
-// One team's (by key), or every team's together.
-export function orgsShown(d = data(), teamKey = null) {
-  const want = config().orgs;
-  if (Array.isArray(want)) return new Set(want);
-  const out = new Set();
-  for (const t of teamsOf()) {
-    if (teamKey && t.key !== teamKey) continue;
-    const lanes = teamState(d, t.key).home?.lanes ?? [];
-    const used = lanes.filter((l) => l.boss?.status === "live" || l.director?.status === "live" || l.goals_active || l.goals_open || l.agents_live);
-    for (const l of used.length ? used : lanes) out.add(l.org);
-  }
+// Task titles the app already shows: a worker tab is named "T-1234 · title" (a judge's tab "T-1234 · judge").
+// -> {task id: [{machine, title}]}. Used until a factory's API carries the title itself.
+export function tabTitles(spaceList = spaces()) {
+  const out = {};
+  for (const s of spaceList)
+    for (const tb of s.tabs ?? []) {
+      const m = String(tb.name ?? "").match(/^(T-\d+) · (.+)$/);
+      if (!m || m[2] === "judge") continue;
+      (out[m[1]] ??= []).push({ machine: s.machine ?? null, title: m[2] });
+    }
   return out;
 }
 
-export function pipeline(github, d = data()) {
-  const p = d.projects?.[github] ?? {};
-  const prs = p.prs ?? [];
-  const ready = prs.filter((x) => !x.draft && !x.hold);
-  return { loaded: !!p.prs, error: p.error, prs, ready, drafts: prs.filter((x) => x.draft).length, merged: p.merged ?? [], lastMerge: (p.merged ?? [])[0]?.merged ?? null };
+// A task's title for one factory: a tab on one of the factory's machines, else the only tab with that id.
+function titleFor(task, titles, machineSet) {
+  const hits = titles[task] ?? [];
+  return (hits.find((h) => machineSet.has(h.machine)) ?? (hits.length === 1 ? hits[0] : null))?.title ?? null;
 }
 
-// The usage figures to show: this machine's file when configured, else the factory's.
+// ---- one view per factory ------------------------------------------------------------------------------------------
+
+const WAIT_CI = "ci", WAIT_MERGE = "merge";
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+// A long reason, cut for a one-line alert or a notification.
+export const brief = (text, max = 90) => (String(text ?? "").length > max ? `${String(text).slice(0, max - 1).trimEnd()}…` : String(text ?? ""));
+
+// Everything a factory's card, the bar and the alerts show, from its last answers.
+// state: "loading" (no answer yet), "down" (never answered), "stale" (the last answer is old or the factory stopped
+// answering) or "live". Counts and rows from a stale factory are its last known ones and are marked so.
+export function factoryViews(d = data(), spaceList = spaces()) {
+  const now = Date.now();
+  const titles = tabTitles(spaceList);
+  const A = { ...DEFAULTS.alerts, ...(config().alerts ?? {}) };
+  return factoriesOf().map((f) => {
+    const st = facState(d, f.key);
+    const n = st.now ?? null;
+    const label = factoryLabel(f, d);
+    const base = { key: f.key, factory: f, label, role: ROLE, error: st.error ?? null, at: st.at ?? null, downSince: st.downSince ?? null };
+    if (!n) return { ...base, state: st.error ? "down" : "loading", loaded: false, needsCount: 0, needs: [], stuck: [] };
+    const state = st.error || now - st.at > A.stale_minutes * 60_000 ? "stale" : "live";
+    const drift = Math.max(0, Math.round((now - st.at) / 1000)); // the answer's ages count on until the next one
+    const own = new Set([f.machine, resolveSpace(f.space, spaceList)?.machine, ...(st.mach?.rows ?? []).map((m) => m.name)].filter((x) => x != null));
+    const named = (task, title) => title || titleFor(task, titles, own);
+    const aged = (r, at = st.at) => ({ ...r, title: named(r.task, r.title), age_s: (r.age_sec ?? 0) + Math.max(0, Math.round((now - at) / 1000)) });
+    const running = n.running.map((r) => aged(r));
+    const counts = { working: 0, ci: 0, merge: 0, held: n.held.length };
+    for (const r of running) counts[r.stage === WAIT_CI ? "ci" : r.stage === WAIT_MERGE ? "merge" : "working"]++;
+    const needs = [
+      ...n.asks.map((a) => ({ kind: "question", project: a.project, count: a.open, text: `${plural(a.open, "open question")}${a.project && !demo() ? ` · ${a.project}` : ""}`, href: webUrl("/", f) })),
+      ...n.held.map((h) => {
+        const more = st.held?.[`${h.key}@${h.since ?? ""}`] ?? {};
+        return {
+          kind: "held", key: h.key, task: h.task, title: named(h.task, h.title), project: h.project, since: h.since, age_s: (h.age_sec ?? 0) + drift,
+          text: more.reason || String(h.outcome ?? "held").replace(/^held:\s*/, "held for the "), pr: more.pr ?? null, href: more.pr ?? taskUrl(f, h.key),
+        };
+      }),
+    ];
+    const all = n.projects.find((p) => p.project === "all") ?? null;
+    const planner = [...n.planner].sort((a, b) => String(b.last_at ?? "").localeCompare(String(a.last_at ?? "")))[0] ?? null;
+    const perDay = st.flow?.perDay ?? [];
+    return {
+      ...base, state, loaded: true, drift, counts, waiting: counts.ci + counts.merge + counts.held, running,
+      needs, needsCount: n.asks.reduce((s, a) => s + a.open, 0) + n.held.length,
+      stuck: (st.flow?.stuck ?? []).map((r) => aged(r, st.flow.at)), stuckAfter: st.flow?.stuckAfter ?? null,
+      failed: st.failed ?? null, trace: st.trace ?? null,
+      today: (st.today ?? []).map((r) => ({ ...r, title: named(r.task, r.title) })),
+      planner: planner && { on: !/^session\.(ended|closed)$/.test(planner.last_event ?? ""), at: Date.parse(planner.last_at) || null },
+      projects: n.projects.map((p) => p.project).filter((p) => p !== "all" && !/^\(/.test(p)),
+      merged: { today: perDay.length ? perDay[perDay.length - 1].n : null, perDay, total: st.flow?.merged ?? null, days: st.flow?.days ?? null },
+      spend: { today: all?.usd_today ?? null, week: all?.usd_7d ?? null, perPR: all?.per_pr ?? null, hours: all?.hours ?? null, pending: all?.pending ?? 0,
+        daily: (st.spend?.daily ?? []).slice(-7), top: (st.spend?.top ?? []).map((x) => ({ ...x, task: String(x.key).split("/").pop(), title: named(String(x.key).split("/").pop(), null) })), pollingPct: st.spend?.pollingPct ?? null,
+        roles: st.spend?.roles ?? [], unattributed: st.spend?.unattributed ?? null },
+      machines: (st.mach?.rows ?? []).map((m) => ({ ...m, label: labelFor(m.name, d) })), cap: st.mach?.cap ?? null,
+    };
+  });
+}
+
+// The board of one factory: every task with an event today, in the column of where it is now. project: null = all.
+// A card's "why" says why it is not moving (over the stuck limit, or how it failed).
+export const BOARD = [["working", "Working"], ["ci", "In CI"], ["merge", "To merge"], ["held", "Held for you"], ["done", "Done today"]];
+export function boardOf(v, project = null) {
+  const cols = Object.fromEntries(BOARD.map(([k]) => [k, []]));
+  if (!v?.loaded) return cols;
+  const mine = (r) => project == null || (r.project ?? "") === project;
+  const over = new Set(v.stuck.map((r) => r.key));
+  for (const r of v.running.filter(mine))
+    cols[r.stage === "ci" ? "ci" : r.stage === "merge" ? "merge" : "working"].push({ ...r, note: `${r.stage === "gate" || r.stage === "judge" ? `${STAGE_WORDS[r.stage]}, ` : ""}${dur(r.age_s)}${over.has(r.key) ? ", over the limit" : ""}`, bad: over.has(r.key) });
+  for (const n of v.needs.filter((x) => x.kind === "held" && mine(x)))
+    cols.held.push({ key: n.key, task: n.task, title: n.title, project: n.project, age_s: n.age_s, note: `${dur(n.age_s)}, ${n.text}`, bad: true, pr: n.pr });
+  for (const r of v.today.filter(mine)) {
+    const o = String(r.outcome ?? "");
+    if (o === "merged") cols.done.push({ ...r, note: "merged", bad: false });
+    else if (o.startsWith("FAIL")) cols.done.push({ ...r, note: `failed: ${o.replace(/^FAIL:?\s*/, "").split(":")[0]}`, bad: true });
+    else if (o === "cancelled" || o === "reverted") cols.done.push({ ...r, note: o, bad: o === "reverted" });
+  }
+  for (const k of ["working", "ci", "merge", "held"]) cols[k].sort((a, b) => (b.age_s ?? 0) - (a.age_s ?? 0));
+  return cols;
+}
+export const STAGE_WORDS = { dispatched: "working", gate: "in the gate", judge: "with the judge", ci: "in CI", merge: "to merge", held: "held" };
+
+// The status bar's factory segments: "<label> 11 working · 14 waiting", "<label> unreachable" or "<label>…".
+export function barSegments(d = data()) {
+  return factoryViews(d).map((v) => ({
+    key: v.key, label: v.label, state: v.state, needs: v.state === "live" ? v.needsCount : 0,
+    text: !v.loaded ? (v.state === "down" ? `${v.label} unreachable` : `${v.label}…`)
+      : `${v.label} ${v.counts.working} working · ${v.waiting} waiting${v.state === "stale" ? ` · ${ago(v.at)} old` : ""}`,
+  }));
+}
+
+// Spend today over every factory that answers; null when none has.
+export function spendToday(d = data()) {
+  const xs = factoryViews(d).filter((v) => v.loaded && v.state === "live" && v.spend.today != null).map((v) => v.spend.today);
+  return xs.length ? xs.reduce((a, b) => a + b, 0) : null;
+}
+
+// The open terminal of a task's session, when exactly one is named for it ("claude-task-t-2043").
+export function workerTerminal(task, termList = terminals()) {
+  const n = Number(String(task ?? "").replace(/^T-/i, ""));
+  if (!Number.isFinite(n) || !String(task ?? "").trim()) return null;
+  const hits = termList.filter((t) => {
+    const m = String(t.name ?? "").match(/^claude-(?:task|coder|judge)-t-0*(\d+)\b/);
+    return m && Number(m[1]) === n && t.state !== "dead";
+  });
+  return hits.length === 1 ? hits[0].address : null;
+}
+
+// This machine's Claude usage, from usage_file. stale: the file is over an hour old.
 export function usage(d = data()) {
-  const f = teamsOf().map((t) => teamState(d, t.key)).map((s) => s.res?.usage ?? s.home?.system?.usage).find(Boolean);
   const u = d.usage;
-  return {
-    seven: u && !u.stale ? u.seven : f?.seven_day ?? null,
-    five: u && !u.stale ? u.five : f?.five_hour ?? null,
-    capSeven: f?.cap_seven_day ?? 90,
-    capFive: f?.cap_five_hour ?? 92,
-    resets: f?.seven_day_resets_at ?? null,
-  };
+  return { seven: u?.seven ?? null, five: u?.five ?? null, resets: u?.resets ?? null, at: u?.at ?? null, stale: Boolean(u?.stale) };
 }
 
-// Things worth interrupting a person for, most urgent first. key: stable id for "already told".
+// Things worth interrupting a person for, most urgent first. key: stable id for "already told". Every factory alert
+// comes from an answer that is still fresh; a factory that stopped answering raises only its own "unreachable".
 export function alerts(d = data()) {
   const A = { ...DEFAULTS.alerts, ...(config().alerts ?? {}) };
   const out = [];
   const now = Date.now();
   const scan = Object.values(d.scan ?? {});
-  const orgs = orgsShown(d);
+  const views = factoryViews(d);
+  const live = views.filter((v) => v.state === "live");
   // An agent on another machine is named with that machine ("Mac mini · agent ...").
   const who = (s) => (s.machine != null ? `${labelFor(s.machine, d)} · ${s.name}` : s.name);
   for (const s of scan) if (s.login) out.push({ key: `login:${s.address ?? s.name}`, level: "danger", text: `${who(s)}: login expired, run /login`, agent: s });
   const u = usage(d);
-  if (orgs.has("claude") && u.seven != null && u.seven >= A.usage_danger_pct)
-    out.push({ key: `usage-danger`, level: "danger", text: `Claude weekly usage ${Math.round(u.seven)}% (cap ${u.capSeven}%)` });
-  else if (orgs.has("claude") && u.seven != null && u.seven >= A.usage_warn_pct)
-    out.push({ key: `usage-warn`, level: "warning", text: `Claude weekly usage ${Math.round(u.seven)}%` });
+  if (!u.stale && u.seven != null && u.seven >= A.usage_danger_pct) out.push({ key: `usage-danger`, level: "danger", text: `Claude weekly usage ${Math.round(u.seven)}%` });
+  else if (!u.stale && u.seven != null && u.seven >= A.usage_warn_pct) out.push({ key: `usage-warn`, level: "warning", text: `Claude weekly usage ${Math.round(u.seven)}%` });
+  for (const v of live)
+    for (const n of v.needs)
+      out.push(n.kind === "question"
+        ? { key: `ask:${v.key}:${n.project}:${n.count}`, level: "danger", text: `${v.label}: ${n.text}`, href: n.href, factory: v.key }
+        : { key: `held:${v.key}:${n.key}:${n.since}`, level: "warning", text: `${v.label}: ${demo() ? "" : `${n.task} `}held · ${brief(n.text)} · ${dur(n.age_s)}`, href: n.href, factory: v.key });
   for (const s of scan)
     for (const [k, w] of Object.entries(s.waits ?? {}))
       if (now - w.since >= w.after_min * 60_000)
         out.push({ key: `wait:${s.address ?? s.name}:${k}:${w.since}`, level: "danger", text: `${who(s)} ${w.label} · ${ago(w.since)}`, agent: s });
-  for (const p of config().projects ?? []) {
-    if (!p.github) continue;
-    const { ready, lastMerge } = pipeline(p.github, d);
-    const working = scan.filter((s) => s.project === p.name && s.status === "working").length;
-    if (ready.length && lastMerge && now - lastMerge >= A.stall_minutes * 60_000)
-      out.push({ key: `stall:${p.github}:${lastMerge}`, level: working ? "warning" : "danger", text: `${p.name ?? p.github}: no merge for ${ago(lastMerge)} · ${ready.length} PRs open · ${working} working` });
+  for (const v of views)
+    if (v.downSince && now - v.downSince >= A.factory_down_minutes * 60_000)
+      out.push({ key: `factory-down:${v.key}`, level: "warning", text: `${v.label} unreachable · ${ago(v.downSince)}`, factory: v.key });
+  for (const v of live) {
+    for (const m of v.machines) if (m.down) out.push({ key: `fmachine-down:${v.key}:${m.name}`, level: "warning", text: `${v.label}: machine ${m.label} is down`, href: webUrl("/machines", v.factory), factory: v.key });
+    const s = v.stuck[0];
+    if (s) out.push({
+      key: `stuck:${v.key}:${s.key}`, level: "info", factory: v.key, href: webUrl("/flow", v.factory),
+      text: `${v.label}: ${plural(v.stuck.length, "run")} over ${stuckLimit(v.stuckAfter)} in one stage · oldest ${demo() ? "" : `${s.task}, `}${s.stage} ${dur(s.age_s)}`,
+    });
   }
   for (const s of scan)
     if (s.ctx != null && s.ctx < A.context_below_pct) out.push({ key: `ctx:${s.address ?? s.name}`, level: "warning", text: `${who(s)} context ${s.ctx}% left`, agent: s });
-  const rows = machineRows(d);
-  const probeDown = new Set(rows.filter((r) => !r.ok && !r.fromApi).map((r) => r.name));
-  for (const r of rows) {
-    if (!r.ok && !r.fromApi) out.push({ key: `machine-down:${r.key}`, level: "warning", text: `${r.label} unreachable` });
+  for (const r of machineRows(d)) {
+    if (!r.ok) out.push({ key: `machine-down:${r.key}`, level: "warning", text: `${r.label} unreachable` });
     if (r.disk_free_gb != null && r.disk_total_gb && (r.disk_free_gb < 20 || r.disk_free_gb / r.disk_total_gb < 0.05))
       out.push({ key: `disk:${r.key}:${new Date().toDateString()}`, level: r.disk_free_gb < 5 ? "danger" : "warning", text: `${r.label}: ${r.disk_free_gb} GB disk free` });
-  }
-  for (const team of teamsOf()) {
-    const st = teamState(d, team.key);
-    const label = teamLabel(team, d);
-    const m = st.res?.machine;
-    if (m?.swap_total_mb && m.swap_used_mb / m.swap_total_mb >= 0.95)
+    if (r.ok && r.swap_total_mb && r.swap_used_mb / r.swap_total_mb >= 0.95)
       out.push({
-        key: `swap:${team.key}:${new Date().toDateString()}`, level: m.mem_available_mb < 2048 ? "danger" : "warning",
-        text: `${label} swap full (${(m.swap_used_mb / 1024).toFixed(1)} GB) · ${(m.mem_available_mb / 1024).toFixed(1)} GB RAM free`,
+        key: `swap:${r.key}:${new Date().toDateString()}`, level: r.mem_available_mb < 2048 ? "danger" : "warning",
+        text: `${r.label} swap full (${(r.swap_used_mb / 1024).toFixed(1)} GB) · ${((r.mem_available_mb ?? 0) / 1024).toFixed(1)} GB RAM free`,
       });
-    // A team's machine already reported unreachable by the machine probe needs no second alert.
-    if (st.downSince && now - st.downSince >= A.factory_down_minutes * 60_000 && !(team.machine && probeDown.has(team.machine)))
-      out.push({ key: `team-down:${team.key}`, level: "warning", text: `${label} unreachable · ${ago(st.downSince)}` });
   }
   if (d.configError) out.push({ key: `config:${d.configError}`, level: "warning", text: d.configError });
   if (demo()) return config().demo?.alerts === false ? [] : out.filter((a) => !hidden(a.text)).map((a) => ({ ...a, text: clean(a.text) }));
   return out;
 }
+
+// "1h0m0s" (the API's stuck limit) as "1h".
+export const stuckLimit = (s) => String(s ?? "1h").replace(/(?<=\D)0[ms]/g, "") || "1h";
 
 // Demo mode ("demo": {"enabled": true, "hide": ["word", ...], "alerts": false}): screens for docs and films.
 // Task, goal and PR numbers go, agent names lose their task suffix, and any row naming a hidden word is left out.
@@ -622,24 +711,15 @@ export function clean(text) {
     .trim();
 }
 
-// The machines to show, in order: this computer, then hc machines; each team's machine carries the role tag, and
-// comes from the team's own API when no hc machine row is that team's. -> [{key, label, role, ...facts}]
+// The machines this computer can probe, in order: this computer, then hc machines. A machine a factory is reached
+// from (its "machine", or its planner space's machine) carries the role tag. -> [{key, label, role, ...facts}]
 export function machineRows(d = data()) {
-  const teams = teamsOf();
-  // A team on this computer: no hc machine, and a loopback address.
-  const ownsRow = (t, r) => (t.machine ? r.name === t.machine : r.name == null && isLoopback(t.url));
-  const rows = Object.entries(d.machines ?? {}).map(([key, m]) => ({ key, ...m }));
-  for (const r of rows) r.role = teams.some((t) => ownsRow(t, r)) ? ROLE : null;
-  for (const t of teams) {
-    const fm = teamState(d, t.key).res?.machine;
-    if (rows.some((r) => ownsRow(t, r)) || !fm || !Object.keys(fm).length) continue;
-    rows.push({
-      key: teams.length > 1 ? `team-${t.key}` : "factory", name: t.machine, role: ROLE, ok: !teamState(d, t.key).error, os: null, cpus: fm.cpus ?? null,
-      mem_total_mb: fm.mem_total_mb, mem_available_mb: fm.mem_available_mb, swap_total_mb: fm.swap_total_mb,
-      swap_used_mb: fm.swap_used_mb, load: fm.load ?? [], uptime_s: null, fromApi: true, label: teamLabel(t, d),
-    });
-  }
-  return rows.map((r) => ({ ...r, label: r.fromApi ? r.label : labelFor(r.name ?? null, d), agents: r.fromApi ? null : terminalsOn(r.name) }));
+  const fs = factoriesOf();
+  const sp = spaces();
+  const owns = (f, r) => (f.machine ? r.name === f.machine : f.space && resolveSpace(f.space, sp) ? (resolveSpace(f.space, sp).machine ?? null) === r.name : r.name == null && isLoopback(f.url));
+  return Object.entries(d.machines ?? {}).map(([key, m]) => ({
+    key, ...m, role: fs.some((f) => owns(f, { name: m.name ?? null })) ? ROLE : null, label: labelFor(m.name ?? null, d), agents: terminalsOn(m.name),
+  }));
 }
 
 function terminalsOn(name) {

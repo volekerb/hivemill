@@ -32,6 +32,20 @@ func (m *OMap) Set(k string, v any) {
 	m.Vals[k] = v
 }
 
+// Del removes key, if present.
+func (m *OMap) Del(k string) {
+	if _, ok := m.Vals[k]; !ok {
+		return
+	}
+	delete(m.Vals, k)
+	for i, key := range m.Keys {
+		if key == k {
+			m.Keys = append(m.Keys[:i:i], m.Keys[i+1:]...)
+			break
+		}
+	}
+}
+
 // Num is a JSON number kept as its source text.
 type Num string
 
