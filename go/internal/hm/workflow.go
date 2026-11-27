@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"factory/go/internal/shlex"
 )
 
 // A large task has at least this many acceptance criteria or scope paths, or is T3.
@@ -65,6 +67,15 @@ func (r *Runner) workflowBusy(run *Run, t time.Time) bool {
 	sess, _ := r.Store.Sessions(run.Task)
 	for _, s := range sess {
 		if s.Role != "task" {
+			continue
+		}
+		if run.cloned() { // the transcripts are on the session's machine
+			rc, _, _ := r.rsh(run.Machine, "", 30*time.Second, fmt.Sprintf(
+				`sid=%s; find "$HOME"/.claude/projects/*/"$sid"/subagents -name '*.jsonl' -mmin -%d 2>/dev/null | grep -q .`,
+				shlex.Quote(s.SID), max(int(time.Since(t).Minutes()+0.5), 1)))
+			if rc == 0 {
+				return true
+			}
 			continue
 		}
 		dir := filepath.Join(r.Env.UserHome, ".claude", "projects", "*", s.SID, "subagents")

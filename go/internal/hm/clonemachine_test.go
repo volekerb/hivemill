@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"factory/go/internal/guard"
 )
 
 // fakeRemote is a clone-mode machine that is a directory of this one: the fake ssh runs the command here with that
@@ -139,8 +141,16 @@ func TestCloneMachineWorktree(t *testing.T) {
 	if err != nil || !strings.Contains(string(alt), filepath.Join(base, "cache")) {
 		t.Errorf("the clone must reference the machine's cache: %q %v", alt, err)
 	}
-	if _, err := os.Stat(filepath.Join(wt, ".git", "hooks", "pre-push")); err != nil {
-		t.Errorf("not written on the machine: %v", err)
+	for _, f := range []string{filepath.Join(wt, ".git", "hooks", "pre-push"), filepath.Join(base, "run", "guard-export.json"),
+		filepath.Join(base, "state", "hivemill", "settings", "task.json"),
+		filepath.Join(base, "state", "hivemill", "spawn", run1.Agent+".sh")} {
+		if _, err := os.Stat(f); err != nil {
+			t.Errorf("not written on the machine: %v", err)
+		}
+	}
+	settings, _ := os.ReadFile(filepath.Join(base, "state", "hivemill", "settings", "task.json"))
+	if !strings.Contains(string(settings), "hivemill-guard") || strings.Contains(string(settings), "roles/hooks/worker-guard") {
+		t.Error("the remote settings must run that machine's `hivemill guard`")
 	}
 	started := ""
 	for _, c := range *hc {
@@ -165,6 +175,9 @@ func TestCloneMachineWorktree(t *testing.T) {
 	if _, err := os.Stat(wt); err != nil {
 		t.Fatal("a worktree with unpushed work must stay")
 	}
+	if got, _ := s.Run("T-0001"); !got.RemoteDone || got.RemoteGone {
+		t.Error("a kept worktree stays open for the attic")
+	}
 	mustGit(t, wt, "push", "-q", "origin", "HEAD:factory/t-0001")
 	run1.RemoteDone = false
 	_ = s.PutRun(run1)
@@ -172,7 +185,7 @@ func TestCloneMachineWorktree(t *testing.T) {
 	if _, err := os.Stat(wt); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the pushed worktree must be removed: %v", err)
 	}
-	if got, _ := s.Run("T-0001"); !got.RemoteDone {
+	if got, _ := s.Run("T-0001"); !got.RemoteDone || !got.RemoteGone {
 		t.Error("the run must record the removal")
 	}
 }
@@ -237,5 +250,162 @@ func TestCloneMachineProofEnv(t *testing.T) {
 		Proof: `test "$ZZ_KEPT" = 1 && ! env | grep -E '^(CLAUDE|GH_TOKEN=|GITHUB_TOKEN=)'`}}, t.TempDir())
 	if len(got) != 1 || got[0].OK == nil || !*got[0].OK {
 		t.Errorf("a proof on the machine sees its Claude or GitHub variables: %+v", got)
+	}
+}
+
+// startedClone is a started run with one pushed commit in its worktree on w1.
+func startedClone(t *testing.T) (*Runner, *SQLite, *fakeRemote, *Run) {
+	t.Helper()
+	r, s, m, _ := cloneRunner(t)
+	if err := r.Start("T-0001"); err != nil {
+		t.Fatal(err)
+	}
+	x, _ := s.Run("T-0001")
+	if err := os.WriteFile(filepath.Join(x.Worktree, "marker.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, x.Worktree, "add", "marker.txt")
+	mustGit(t, x.Worktree, "commit", "-qm", "work")
+	mustGit(t, x.Worktree, "push", "-q", "origin", "HEAD:factory/t-0001")
+	return r, s, m, x
+}
+
+func TestCloneMachineLostConnectionIsNoVerdict(t *testing.T) {
+	r, _, _, x := startedClone(t)
+	ssh := r.SSH
+	r.SSH = func(machine, stdin string, timeout time.Duration, command string) (int, string, string) {
+		if strings.Contains(command, "status") {
+			return 255, "", "connection lost"
+		}
+		return ssh(machine, stdin, timeout, command)
+	}
+	rec := r.Gate(x)
+	if !rec.Undecided || len(rec.Problems) != 1 || !strings.Contains(rec.Problems[0], "not decided") {
+		t.Errorf("undecided=%v problems %v", rec.Undecided, rec.Problems)
+	}
+	r.SSH = func(string, string, time.Duration, string) (int, string, string) { return 255, "", "connection lost" }
+	if r.worktreeLost(x) {
+		t.Error("an unreachable machine has not lost the worktree")
+	}
+	if _, err := r.Packet(x); err == nil {
+		t.Error("no judge packet without the diff")
+	}
+}
+
+func TestCloneMachineReusedWorktreeFollowsBranch(t *testing.T) {
+	r, s, _, x := startedClone(t)
+	old := mustGit(t, x.Worktree, "rev-parse", "HEAD")
+	other := filepath.Join(t.TempDir(), "other")
+	mustGit(t, x.Mirror, "fetch", "-q", "origin")
+	mustGit(t, filepath.Dir(other), "clone", "-q", "-b", "factory/t-0001", mustGit(t, x.Mirror, "remote", "get-url", "origin"), other)
+	mustGit(t, other, "commit", "-q", "--allow-empty", "-m", "refresh")
+	mustGit(t, other, "push", "-q", "origin", "HEAD:factory/t-0001")
+	head := mustGit(t, other, "rev-parse", "HEAD")
+
+	task, _ := s.Task("T-0001")
+	if _, err := r.remoteWorktree("w1", x.RemoteHome, task, x.Branch); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustGit(t, x.Worktree, "rev-parse", "HEAD"); got != head {
+		t.Errorf("reused worktree at %s, want the pushed head %s", got, head)
+	}
+
+	if !r.worktreeLost(x) {
+		if err := os.RemoveAll(x.Worktree); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !r.worktreeLost(x) {
+		t.Error("a missing worktree must be seen")
+	}
+	if _, err := r.remoteWorktree("w1", x.RemoteHome, task, x.Branch); err != nil {
+		t.Fatal(err)
+	}
+
+	// a merged run whose worktree stayed behind the merged head holds nothing unmerged
+	mustGit(t, x.Worktree, "reset", "-q", "--hard", old)
+	mustGit(t, other, "push", "-q", "origin", ":factory/t-0001")
+	x.State, x.Head = Merged, head
+	_ = s.PutRun(x)
+	r.removeRemoteWorktrees()
+	if _, err := os.Stat(x.Worktree); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the merged worktree must be removed: %v", err)
+	}
+}
+
+func TestCloneMachineTranscriptsReachCoordinator(t *testing.T) {
+	r, _, m, x := startedClone(t)
+	names := []string{".claude/projects/-wt/sid-1.jsonl", ".claude/projects/-wt/sid-1/subagents/a.jsonl",
+		".claude/projects/-wt/sid-1/subagents/workflows/w/b.jsonl"}
+	for _, n := range names {
+		m.put(n, "one\n", 0o600)
+	}
+	m.put(".claude/projects/-wt/other.jsonl", "not ours\n", 0o600)
+	r.syncTranscripts(x, []string{"sid-1", "x; touch pwned"})
+	for _, n := range names {
+		if b, err := os.ReadFile(filepath.Join(r.Env.UserHome, n)); err != nil || string(b) != "one\n" {
+			t.Errorf("%s: %q %v", n, b, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(r.Env.UserHome, ".claude/projects/-wt/other.jsonl")); err == nil {
+		t.Error("another session's transcript was copied")
+	}
+	if _, err := os.Stat(filepath.Join(m.home, "pwned")); err == nil {
+		t.Error("a session id reached the shell")
+	}
+	m.put(names[0], "one\ntwo\n", 0o600)
+	r.syncTranscripts(x, []string{"sid-1"})
+	if b, _ := os.ReadFile(filepath.Join(r.Env.UserHome, names[0])); string(b) != "one\ntwo\n" {
+		t.Errorf("a grown transcript is copied again: %q", b)
+	}
+}
+
+func TestCloneMachineJudgeStartIsRetried(t *testing.T) {
+	r, _, _, x := startedClone(t)
+	x.State, x.Head = Gated, mustGit(t, x.Worktree, "rev-parse", "HEAD")
+	r.SSH = func(string, string, time.Duration, string) (int, string, string) { return 255, "", "connection lost" }
+	r.startJudge(x)
+	if x.State != Gated || len(x.Judges) != 0 || x.judgeStartFails() != 1 {
+		t.Errorf("state %s judges %v fails %d", x.State, x.Judges, x.judgeStartFails())
+	}
+}
+
+func TestCloneMachineActiveRunOverBudgetStops(t *testing.T) {
+	r, s, m, _ := startedClone(t)
+	sess, err := s.Sessions("T-0001")
+	if err != nil || len(sess) == 0 {
+		t.Fatal(sess, err)
+	}
+	if err := s.SetCfg("task_budget_usd", "1"); err != nil {
+		t.Fatal(err)
+	}
+	// the transcript is on the machine only, as while the session is still running
+	m.put(".claude/projects/-wt/"+sess[0].SID+".jsonl", `{"type":"assistant","timestamp":"2026-11-27T10:00:00Z","requestId":"r1",`+
+		`"message":{"id":"m1","model":"claude-sonnet-5-5","usage":{"input_tokens":10,"output_tokens":1000000}}}`+"\n", 0o600)
+	if _, err := r.Advance("T-0001", nil, false); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Run("T-0001")
+	if got.State != Failed || !strings.Contains(got.FailReason, "budget") {
+		t.Errorf("state %s reason %q, want FAIL over budget", got.State, got.FailReason)
+	}
+}
+
+func TestCloneMachineGuardFailsClosed(t *testing.T) {
+	_, _, m, _ := startedClone(t)
+	base := filepath.Join(m.home, "hivemill")
+	// without a file at the DB path the guard never reads the export, and a missing one passes
+	if st, err := os.Stat(filepath.Join(base, "db", "factory.db")); err != nil || !st.IsDir() {
+		t.Fatalf("no database marker on the machine: %v", err)
+	}
+	if err := os.Remove(filepath.Join(base, "run", "guard-export.json")); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FACTORY_HOME", base)
+	var out, errs strings.Builder
+	rc := guard.HookMain([]string{"--role", "coder"},
+		strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git push origin HEAD:factory/t-0001"}}`), &out, &errs)
+	if rc != 2 || !strings.Contains(errs.String(), "export") {
+		t.Errorf("exit %d: %s", rc, errs.String())
 	}
 }
