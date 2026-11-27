@@ -106,35 +106,84 @@ test("task titles: the API's own, else the worker tab's name on one of the facto
   assert.deepEqual(Object.keys(D.tabTitles(S.spaces)).sort(), ["T-0101", "T-0107", "T-0110"]);
 });
 
-test("board: today's tasks in the column of where they are, per project, with why a card is not moving", async () => {
+// Runs what a tab asks for (the board, a trace) to the end.
+async function ask(fn) {
+  const pending = [];
+  const cx = { spawn: (f) => pending.push(Promise.resolve().then(() => f(cx))), notify() {} };
+  fn(cx);
+  while (pending.length) await pending.shift();
+}
+
+test("board: the factory's columns with causes, a few cards per cause, and the open count", async () => {
   standardSetup();
+  S.http[`local ${BUSY}/api/obs/v1/board`] = fx("board-busy.json");
   await collect(fx("dashboard.json"));
-  const w = view("Workshop");
-  const b = D.boardOf(w);
-  assert.deepEqual(Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v.length])), { working: 3, ci: 2, merge: 2, held: 2, done: 4 });
-  assert.deepEqual(b.merge.map((c) => [c.task, c.bad]), [["T-0106", true], ["T-0107", true]], "longest first, over the limit marked");
-  assert.equal(b.merge[0].note, "2h 0m, over the limit");
-  assert.equal(b.working.find((c) => c.task === "T-0102").note, "in the gate, 1m");
-  assert.equal(b.held[0].note, "32m, tier T3 is above T2; the owner merges");
-  assert.deepEqual(b.done.map((c) => c.note).sort(), ["failed: budget", "failed: stalled", "failed: stalled", "merged"]);
-  assert.equal(D.boardOf(w, "none-such").working.length, 0);
-  assert.equal(D.boardOf(w, "app").working.length, 3);
-  assert.equal(D.boardOf(view("Pilot")).working.length, 1);
+  assert.equal(view("Workshop").board, null, "asked only when the tab opens");
+  await ask((cx) => D.loadBoard(cx, D.factoriesOf()[0]));
+  const b = view("Workshop").board;
+  assert.deepEqual(b.columns.map((c) => [c.id, c.count]), [["queued", 9], ["working", 7], ["ci", 2], ["merge", 2], ["held", 1], ["done", 20]]);
+  assert.equal(b.open, 21);
+  assert.deepEqual(b.done, { merged: 15, failed_refiled: 2, failed: 2, cancelled: 1 });
+  const working = b.columns[1].groups;
+  assert.deepEqual(working.map((g) => [g.cause, g.bad, g.count, g.cards.length]), [["", false, 6, 4], ["Idle after a nudge", true, 1, 1]]);
+  assert.deepEqual(b.columns[0].groups[1].cards[0], { key: null, task: "T-0122", title: "Trace page shows prompt text", project: "site", stage: null, age_sec: 600, note: "after T-0101", at: null, pr: null });
+  // The lists of the Traces tab come from the board.
+  const l = D.traceLists(view("Workshop"));
+  assert.deepEqual(l.look.map((r) => [r.task, r.why]), [["T-0108", "idle after a nudge, 16m"], ["T-0111", "ci red, repairing, 15m"], ["T-0106", "main's checks still running, 3h 17m"], ["T-0107", "main's checks still running, 2h 39m"], ["T-0110", "held, 30m"]]);
+  assert.equal(l.running.length, 10);
+  assert.deepEqual([l.merged.map((r) => r.task), l.failed.map((r) => r.why)], [["T-0114", "T-0115"], ["failed: gate blocked", "failed: over budget"]]);
+});
+
+test("board: a factory before API v1 is marked old; a failed ask keeps the last board", async () => {
+  standardSetup();
+  S.http[`local ${BUSY}/api/obs/v1/board`] = "404 page not found";
+  await collect(fx("dashboard.json"));
+  const f = D.factoriesOf()[0];
+  await ask((cx) => D.loadBoard(cx, f));
+  assert.deepEqual([view("Workshop").board.old, view("Workshop").board.columns], [true, undefined]);
+  const l = D.traceLists(view("Workshop"));
+  assert.ok(l.running.length > 0 && l.look.some((r) => r.why.startsWith("held")), "the lists fall back to the Now and Flow answers");
+  S.http[`local ${BUSY}/api/obs/v1/board`] = fx("board-busy.json");
+  await ask((cx) => D.loadBoard(cx, f));
+  delete S.http[`local ${BUSY}/api/obs/v1/board`];
+  await ask((cx) => D.loadBoard(cx, f));
+  const b = view("Workshop").board;
+  assert.deepEqual([b.columns.length, b.old, Boolean(b.error)], [6, false, true]);
+  await ask((cx) => D.loadBoard(cx, f, "site"));
+  assert.equal(view("Workshop").board.columns, undefined, "another project's board is not shown for this one");
 });
 
 test("a task's trace is fetched on demand and kept small", async () => {
   standardSetup();
   await collect(fx("dashboard.json"));
+  const f = D.factoriesOf()[0];
   const pending = [];
   const cx = { spawn: (fn) => pending.push(Promise.resolve().then(() => fn(cx))), notify() {} };
-  D.loadTrace(cx, D.factoriesOf()[0], "box-a/T-0110");
+  S.http[`local ${BUSY}/api/obs/v1/task?k=${encodeURIComponent("box-a/T-0110")}`] = "404 page not found"; // a factory before API v1
+  D.loadTrace(cx, f, "box-a/T-0110");
   assert.equal(view("Workshop").trace.loading, true);
   while (pending.length) await pending.shift();
   const tr = view("Workshop").trace;
-  assert.deepEqual([tr.key, tr.task, tr.usd, tr.steps.length, tr.steps[1].kind], ["box-a/T-0110", "T-0110", 6.15, 2, "run.held"]);
-  D.loadTrace(cx, D.factoriesOf()[0], "box-a/none");
+  assert.deepEqual([tr.key, tr.task, tr.usd, tr.steps.length, tr.steps[1].kind, tr.v1], ["box-a/T-0110", "T-0110", 6.15, 2, "run.held", false]);
+  D.loadTrace(cx, f, "box-a/none");
   while (pending.length) await pending.shift();
   assert.ok(view("Workshop").trace.error);
+});
+
+test("trace v1: title, PR, prompt text cut short, and the steps as phases with repeats folded", async () => {
+  standardSetup();
+  S.http[`local ${BUSY}/api/obs/v1/task?k=${encodeURIComponent("box-a/T-0110")}`] = fx("task-v1.json");
+  await collect(fx("dashboard.json"));
+  await ask((cx) => D.loadTrace(cx, D.factoriesOf()[0], "box-a/T-0110"));
+  const tr = view("Workshop").trace;
+  assert.deepEqual([tr.v1, tr.title, tr.pr, tr.outcome], [true, "Held task title", "https://example.com/acme/app/pull/17", "held: owner"]);
+  assert.deepEqual([tr.steps[1].prompt.text.length, tr.steps[1].prompt.lines, tr.steps[1].prompt.cut, tr.steps[6].prompt.cut], [2000, 603, true, false]);
+  const v = D.traceView(tr, T0);
+  assert.deepEqual(v.phases.map((p) => [p.name, p.rows.length, D.dur(p.sec)]), [["Build", 3, "19m"], ["Gate", 4, "1h 21m"], ["CI", 1, "1m"], ["Judge", 3, "1h 49m"], ["Merge", 1, "30m"]]);
+  assert.deepEqual(v.phases[1].rows.map((r) => [r.text, r.times, r.bad]), [["Gate deferred: no PR yet", 2, false], ["Gate blocked: criterion 2 (cmd) exit 1, want 0", 1, true], ["Prompt to the task session: resume", 1, false], ["Gate passed: 6 of 6 criteria", 1, false]]);
+  assert.equal(v.phases[0].rows[1].text, "First prompt to the task session");
+  assert.equal(Math.round(v.phases[0].usd * 100), 410);
+  assert.deepEqual([v.state, v.open, D.dur(v.sec), v.sessions, v.rounds, v.blocks, v.prompts], ["held", true, "4h 0m", 2, 2, 1, 3]);
 });
 
 test("a held run's trace is asked once, not on every poll", async () => {

@@ -356,14 +356,65 @@ function loadFlow(cx, f) {
   });
 }
 
-// One task's trace (its steps from dispatch to merge), asked when someone opens it.
+// ---- API v1: the board and a task's trace, asked while their tab is open ----------------------------------------
+
+const CARDS = 4; // cards kept per cause; the rest is a count
+const PROMPT_CHARS = 2000;
+const cardOf = (c) => ({ key: c.key || null, task: c.task, title: c.title || null, project: c.project ?? null, stage: c.stage ?? null, age_sec: c.age_sec ?? 0, note: c.note || null, at: c.at ?? null, pr: c.pr ?? null });
+
+// What is kept of /api/obs/v1/board.
+export function boardFrom(b, project = null) {
+  const columns = (b.columns ?? []).map((c) => ({
+    id: c.id, name: c.name, count: c.count ?? 0,
+    groups: (c.groups ?? []).map((g) => ({ cause: g.cause ?? "", bad: Boolean(g.bad), count: g.count ?? 0, cards: (g.cards ?? []).slice(0, CARDS).map(cardOf) })),
+  }));
+  return { project, at: Date.now(), projects: b.projects ?? [], columns, done: { merged: 0, failed_refiled: 0, failed: 0, cancelled: 0, ...(b.done ?? {}) },
+    open: columns.filter((c) => c.id !== "done").reduce((n, c) => n + c.count, 0) };
+}
+
+// The board of one factory (project: null = all). A factory on a build before API v1 answers no JSON: board.old.
+// A failed ask keeps the last good board of the same project.
+export function loadBoard(cx, f, project = null) {
+  cx.spawn(async (cx) => {
+    let raw = null;
+    try {
+      raw = await factoryGet(f, `v1/board${project ? `?project=${encodeURIComponent(project)}` : ""}`, 15);
+      if (!(raw?.api >= 1) || !Array.isArray(raw.columns)) throw new SyntaxError("no board");
+      putFac(f.key, { board: boardFrom(raw, project) });
+    } catch (e) {
+      const last = facState(data(), f.key).board;
+      const keep = last?.columns && (last.project ?? null) === project ? last : { project };
+      putFac(f.key, { board: { ...keep, old: e instanceof SyntaxError, error: e instanceof SyntaxError ? null : String(e?.message ?? e), tried: Date.now() } });
+    }
+    cx.notify();
+  });
+}
+
+const stepOf = (s) => ({ ts: s.ts, kind: s.kind, role: s.role ?? null, model: s.model ?? null, machine: s.machine ?? null, summary: String(s.summary ?? "").slice(0, 600), usd: s.cost_usd ?? null, pr: s.links?.pr ?? null });
+
+// One task's trace (its steps from dispatch to merge), asked when someone opens it. API v1 adds the title, the PR and
+// the start of each prompt's text; an older factory answers the plain trace.
 export function loadTrace(cx, f, key) {
   putFac(f.key, { trace: { key, loading: true } });
   cx.spawn(async (cx) => {
     try {
-      const tr = await factoryGet(f, `task?k=${encodeURIComponent(key)}`, 12);
-      putFac(f.key, { trace: { key, task: tr.task, goal: tr.goal ?? null, project: tr.project ?? null, usd: tr.total_usd ?? null,
-        steps: (tr.steps ?? []).slice(-400).map((s) => ({ ts: s.ts, kind: s.kind, role: s.role ?? null, model: s.model ?? null, machine: s.machine ?? null, summary: String(s.summary ?? "").slice(0, 600), usd: s.cost_usd ?? null, pr: s.links?.pr ?? null })) } });
+      let tr = null;
+      try {
+        tr = await factoryGet(f, `v1/task?k=${encodeURIComponent(key)}`, 12);
+        if (!(tr?.api >= 1) || !Array.isArray(tr.steps)) tr = null;
+      } catch (e) {
+        if (!(e instanceof SyntaxError)) throw e;
+      }
+      const v1 = Boolean(tr);
+      tr ??= await factoryGet(f, `task?k=${encodeURIComponent(key)}`, 12);
+      const from = Math.max(0, (tr.steps ?? []).length - 400);
+      const steps = (tr.steps ?? []).slice(from).map(stepOf);
+      for (const [i, p] of Object.entries(tr.prompts ?? {})) {
+        const st = steps[Number(i) - from];
+        if (st && p?.text) st.prompt = { text: String(p.text).slice(0, PROMPT_CHARS), chars: p.chars ?? String(p.text).length, lines: String(p.text).split("\n").length, cut: Boolean(p.truncated) || String(p.text).length > PROMPT_CHARS };
+      }
+      putFac(f.key, { trace: { key, v1, task: tr.task, title: tr.title || null, goal: tr.goal ?? null, project: tr.project ?? null, usd: tr.total_usd ?? null,
+        pr: tr.pr || null, outcome: tr.outcome ?? null, stage: tr.stage ?? null, steps } });
     } catch (e) {
       putFac(f.key, { trace: { key, error: String(e?.message ?? e) } });
     }
@@ -567,7 +618,7 @@ export function factoryViews(d = data(), spaceList = spaces()) {
       ...base, state, loaded: true, drift, counts, waiting: counts.ci + counts.merge + counts.held, running,
       needs, needsCount: n.asks.reduce((s, a) => s + a.open, 0) + n.held.length,
       stuck: (st.flow?.stuck ?? []).map((r) => aged(r, st.flow.at)), stuckAfter: st.flow?.stuckAfter ?? null,
-      failed: st.failed ?? null, trace: st.trace ?? null,
+      failed: st.failed ?? null, trace: st.trace ?? null, board: st.board ?? null,
       today: (st.today ?? []).map((r) => ({ ...r, title: named(r.task, r.title) })),
       planner: planner && { on: !/^session\.(ended|closed)$/.test(planner.last_event ?? ""), at: Date.parse(planner.last_at) || null },
       projects: n.projects.map((p) => p.project).filter((p) => p !== "all" && !/^\(/.test(p)),
@@ -580,26 +631,93 @@ export function factoryViews(d = data(), spaceList = spaces()) {
   });
 }
 
-// The board of one factory: every task with an event today, in the column of where it is now. project: null = all.
-// A card's "why" says why it is not moving (over the stuck limit, or how it failed).
-export const BOARD = [["working", "Working"], ["ci", "In CI"], ["merge", "To merge"], ["held", "Held for you"], ["done", "Done today"]];
-export function boardOf(v, project = null) {
-  const cols = Object.fromEntries(BOARD.map(([k]) => [k, []]));
-  if (!v?.loaded) return cols;
-  const mine = (r) => project == null || (r.project ?? "") === project;
-  const over = new Set(v.stuck.map((r) => r.key));
-  for (const r of v.running.filter(mine))
-    cols[r.stage === "ci" ? "ci" : r.stage === "merge" ? "merge" : "working"].push({ ...r, note: `${r.stage === "gate" || r.stage === "judge" ? `${STAGE_WORDS[r.stage]}, ` : ""}${dur(r.age_s)}${over.has(r.key) ? ", over the limit" : ""}`, bad: over.has(r.key) });
-  for (const n of v.needs.filter((x) => x.kind === "held" && mine(x)))
-    cols.held.push({ key: n.key, task: n.task, title: n.title, project: n.project, age_s: n.age_s, note: `${dur(n.age_s)}, ${n.text}`, bad: true, pr: n.pr });
-  for (const r of v.today.filter(mine)) {
-    const o = String(r.outcome ?? "");
-    if (o === "merged") cols.done.push({ ...r, note: "merged", bad: false });
-    else if (o.startsWith("FAIL")) cols.done.push({ ...r, note: `failed: ${o.replace(/^FAIL:?\s*/, "").split(":")[0]}`, bad: true });
-    else if (o === "cancelled" || o === "reverted") cols.done.push({ ...r, note: o, bad: o === "reverted" });
+// ---- the trace as the Traces tab shows it ---------------------------------------------------------------------------
+
+const PHASE = { build: "Build", gate: "Gate", ci: "CI", judge: "Judge", merge: "Merge", end: "End" };
+function phaseOf(st, cur) {
+  const k = String(st.kind ?? "");
+  if (k === "task.dispatched") return "build";
+  if (k === "task.failed" || k === "task.cancelled") return "end";
+  if (st.role === "judge" || k.startsWith("judge.")) return "judge";
+  if (k.startsWith("gate.") || k.startsWith("review.")) return "gate";
+  if (k.startsWith("ci.")) return "ci";
+  if (k.startsWith("pr.") || k.startsWith("merge.") || k === "run.held") return "merge";
+  if (k === "prompt.sent" && / first /.test(` ${st.summary} `)) return cur === "gate" || cur === "ci" || cur === "merge" ? cur : "build";
+  return cur ?? "build";
+}
+const BAD_STEP = /^(gate\.blocked|ci\.red|task\.failed|run\.held|run\.stalled)$/;
+const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+function stepText(st) {
+  if (st.kind === "prompt.sent") {
+    const kind = (/^prompt sent: (\S+)/.exec(st.summary) ?? [])[1] ?? "";
+    const to = st.role === "judge" ? "the judge" : st.role === "task" ? "the task session" : `the ${st.role ?? "session"}`;
+    return kind === "first" ? `First prompt to ${to}` : `Prompt to ${to}${kind && kind !== st.role ? `: ${kind}` : ""}`;
   }
-  for (const k of ["working", "ci", "merge", "held"]) cols[k].sort((a, b) => (b.age_s ?? 0) - (a.age_s ?? 0));
-  return cols;
+  return cap(String(st.summary ?? ""));
+}
+
+// A trace laid out as phases (Build, Gate, CI, Judge, Merge), each with its time and cost. Steps that repeat one
+// after another (a gate deferred ten times) become one row with a count. now: ms, for a task still running.
+export function traceView(tr, now = Date.now()) {
+  const steps = tr?.steps ?? [];
+  const phases = [];
+  let cur = null;
+  for (const st of steps) {
+    const ph = phaseOf(st, cur);
+    if (ph !== cur || !phases.length) phases.push({ id: ph, name: PHASE[ph], from: Date.parse(st.ts) || null, usd: 0, rows: [] });
+    cur = ph;
+    const p = phases[phases.length - 1];
+    p.usd += st.usd ?? 0;
+    const text = stepText(st);
+    const last = p.rows[p.rows.length - 1];
+    if (last && last.text === text && !st.prompt && !last.prompt) {
+      last.times++;
+      last.usd = (last.usd ?? 0) + (st.usd ?? 0) || null;
+      continue;
+    }
+    p.rows.push({ ts: st.ts, text, times: 1, bad: BAD_STEP.test(st.kind) || /^judge REJECT/.test(st.summary), usd: st.usd, pr: st.pr, prompt: st.prompt ?? null });
+  }
+  const first = Date.parse(steps[0]?.ts) || null, lastTs = Date.parse(steps[steps.length - 1]?.ts) || null;
+  const o = String(tr?.outcome ?? "");
+  const open = !o || o.startsWith("held");
+  const end = open ? now : lastTs;
+  phases.forEach((p, i) => { p.sec = p.from ? Math.max(0, Math.round(((phases[i + 1]?.from ?? end ?? p.from) - p.from) / 1000)) : null; });
+  const n = (re) => steps.filter((s) => re.test(s.kind)).length;
+  const state = o.startsWith("held") ? "held" : o === "merged" ? "merged" : o.startsWith("FAIL") ? `failed: ${o.replace(/^FAIL:?\s*/, "").split(":")[0]}` : o || STAGE_WORDS[tr?.stage] || "running";
+  return {
+    phases, state, open, sec: first && end ? Math.max(0, Math.round((end - first) / 1000)) : null,
+    sessions: n(/^session\.started$/), rounds: n(/^gate\.(passed|blocked)$/), blocks: n(/^gate\.blocked$/), prompts: n(/^prompt\.sent$/),
+  };
+}
+
+// The Traces tab's lists, from the board: what needs a look (held, or under a cause marked as trouble), what runs,
+// and today's merged and failed tasks. Without a board (an older factory) it falls back to the Now and Flow answers.
+export function traceLists(v) {
+  const b = v?.board?.columns ? v.board : null;
+  const uniq = (rows) => { const seen = new Set(); return rows.filter((r) => r.key && !seen.has(r.key) && seen.add(r.key)); };
+  if (!b) {
+    const fail = (r) => String(r.outcome ?? "").startsWith("FAIL");
+    const row = (r, why) => ({ key: r.key, task: r.task, title: r.title, why });
+    return {
+      look: uniq([...v.needs.filter((n) => n.kind === "held").map((n) => row(n, `held ${dur(n.age_s)}`)), ...v.stuck.map((r) => row(r, `${STAGE_WORDS[r.stage] ?? r.stage} ${dur(r.age_s)}`))]),
+      running: uniq(v.running.map((r) => row(r, `${STAGE_WORDS[r.stage] ?? r.stage} ${dur(r.age_s)}`))),
+      merged: uniq(v.today.filter((r) => r.outcome === "merged").map((r) => row(r, "merged"))),
+      failed: uniq(v.today.filter(fail).map((r) => row(r, `failed: ${String(r.outcome).replace(/^FAIL:?\s*/, "").split(":")[0]}`))),
+    };
+  }
+  const drift = Math.max(0, Math.round((Date.now() - b.at) / 1000));
+  const out = { look: [], running: [], merged: [], failed: [] };
+  for (const c of b.columns) for (const g of c.groups) for (const k of g.cards) {
+    const word = c.id === "held" ? "held" : c.id === "merge" ? "to merge" : c.id === "ci" ? "in CI" : c.id;
+    const row = { key: k.key, task: k.task, title: k.title, why: c.id === "done" ? (k.note ? `failed: ${k.note}` : "merged") : `${g.cause && c.id !== "held" ? g.cause.toLowerCase() : word}, ${dur(k.age_sec + drift)}` };
+    if (c.id === "done") out[k.note ? "failed" : "merged"].push(row);
+    else if (c.id !== "queued") {
+      out.running.push(row);
+      if (c.id === "held" || (g.bad && g.cause)) out.look.push(row);
+    }
+  }
+  for (const k of Object.keys(out)) out[k] = uniq(out[k]);
+  return out;
 }
 export const STAGE_WORDS = { dispatched: "working", gate: "in the gate", judge: "with the judge", ci: "in CI", merge: "to merge", held: "held" };
 
