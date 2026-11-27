@@ -477,3 +477,31 @@ func TestCancelCloseIsTheRunnersOwn(t *testing.T) {
 		t.Error("the close is not recorded as the runner's own")
 	}
 }
+
+// A stale recorded PR does not hide the branch's open one, and a held run whose PR was closed before the cancel ends.
+func TestPRCloseStaleRecordAndHeldRun(t *testing.T) {
+	r, s := testRunner(t, "")
+	stale, open := openPRof(10, "factory/t-0001"), openPRof(11, "factory/t-0001")
+	stale.State = "CLOSED"
+	f := newFakePRs(r, stale, open)
+	run := endedRun("T-0001", Cancelled, stale.URL, 0)
+	putRuns(t, s, run)
+	cancelTask(t, s, "T-0001")
+	if _, closed, err := r.closePR(run, "why", ""); closed != open.URL || err != nil {
+		t.Fatalf("stale record: %q %v %v", closed, err, f.calls)
+	}
+	id, err := s.AddTask("G-001", "zz-test held", "spec", "1. works - cmd:true => exit 0", "todo", "[]", 1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := openPRof(12, "factory/"+strings.ToLower(id))
+	gone.State = "CLOSED"
+	held := endedRun(id, Held, gone.URL, 0)
+	newFakePRs(r, gone)
+	putRuns(t, s, held)
+	cancelTask(t, s, id)
+	r.closePR(held, "why", "")
+	if x, err := s.Run(id); err != nil || x.State != Cancelled {
+		t.Errorf("held run: %+v %v", x, err)
+	}
+}

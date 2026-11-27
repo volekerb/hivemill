@@ -467,8 +467,32 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool, closed st
 		return
 	}
 	if pr.State != "OPEN" || (pr.HeadRefName != "" && pr.HeadRefName != run.Branch) {
-		settled()
-		return
+		// the recorded PR may be stale: the branch may have another open one
+		rc, out, errs := r.listOpenPR(run.Repo, run.Branch)
+		if rc != 0 {
+			failed("find its PR: %s", firstLine(errs))
+			return
+		}
+		other := strings.TrimSpace(out)
+		if other == "" || other == url || other == landedPR {
+			// a held PR closed before the cancel: end the run, or the next pass would block the cancelled task
+			if t, terr := r.Store.Task(run.Task); terr == nil && t.Status == "cancelled" && pr.State == "CLOSED" && heldForOwner(run) {
+				r.endHeld(run)
+			}
+			settled()
+			return
+		}
+		if user, uerr := r.branchUser(run.Task, run.Repo, run.Branch, other); uerr != nil || user != "" {
+			return called, "", uerr
+		}
+		url = other
+		if pr, perr = PRView(r.Tools, url); perr != nil {
+			failed("%v", perr)
+			return
+		}
+		if pr.State != "OPEN" {
+			return
+		}
 	}
 	// a PR found by its branch only: recorded, so that a re-file or a retry finds and reopens it
 	_ = r.Store.TaskPR(run.Task, url, "")
@@ -486,19 +510,24 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool, closed st
 	closed = url
 	_ = r.Store.SetMeta(prClosedKey+url, nowISO())
 	if heldForOwner(run) { // else the next pass would read the close as the owner's and block the task again
-		r.closeSessions(run) // as Stop does
-		r.endCIWait(run)
-		if run.Flow != nil {
-			r.enterFlow(run, "", "")
-		}
-		run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
-		r.endSessions(run)
-		_ = r.Log.Emit("task.cancelled", run, Event{})
-		if err := r.Store.PutRun(run); err != nil {
-			r.printf("%s: %v\n", run.Task, err)
-		}
+		r.endHeld(run)
 	}
 	r.printf("%s: closed %s\n", run.Task, url)
 	_ = r.Log.Emit("pr.closed", run, Event{Data: map[string]any{"pr": url, "why": truncate(why, 900)}})
 	return
+}
+
+// endHeld ends a run held for the owner as cancelled, as Stop does.
+func (r *Runner) endHeld(run *Run) {
+	r.closeSessions(run)
+	r.endCIWait(run)
+	if run.Flow != nil {
+		r.enterFlow(run, "", "")
+	}
+	run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
+	r.endSessions(run)
+	_ = r.Log.Emit("task.cancelled", run, Event{})
+	if err := r.Store.PutRun(run); err != nil {
+		r.printf("%s: %v\n", run.Task, err)
+	}
 }

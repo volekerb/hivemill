@@ -242,6 +242,16 @@ func (r *Runner) Start(id string) error {
 	if err != nil {
 		return err
 	}
+	// a retry stays with the previous attempt's commits: while another run is on that branch, it waits
+	if retry && old.Branch != "" && old.Branch != branch {
+		user, err := r.branchUser(id, t.GHRepo, old.Branch, "")
+		if err != nil {
+			return err
+		}
+		if user != "" {
+			return fmt.Errorf("%w: %s: its retry waits: the run of %s works on %s", ErrRefused, id, user, old.Branch)
+		}
+	}
 	// held until the run is saved: the removal of an ended run's remote worktree takes it too
 	l := r.lock(id, false)
 	if l == nil {
