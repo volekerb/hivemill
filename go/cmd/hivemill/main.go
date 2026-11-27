@@ -154,6 +154,15 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		}
 	}
 	switch args[0] {
+	case "release-run": // the detached job of a release task (hm.startRelease)
+		if !taskRe.MatchString(arg(1)) {
+			fmt.Fprintln(stderr, "usage: hivemill release-run T-1234")
+			return 2
+		}
+		if os.Getenv("FACTORY_HOME") != "" {
+			syscall.CloseOnExec(3) // the job's lock (hm detach): release_cmd and what it leaves behind do not hold it
+		}
+		err = r.RunRelease(strings.ToUpper(arg(1)))
 	case "run":
 		switch a := arg(1); {
 		case a == "":

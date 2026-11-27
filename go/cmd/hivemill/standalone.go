@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/url"
@@ -254,10 +255,11 @@ func cmdPR(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Write
 	return 0
 }
 
-// cmdProfile is `hivemill project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--clear]`: the project's own
-// tier settings (print them when no flag is given).
+// cmdProfile is `hivemill project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--release-cmd CMD] [--clear]`: the
+// project's own tier settings and release command (print them when no flag is given). --clear is for the tier settings;
+// --release-cmd "" drops the command.
 func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
-	usage := "usage: hivemill project profile ID [--sensitive GLOB]... [--tier-rules /abs/tier_rules.json] [--clear]"
+	usage := "usage: hivemill project profile ID [--sensitive GLOB]... [--tier-rules /abs/tier_rules.json] [--release-cmd CMD] [--clear]"
 	s := sqliteOf(r, stderr)
 	if s == nil {
 		return 1
@@ -275,9 +277,17 @@ func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 	fs.Var(&sens, "sensitive", "a sensitive path glob (repeat); replaces sensitive_paths of the tier rules for this project")
 	rules := fs.String("tier-rules", "", "the project's own tier rules file (absolute path, the ci/tier_rules.json format)")
 	clear := fs.Bool("clear", false, "drop the project's sensitive paths and rules file")
+	release := fs.String("release-cmd", "", "the command a release task runs (without a shell; --dry-run is added for the dry run)")
 	if fs.Parse(args[1:]) != nil || fs.NArg() > 0 {
 		fmt.Fprintln(stderr, usage)
 		return 2
+	}
+	setRelease := false
+	fs.Visit(func(f *flag.Flag) { setRelease = setRelease || f.Name == "release-cmd" })
+	if setRelease {
+		if err := s.SetReleaseCmd(id, strings.TrimSpace(*release)); err != nil {
+			return fail(stderr, err)
+		}
 	}
 	p, err := s.Profile(id)
 	if err != nil {
@@ -317,6 +327,13 @@ func cmdProfile(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 		return fail(stderr, err)
 	}
 	fmt.Fprintf(stdout, "%s sensitive_paths %q tier_rules %q (tier rules: %s)\n", id, strings.Join(p.SensitivePaths, ","), p.TierRules, from)
+	cmd, err := s.ReleaseCmd(id)
+	if err != nil {
+		return fail(stderr, err)
+	}
+	if cmd != "" {
+		fmt.Fprintf(stdout, "%s release_cmd %q\n", id, cmd)
+	}
 	return 0
 }
 

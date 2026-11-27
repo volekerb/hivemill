@@ -163,7 +163,7 @@ func sqliteOf(r *hm.Runner, stderr io.Writer) *hm.SQLite {
 // proof can name); the profile holds the project's own tier settings.
 func cmdProject(r *hm.Runner, args []string, stdout, stderr io.Writer) int {
 	usage := "usage: hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... [--base BRANCH] [--name NAME] | project list | " +
-		"project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--clear]"
+		"project profile ID [--sensitive GLOB]... [--tier-rules FILE] [--release-cmd CMD] [--clear]"
 	s := sqliteOf(r, stderr)
 	if s == nil {
 		return 1
@@ -367,6 +367,7 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 
 const taskUsage = "usage: hivemill task lint|show|cancel T-1234 | task lint --all | task list [--goal G] [--status S] | task list --startable|--blocked | " +
 	"task add --goal G --title TEXT (--spec TEXT|--spec-file F) (--acceptance TEXT|--acceptance-file F) [--priority N] [--depends T-1,T-2] [--refile-of T-1234] [--draft] | " +
+	"task add --kind release --project P [--goal G] [--title TEXT] [--priority N] [--depends T-1,T-2] [--draft] | " +
 	"task update T-1234 [--title] [--spec|--spec-file] [--acceptance|--acceptance-file] [--status S] [--priority N] [--depends T-1,T-2]"
 
 // lintReport prints the parsed criteria and the spec gate result; it returns the problems.
@@ -403,6 +404,9 @@ func lintAll(r *hm.Runner, stdout, stderr io.Writer) int {
 			return fail(stderr, err)
 		}
 		for _, t := range ts {
+			if t.Kind == hm.KindRelease { // no session, so no spec gate
+				continue
+			}
 			checked++
 			probs := hm.FilingProblems(t.Acceptance)
 			if len(probs) > 0 {
@@ -433,6 +437,45 @@ func depsJSON(v string) (string, error) {
 	}
 	b, _ := json.Marshal(deps)
 	return string(b), nil
+}
+
+// releaseGoal is the title of the goal a release task goes to when no --goal is named.
+const releaseGoal = "Releases"
+
+// addRelease files a release task of the project, in the named goal or in the project's active "Releases" goal.
+func addRelease(s *hm.SQLite, project, goal, title, spec, status, deps string, prio int) (string, string, error) {
+	if project == "" || !projectExists(s, project) {
+		return "", "", fmt.Errorf("%w: --kind release needs --project, one of `hivemill project list`", hm.ErrRefused)
+	}
+	if goal != "" {
+		g, err := s.Goal(goal)
+		if err != nil {
+			return "", "", err
+		}
+		if g.Project != project {
+			return "", "", fmt.Errorf("%w: goal %s is not of project %s", hm.ErrRefused, goal, project)
+		}
+	} else {
+		goals, err := s.Goals("active")
+		if err != nil {
+			return "", "", err
+		}
+		for _, g := range goals {
+			if g.Project == project && g.Title == releaseGoal {
+				goal = g.ID
+			}
+		}
+		if goal == "" {
+			if goal, err = s.NewGoal(project, releaseGoal, "release builds", "", 2); err != nil {
+				return "", "", err
+			}
+		}
+	}
+	if title == "" {
+		title = "release build of " + project
+	}
+	id, err := s.AddReleaseTask(goal, title, spec, status, deps, prio)
+	return id, goal, err
 }
 
 // cmdTask is `hivemill task lint|add|list|show|update|cancel`.
@@ -484,7 +527,34 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		depends := fs.String("depends", "", "comma-separated task ids that must be done first")
 		refileOf := fs.String("refile-of", "", "the cancelled or failed task this one files again: its dependents move to the new id")
 		draft := fs.Bool("draft", false, "store it as status draft: never dispatched, criteria may still fail the spec gate")
-		if fs.Parse(args[1:]) != nil || fs.NArg() > 0 || !goalRe.MatchString(*goal) || strings.TrimSpace(*title) == "" {
+		kind := fs.String("kind", "", "release: no coding session, the runner runs the project's release_cmd")
+		project := fs.String("project", "", "the project of a release task")
+		if fs.Parse(args[1:]) != nil || fs.NArg() > 0 {
+			fmt.Fprintln(stderr, taskUsage)
+			return 2
+		}
+		if *kind == hm.KindRelease {
+			if *specFile != "" || *acc != "" || *accFile != "" || *refileOf != "" || (*goal != "" && !goalRe.MatchString(*goal)) {
+				fmt.Fprintln(stderr, "hivemill: a release task takes no --spec-file, --acceptance or --refile-of")
+				return 2
+			}
+			deps, err := depsJSON(*depends)
+			if err != nil {
+				return fail(stderr, err)
+			}
+			status := "todo"
+			if *draft {
+				status = "draft"
+			}
+			id, g, err := addRelease(s, *project, strings.ToUpper(*goal), strings.TrimSpace(*title), *spec, status, deps, *prio)
+			if err != nil {
+				return fail(stderr, err)
+			}
+			fmt.Fprintf(stdout, "%s %s release task in %s\n", id, status, g)
+			repoint(r, stderr)
+			return 0
+		}
+		if *kind != "" || *project != "" || !goalRe.MatchString(*goal) || strings.TrimSpace(*title) == "" {
 			fmt.Fprintln(stderr, taskUsage)
 			return 2
 		}
@@ -579,6 +649,20 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		if t.PRURL != "" {
 			fmt.Fprintf(stdout, "PR %s tier %s\n", t.PRURL, or(t.Tier, "-"))
 		}
+		if t.Kind == hm.KindRelease {
+			state, result, err := s.Release(t.ID)
+			if err != nil {
+				return fail(stderr, err)
+			}
+			fmt.Fprintf(stdout, "kind release, %s\n", or(state, "not started"))
+			if result != "" {
+				fmt.Fprintf(stdout, "result: %s\n", result)
+			}
+			if state != "" {
+				fmt.Fprintf(stdout, "log: %s\n", r.ReleaseLog(t.ID))
+			}
+			return 0
+		}
 		fmt.Fprintf(stdout, "\nSpec:\n%s\n\nAcceptance:\n%s\n\n", strings.TrimSpace(t.Spec), strings.TrimSpace(t.Acceptance))
 		lintReport(stdout, t.ID, t.Acceptance)
 		if run, _ := s.Run(t.ID); run != nil {
@@ -667,7 +751,8 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		}
 		_, accChanged := set["acceptance"]
 		_, stChanged := set["status"]
-		if (accChanged || stChanged) && newStatus != "draft" && newStatus != "done" && newStatus != "cancelled" {
+		if (accChanged || stChanged) && newStatus != "draft" && newStatus != "done" && newStatus != "cancelled" &&
+			t.Kind != hm.KindRelease { // a release task has no session, so no spec gate
 			var lint strings.Builder
 			probs := lintReport(&lint, id, newAcc)
 			filed := t.Status == "todo" || t.Status == "blocked" || t.Status == "in_progress" || t.Status == "in_review"
@@ -695,6 +780,9 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 		}
 		if run, _ := s.Run(id); run != nil && hm.Active(run.State) {
 			return fail(stderr, fmt.Errorf("%w: %s has an active run (%s); `hivemill run stop %s` first", hm.ErrRefused, id, run.State, id))
+		}
+		if state, _, err := s.Release(id); err == nil && (state == "queued" || state == "running") {
+			return fail(stderr, fmt.Errorf("%w: %s is releasing now; cancel it after the release ends", hm.ErrRefused, id))
 		}
 		if err := s.UpdateTask(id, map[string]any{"status": "cancelled"}); err != nil {
 			return fail(stderr, err)

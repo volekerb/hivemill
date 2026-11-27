@@ -166,6 +166,21 @@ hivemill config projects www         # only now does a plain pass dispatch from 
 - **Tier rules.** The gate's tier and the merge decision use, first found: the project's rules file (`hivemill project profile ID --tier-rules /abs/file`), the home's `ci/tier_rules.json`, the built-in copy of the repo's `ci/tier_rules.json`. `hivemill project profile ID --sensitive GLOB...` replaces `sensitive_paths` for that project (`--clear` drops both). A file that exists but does not load leaves the tier undecided (the owner merges), never a silent fallback. The session model (`Risk`) still reads the home's file only.
 - `hivemill config model|risk_model` refuses anything but a `claude-*` id, and every Fable model.
 
+## Release tasks
+
+A task of kind `release` has no coding session: the runner itself cuts the build.
+
+```
+hivemill project profile ID --release-cmd '~/path/to/release.sh'
+hivemill task add --kind release --project ID     # [--goal G] [--title T] [--priority N] [--depends T-1] [--draft]
+```
+
+- **Where it runs.** A pass (or `hivemill run T-1234`) starts a detached job: `git fetch origin`, a fresh detached worktree of `origin/<base>` at `<home>/worktrees/release-<task>` (removed afterwards), then `release_cmd` with `--dry-run`, then without it, 2 h each. It runs without a shell (`~/` and variables are expanded, no operators). One release per project at a time. It takes no session slot, and the run caps and usage floors do not hold it; drain mode does.
+- **Contract of `release_cmd`.** It prints a one-line JSON summary with `ok` and `build`, and exits 0 with `ok` true only once App Store Connect has processed the build. The runner stores that summary, with `"state":"VALID"`, on the task (`hivemill task show`), and the task is `done`.
+- **Never an App Store submit.** A `release_cmd` that names submit does not run until the owner has answered some `release build N`; for real it needs the answer for the dry run's build number. A release config (`--config`, else `.hivemill/ios-release.json`) with `submitExternal` other than false stops after the dry run until the same answer; a config that cannot be read is refused.
+- **Failure.** The owner gets a question with the exit code and the last 40 log lines, the planner a `release_failed` work item, and the task is `blocked`. Nothing retries it: `hivemill task update T-1234 --status todo` runs it again. A job that died is failed the same way; check for an uploaded build first.
+- **Log.** `<home>/state/hivemill/release/<task>/release.log`, with private keys, JWTs and the credential values (`HIVEMILL_REDACT_VALUES`, `ASC_*`) redacted. The log is written after each call ends.
+
 ## Running unattended
 
 The runner needs no open client. The owner's laptop can be closed, and the runner survives a reboot.
