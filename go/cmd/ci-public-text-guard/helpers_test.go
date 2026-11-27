@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,7 +22,21 @@ var (
 	buildOnce sync.Once
 	builtBin  string
 	buildErr  error
+	binDir    string
 )
+
+// TestMain owns the directory of the built binary and removes it: a test's t.TempDir would remove it under the later tests.
+func TestMain(m *testing.M) {
+	d, err := os.MkdirTemp("", "ci-bin-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	binDir = d
+	code := m.Run()
+	os.RemoveAll(d)
+	os.Exit(code)
+}
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
@@ -47,12 +62,7 @@ func needPython(t *testing.T, script string) string {
 func goBin(t *testing.T, name string) string {
 	t.Helper()
 	buildOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "ci-tool-test-")
-		if err != nil {
-			buildErr = err
-			return
-		}
-		builtBin = filepath.Join(dir, name)
+		builtBin = filepath.Join(binDir, name)
 		cmd := exec.Command("go", "build", "-o", builtBin, "factory/go/cmd/"+name)
 		cmd.Dir = filepath.Join(repoRoot(t), "go")
 		if out, err := cmd.CombinedOutput(); err != nil {
