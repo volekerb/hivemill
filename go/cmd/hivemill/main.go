@@ -15,7 +15,7 @@
 //	hivemill goal new|list|show|close           goals
 //	hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... | project list | project profile ID [--sensitive GLOB]...
 //	hivemill init [--home DIR]     make a standalone factory home (DB tables, state dirs, ci/scrub_allowlist.txt); idempotent
-//	hivemill launchd daemon|health print the daemon's LaunchAgent, or the 5-minute `health --alert` one, for this home
+//	hivemill launchd daemon|digest|health|obs   print one of this home's LaunchAgents
 //	hivemill config [KEY [VALUE]]  runner settings (table hm_config) and the factory keys noreply_email, scrub_terms_file, ...
 //	hivemill pr create --title T --body - | pr ready   a task session opens the PR of its own task (repo and branch from the DB)
 //	hivemill guard --home DIR --role ROLE   the worker guard hook of a standalone home's sessions (exit 2 blocks)
@@ -26,7 +26,7 @@
 //	    [--ios-dir DIR --xcode-workspace PATH|--xcode-project PATH --xcode-scheme NAME]   and xcodebuild on an iOS change
 //	hivemill daemon [--take-over]  the pass loop in-process (systemd Type=notify, launchd KeepAlive)
 //	hivemill standby check --from HOST[:DIR]  restore the primary's newest snapshot into a temp home and read it
-//	hivemill health [--alert]      exit 0 when the last good pass is recent; --alert raises the rate-limited dead-man alert
+//	hivemill health [--alert]      exit 0 when the last good pass is recent and obs answers; --alert raises the rate-limited alerts
 //	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
 //	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
@@ -66,7 +66,7 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
 		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close|status | " +
 		"project add|list | config [KEY [VALUE]] | daemon [--take-over] | standby check --from HOST[:DIR] | health [--alert] | drain [--status] | resume | " +
-		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health | planner start|stop|status|wake | " +
+		"backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health|obs | planner start|stop|status|wake | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
 		"guard --home DIR --role ROLE | guard export | check public-text --home DIR REMOTE URL | affected --base REF | " +
 		"proofs touched --base REF [--root DIR] [--ios-dir DIR --xcode-workspace PATH|--xcode-project PATH --xcode-scheme NAME] | " +
@@ -279,6 +279,20 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 			} else if len(sent) > 0 {
 				fmt.Fprintf(stdout, "owner alert: %s\n", strings.Join(sent, ", "))
 			}
+		}
+		down := r.ObsDown()
+		if down != "" {
+			fmt.Fprintf(stdout, "problem: %s\n", down)
+		}
+		if arg(1) == "--alert" && (env.Actor == "" || env.Actor == "owner") {
+			if sent, e := r.ObsAlert(time.Now(), down); e != nil {
+				fmt.Fprintln(stderr, "hivemill: obs alert:", e)
+			} else if sent {
+				fmt.Fprintln(stdout, "obs alert sent")
+			}
+		}
+		if down != "" && ok {
+			return 1
 		}
 		if !ok {
 			if arg(1) == "--alert" {

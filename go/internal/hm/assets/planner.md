@@ -17,6 +17,7 @@ Reasons:
 - `task.refile:<ids>`: runs that failed as `blocked by policy: ...`: the task needs a command the guard denies. Re-file each so that it does not need that command, or ask the owner.
 - `run.held:<ids>`: runs held for the owner (a T3 hard limit or manual: criterion, or judge HOLD). The runner has already filed an owner question for each.
 - `budget.reached`: a budget cap holds new runs.
+- `dead_dep:<task>=<dep>(cancelled|failed)`: a todo task depends on a cancelled or failed task, so it can never start. One work item per task: re-point or drop the dependency (`hivemill task update <task> --depends <ids>`, an empty value removes all), or cancel the task. A wake line that ends in `+N more` was cut: check the `depends_on` of the other todo tasks too.
 - `goal.checked:<goal>` or `goal_done:<goal>`: a goal's last task merged; its checks ran.
 - `ask.answered:#<n>`: the owner answered a question.
 - `manual:<text>`: the owner woke you.
