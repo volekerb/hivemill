@@ -65,7 +65,7 @@ func (r hostRunner) Kickstart(uid int, label string) error {
 func (c *Ctx) agentsDir() string { return filepath.Join(c.home, "Library", "LaunchAgents") }
 
 // bootJobs are the launchd jobs an install writes, in bootstrap order.
-var bootJobs = []string{"hivemill.daemon", "hivemill.digest", "hivemill.health"}
+var bootJobs = []string{"hivemill.daemon", "hivemill.obs", "hivemill.digest", "hivemill.health"}
 
 // The renderer accepts, and uninstall removes, every label in ldLabels: add the installed jobs to the older ones,
 // so that --uninstall-boot-units still cleans a machine an earlier installer set up.
@@ -94,6 +94,10 @@ func stepBootUnits(c *Ctx) (string, error) {
 	for _, l := range labels {
 		b, err := tm.Render(l, vars)
 		if err != nil {
+			if !c.plan && l == "hivemill.obs" && errors.Is(err, fs.ErrNotExist) {
+				c.note("this version has no dashboard service: " + l + " is not installed")
+				continue
+			}
 			if c.plan && errors.Is(err, fs.ErrNotExist) {
 				// a first install has no clone yet in a dry run: show the plan without the content
 				c.emit(fmt.Sprintf("    render %s/%s.plist.in -> %s (after the clone)", tdir, l, filepath.Join(dir, ldPlistName(l))))
@@ -130,7 +134,12 @@ func stepBootUnits(c *Ctx) (string, error) {
 		return "", stepWrap(err, "write plists")
 	}
 	r := hostRunner{c.host}
+	var installed []string
 	for _, l := range labels {
+		if _, ok := plists[l]; !ok {
+			continue
+		}
+		installed = append(installed, l)
 		// idempotent: an already-loaded job makes bootstrap fail, so boot it out first. A bootout failure is not
 		// fatal (newer macOS answers rc 5 for a job that is not loaded): bootstrap below reports a real problem.
 		_ = r.Bootout(uid, l)
@@ -148,7 +157,7 @@ func stepBootUnits(c *Ctx) (string, error) {
 			return "", stepWrap(err, "bootstrap "+l)
 		}
 	}
-	return fmt.Sprintf("launchd agents %s installed in %s and bootstrapped", strings.Join(labels, ", "), dir), nil
+	return fmt.Sprintf("launchd agents %s installed in %s and bootstrapped", strings.Join(installed, ", "), dir), nil
 }
 
 // runUninstallBootUnits is --uninstall-boot-units on macOS: boot out every hivemill.* job, remove the plists.
