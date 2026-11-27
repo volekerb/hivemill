@@ -9,6 +9,7 @@ import (
 
 // The test packages that build a binary leave nothing in the temp directory. They run with a private TMPDIR, so the
 // leftovers of other processes in /tmp cannot fail or hide the check.
+// The test cache does not see changes in those packages: run it with -count=1.
 func TestNoTmpLeftoversFromBuildHelpers(t *testing.T) {
 	tmp, err := os.MkdirTemp("", "nl-") // short: the nested tests make their own paths below it
 	if err != nil {
@@ -34,7 +35,13 @@ func TestNoTmpLeftoversFromBuildHelpers(t *testing.T) {
 	// internal/guard is slow as a whole: one test for each of its two build helpers.
 	run([]string{"./internal/guard", "-run", "^(TestCursorAdapterOutcomes|TestDockerPruneEntryBlocked)$"},
 		"TestCursorAdapterOutcomes", "TestDockerPruneEntryBlocked")
-	run([]string{"./cmd/ci-scrub-scan", "./cmd/ci-public-text-guard", "./cmd/ci-pre-push-public-text"})
+	for pkg, name := range map[string]string{ // each of these tests builds its tool
+		"./cmd/ci-scrub-scan":           "TestScrubParityTree",
+		"./cmd/ci-public-text-guard":    "TestPublicTextParityText",
+		"./cmd/ci-pre-push-public-text": "TestPrePushParity",
+	} {
+		run([]string{pkg}, name)
+	}
 
 	left, err := os.ReadDir(tmp)
 	if err != nil {
