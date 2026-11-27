@@ -1711,7 +1711,8 @@ func (r *Runner) askMachine(ctx context.Context, machine string, spec MachineSpe
 			done <- answer{rc, out}
 			return
 		}
-		rc, out := r.Tools.Sh("/", 20*time.Minute, nil, "hc", "exec", "--on", machine, "--timeout", "1200",
+		// hc exec accepts at most 600 s (2026-11-27: every shared-home machine clean failed with invalid_params)
+		rc, out := r.Tools.Sh("/", 11*time.Minute, nil, "hc", "exec", "--on", machine, "--timeout", "600",
 			"sh", "-c", `PATH="`+remotePATH+`"; export PATH; exec hivemill local clean "$1"`, "sh", string(b))
 		done <- answer{rc, out}
 	}()
