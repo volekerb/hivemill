@@ -123,6 +123,20 @@ type FlowPage struct {
 	GuardBlocks map[string]int `json:"guard_blocks"`
 	// Chart is the merged-per-day SVG.
 	Chart template.HTML `json:"-"`
+	// Peak is the day with the most merges (the latest of equal days), for the chart's text summary.
+	Peak DayCount `json:"-"`
+	// Wider is the next longer time range in days, for the empty states; 0 when there is none.
+	Wider int `json:"-"`
+}
+
+// widerRange is the next range after days: the header's ranges, then the longest one the page accepts.
+func widerRange(days int) int {
+	for _, d := range []int{7, 30, 90, 3650} {
+		if d > days {
+			return d
+		}
+	}
+	return 0
 }
 
 // matches reports whether the project filter (empty = all) keeps the project.
@@ -147,7 +161,7 @@ func dayList(now time.Time, days int) []string {
 
 // BuildFlow is the Flow page over the last days days and one project (empty = all).
 func (o *Obs) BuildFlow(days int, project string) *FlowPage {
-	p := &FlowPage{Days: days, Stages: FlowStages, StuckAfter: StuckAfter.String(), GuardBlocks: map[string]int{}}
+	p := &FlowPage{Days: days, Stages: FlowStages, StuckAfter: StuckAfter.String(), GuardBlocks: map[string]int{}, Wider: widerRange(days)}
 	wN := windowStart(o.Now, days)
 	perDay := map[string]int{}
 	keys := make([]string, 0, len(o.Tasks))
@@ -193,6 +207,9 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 	var bars []chartBar
 	for _, d := range dayList(o.Now, days) {
 		p.MergedByDay = append(p.MergedByDay, DayCount{d, perDay[d]})
+		if perDay[d] >= p.Peak.N {
+			p.Peak = DayCount{d, perDay[d]}
+		}
 		bars = append(bars, chartBar{Label: d, Vals: []float64{float64(perDay[d])}})
 	}
 	p.Chart = barChart(bars, []string{"merged"}, "merged PRs", func(v float64) string { return fmt.Sprintf("%.0f", v) })

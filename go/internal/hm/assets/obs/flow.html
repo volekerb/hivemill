@@ -9,20 +9,41 @@
 <p class="muted">At the limit the run is resumed once; 30 minutes later it fails as timed out.</p>
 {{end -}}
 <h2>Stuck now (a stage for more than {{.StuckAfter}})</h2>
-<div class="scroll"><table>
-<tr><th>task</th><th>machine</th><th>project</th><th>stage</th><th class="num">in stage</th><th>since</th></tr>
-{{range .Stuck}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td>{{.Machine}}</td><td>{{.Project}}</td><td>{{.Stage}}</td><td class="num warn">{{dur .AgeSec}}</td><td>{{when .Since}}</td></tr>
-{{else}}<tr><td colspan="6" class="muted">nothing is stuck</td></tr>{{end}}
+{{if .Stuck -}}
+<div class="scroll" tabindex="0" role="region" aria-label="stuck tasks"><table>
+<tr><th scope="col">task</th><th scope="col" class="num">in stage</th><th scope="col">stage</th><th scope="col">machine</th><th scope="col">project</th><th scope="col">since</th></tr>
+{{range .Stuck}}<tr><td><a href="{{$.Q "/task" "k" .Key}}">{{.Task}}</a></td><td class="num warn">{{dur .AgeSec}}</td><td>{{.Stage}}</td><td>{{.Machine}}</td><td>{{.Project}}</td><td>{{when .Since}}</td></tr>
+{{end -}}
 </table></div>
+{{- else -}}
+<p class="muted">nothing is stuck: no running task has spent more than {{.StuckAfter}} in one stage. <a href="{{$.Q "/"}}">See what is running on Now</a>.</p>
+{{- end}}
 <h2>Time per stage</h2>
-<div class="scroll"><table>
-<tr><th>task</th><th>machine</th><th>outcome</th>{{range .Stages}}<th class="num">{{.}}</th>{{end}}<th class="num">held</th><th class="num">total</th></tr>
-{{range $t := .Tasks}}<tr><td><a href="{{$.Q "/task" "k" $t.Key}}">{{$t.Task}}</a></td><td>{{$t.Machine}}</td><td class="{{outcomeClass $t.Outcome}}">{{$t.Outcome}}</td>{{range $s := $.FlowPg.Stages}}<td class="num">{{dur (index $t.Seconds $s)}}</td>{{end}}<td class="num">{{dur (index $t.Seconds "held")}}</td><td class="num">{{dur $t.Total}}</td></tr>
-{{else}}<tr><td colspan="10" class="muted">no task in this range</td></tr>{{end}}
-</table></div>
 <p class="muted">dispatched: the agent builds. gate: it fixes what the gate blocked. ci: gate passed, the PR waits for or repairs CI. judge: the judge session runs. merge: judged MERGE, waiting for the merge. Times come from events.jsonl.</p>
-<h2>Guard blocks ({{.Days}} days)</h2>
+{{if .Tasks -}}
+<div class="scroll" tabindex="0" role="region" aria-label="time per stage"><table rules="groups">
+<colgroup><col><col><col>{{range .Stages}}<col>{{end}}</colgroup><colgroup class="rule"><col><col></colgroup>
+<tr><th scope="col">task</th><th scope="col">machine</th><th scope="col">outcome</th>{{range .Stages}}<th scope="col" class="num">{{.}}</th>{{end}}<th scope="col" class="num">held</th><th scope="col" class="num">total</th></tr>
+{{range $t := .Tasks}}<tr><td><a href="{{$.Q "/task" "k" $t.Key}}">{{$t.Task}}</a></td><td>{{$t.Machine}}</td><td class="{{outcomeClass $t.Outcome}}">{{$t.Outcome}}</td>{{range $s := $.FlowPg.Stages}}<td class="num">{{dur (index $t.Seconds $s)}}</td>{{end}}<td class="num">{{dur (index $t.Seconds "held")}}</td><td class="num">{{dur $t.Total}}</td></tr>
+{{end -}}
+</table></div>
+{{- else -}}
+<p class="muted">no task in this range{{if .Wider}}. <a href="{{$.Q "/flow" "days" (print .Wider)}}">Show the last {{.Wider}} days</a>{{end}}.</p>
+{{- end}}
+<h3>Guard blocks ({{.Days}} days)</h3>
 <p>{{range $class, $n := .GuardBlocks}}{{$class}}: {{$n}} {{else}}<span class="muted">no guard block in this range</span>{{end}}</p>
 <h2>Merged per day ({{.Merged}} in {{.Days}} days)</h2>
+{{if .Merged -}}
+<p>{{.Merged}} merged in the last {{.Days}} days; the most in one day: {{.Peak.N}} on {{.Peak.Day}}.</p>
 {{.Chart}}
+<details><summary>Merged per day as a table</summary>
+<div class="scroll" tabindex="0" role="region" aria-label="merged per day values"><table>
+<tr><th scope="col">day</th><th scope="col" class="num">merged</th></tr>
+{{range .MergedByDay}}<tr><th scope="row">{{.Day}}</th><td class="num">{{.N}}</td></tr>
+{{end -}}
+</table></div>
+</details>
+{{- else -}}
+<p class="muted">no merged PR in this range, so there is no chart{{if .Wider}}. <a href="{{$.Q "/flow" "days" (print .Wider)}}">Show the last {{.Wider}} days</a>{{end}}.</p>
+{{- end}}
 {{end}}{{end}}

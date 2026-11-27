@@ -211,6 +211,7 @@ func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) boo
 	if manual != "" {
 		evs = append(evs, "manual:"+strings.ReplaceAll(manual, " ", "_"))
 	}
+	r.enqueuePlannerWork(nil, levels, true)
 	var last time.Time
 	if ts, err := strconv.ParseInt(r.Store.Meta("planner_last_wake"), 10, 64); err == nil {
 		last = time.Unix(ts, 0)
@@ -237,12 +238,71 @@ func (r *Runner) plannerWake(now time.Time, idle, force bool, manual string) boo
 		_ = r.Store.SetMeta("planner_pending", "send failed: "+firstLine(err.Error()))
 		return false
 	}
+	r.enqueuePlannerWork(evs, nil, false)
 	_ = r.Store.SetMeta("planner_cursor", strconv.FormatInt(cursor, 10))
 	_ = r.Store.SetMeta("planner_fp", d.Fingerprint)
 	_ = r.Store.SetMeta("planner_last_wake", strconv.FormatInt(now.Unix(), 10))
 	_ = r.Store.SetMeta("planner_pending", "")
 	_ = r.Log.Emit("planner.woken", nil, Event{Role: "planner", Data: map[string]any{"reasons": d.Reasons}})
 	return true
+}
+
+// enqueuePlannerWork records wake reasons as open planner_work rows ("task.failed:T-1" is kind task.failed, ref T-1). A level
+// ("queue_low:www=0/3", kind queue_low, ref www) is a state: its row is opened while it holds and closed as cleared once it
+// no longer does. Events are enqueued only when the event cursor moves past them, so a replayed event never reopens a row.
+func (r *Runner) enqueuePlannerWork(events, levels []string, syncLevels bool) {
+	s, err := r.sq()
+	if err != nil {
+		return
+	}
+	add := func(kind, ref string) {
+		if err := s.EnqueuePlannerWork(kind, ref); err != nil {
+			r.printf("planner: work queue: %v\n", err)
+		}
+	}
+	for _, x := range events {
+		kind, ref, _ := strings.Cut(x, ":")
+		add(kind, ref)
+	}
+	if !syncLevels {
+		return
+	}
+	live := map[string]bool{}
+	for _, x := range levels {
+		kind, ref, _ := strings.Cut(x, ":")
+		ref, _, _ = strings.Cut(ref, "=")
+		if kind == "none_startable" {
+			ref = "" // what follows is live counts, not a subject
+		}
+		add(kind, ref)
+		live[kind+":"+ref] = true
+	}
+	open, err := s.OpenPlannerWork()
+	if err != nil {
+		r.printf("planner: work queue: %v\n", err)
+		return
+	}
+	for _, w := range open {
+		if plannerLevelKinds[w.Kind] && !live[w.Kind+":"+w.Ref] {
+			_ = s.ClosePlannerWork([]int64{w.ID}, "cleared")
+		}
+	}
+}
+
+var plannerLevelKinds = map[string]bool{"queue_low": true, "not_dispatched": true, "goal_done": true, "unstartable": true,
+	"none_startable": true, "dead_dep": true}
+
+// PlannerDone closes planner work rows with close_reason done. An unknown or closed id fails and closes none.
+func (r *Runner) PlannerDone(ids []int64, note string) error {
+	s, err := r.sq()
+	if err != nil {
+		return err
+	}
+	if err := s.ClosePlannerWork(ids, "done"); err != nil {
+		return err
+	}
+	_ = r.Log.Emit("planner.work_done", nil, Event{Role: r.Env.Actor, Data: map[string]any{"ids": ids, "note": note}})
+	return nil
 }
 
 // WakeInput is what DecideWake reads: level reasons (a state that holds, such as a short queue) and event reasons (what
@@ -552,7 +612,7 @@ func heldRef(x *Run) string { return fmt.Sprintf("held:%s:%d", x.Task, x.Round) 
 
 // fileHeldAsk files the one owner question of a held round; a second call for the round adds nothing.
 func (r *Runner) fileHeldAsk(s *SQLite, x *Run, why string) {
-	q := fmt.Sprintf("%s is held for you: %s. PR %s. Merge it by hand, close it, or answer with what to change.", x.Task, why, or(x.PRURL, "-"))
+	q := fmt.Sprintf("%s is held for you: %s. PR %s. Merge it by hand, close it, or answer with what to change. After a judge HOLD, an answer that starts with approved or merge it merges the judged head as it is, unless another merge rule still holds it.", x.Task, why, or(x.PRURL, "-"))
 	if id, created, err := s.AddAsk(Ask{Ref: heldRef(x), Project: x.Project, Goal: x.Goal, Task: x.Task, Question: q, AskedBy: "runner"}); err == nil && created {
 		_ = r.Log.Emit("ask.added", nil, Event{Project: x.Project, Data: map[string]any{"id": id, "by": "runner", "task": x.Task}})
 	}
@@ -589,6 +649,18 @@ func (r *Runner) PlannerStatus(now time.Time) error {
 	if s, err := r.sq(); err == nil {
 		open, _ := s.Asks("open")
 		r.printf("open owner questions: %d\n", len(open))
+		work, werr := s.OpenPlannerWork()
+		if werr != nil {
+			return werr
+		}
+		r.printf("open work: %d\n", len(work))
+		for _, w := range work {
+			age := "?"
+			if t, err := time.Parse("2006-01-02T15:04:05-07:00", w.Opened); err == nil {
+				age = now.Sub(t).Round(time.Second).String()
+			}
+			r.printf("  #%d %s %s age %s attempts %d\n", w.ID, w.Kind, w.Ref, age, w.Attempts)
+		}
 	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -421,7 +422,49 @@ func heldForOwner(x *Run) bool {
 	return x.State == Held || (x.State == Failed && strings.HasPrefix(x.FailReason, "merge blocked: ") && OwnerMerges(x.FailReason))
 }
 
-// checkHeld finishes a held run whose PR the owner merged, and fails one whose PR was closed.
+var approvalRe = regexp.MustCompile(`(?i)^\s*(approved|merge it)\b`)
+
+// approveHeld turns the owner's approval of a hold into a MERGE verdict: the held question of this run and round was
+// answered by the owner with "approved..." or "merge it...", and the PR is still at the judged head. A newer head needs its own judge.
+// Every other limit of the merge decision still applies.
+func (r *Runner) approveHeld(run *Run, head string) {
+	if run.State != Held || head != run.JudgeHead {
+		return
+	}
+	// only a rejecting (HOLD) verdict needs the approval; once it is "pass" a run held again is not approved again
+	if v, _, err := r.Store.LaneVerdict(run.Task, head); err != nil || v != "fail" {
+		return
+	}
+	s, err := r.sq()
+	if err != nil {
+		return
+	}
+	asks, err := s.Asks("answered")
+	if err != nil {
+		return
+	}
+	since, _ := time.Parse(time.RFC3339, run.Dispatched)
+	for _, a := range asks {
+		// the ref repeats when a task is dispatched again: an answer to an earlier run's question is not for this one
+		at, err := time.Parse(time.RFC3339, a.Answered)
+		if a.Ref != heldRef(run) || a.AnsweredBy != "owner" || !approvalRe.MatchString(a.Answer) || err != nil || at.Before(since) {
+			continue
+		}
+		why := fmt.Sprintf("the owner approved the hold (question #%d, by %s)", a.ID, a.AnsweredBy)
+		if err := r.Store.Verdict(run.Task, run.PRURL, head, "pass", why, a.AnsweredBy); err != nil {
+			r.printf("%s: %v\n", run.Task, err)
+			return
+		}
+		run.State, run.Outcome, run.MergeHold, run.Head = Merging, "", "", head
+		_ = r.Store.TaskStatus(run.Task, "in_review", "")
+		_ = r.Store.Event(r.actor(), "task", run.Task, "run-approved", why)
+		_ = r.Log.Emit("run.approved", run, Event{Data: map[string]any{"head": head, "pr": run.PRURL, "ask": a.ID}})
+		return
+	}
+}
+
+// checkHeld finishes a held run whose PR the owner merged, fails one whose PR was closed, and sends an approved one on
+// to the merge.
 func (r *Runner) checkHeld(run *Run) {
 	if run.PRURL == "" {
 		return
@@ -437,6 +480,8 @@ func (r *Runner) checkHeld(run *Run) {
 		r.finish(run, pr)
 	case "CLOSED":
 		r.fail(run, "the owner closed the held PR")
+	case "OPEN":
+		r.approveHeld(run, pr.HeadRefOid)
 	}
 }
 
