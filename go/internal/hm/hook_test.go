@@ -248,8 +248,12 @@ func TestHeldRunFinishesWhenTheOwnerMerges(t *testing.T) {
 	r, s := testRunner(t, "")
 	state := "OPEN"
 	r.Tools.GH = func(_ string, args ...string) (int, string, string) {
+		pr := `{"number":1,"state":"` + state + `","headRefOid":"a","mergedAt":"2026-11-24T19:46:00Z","mergeCommit":{"oid":"m"}}`
 		if len(args) > 1 && args[0] == "pr" && args[1] == "view" {
-			return 0, `{"number":1,"state":"` + state + `","headRefOid":"a","mergedAt":"2026-11-24T19:46:00Z","mergeCommit":{"oid":"m"}}`, ""
+			return 0, pr, ""
+		}
+		if len(args) > 1 && args[0] == "api" && args[1] == "graphql" { // the pass reads PRs with one query
+			return 0, `{"data":{"r0":{"p1":` + pr + `}}}`, ""
 		}
 		return 0, "", ""
 	}

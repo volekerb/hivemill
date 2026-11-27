@@ -10,8 +10,8 @@ import (
 )
 
 // The factory-CLI rules of the Analyzer: temp FACTORY_HOME detection, identity and scrub variables, `factory
-// up|tick|...`, the evaluator's factory subset and the broad reads. Decisions that need the factory DB are the
-// Python hook's (owngoal.go).
+// up|tick|...`, the evaluator's factory subset and the broad reads. Decisions that need the factory DB are
+// made from the guard export (guardexport.go, owngoal.go).
 
 // tempHome is a port of Analyzer.temp_home: assigns has FACTORY_HOME=<path> with a static path that is not a live home.
 func (a *Analyzer) tempHome(assigns []string) bool {
@@ -285,7 +285,7 @@ func (a *Analyzer) evaluatorFactory(sub string, hasSub bool, nonopt []string, as
 }
 
 // factoryUnit is a port of Analyzer.factory_unit: block `factory up|tick|relaunch|spawn|clean` (also via
-// python3 <path>/factory) in the live home.
+// a python interpreter running <path>/factory) in the live home.
 func (a *Analyzer) factoryUnit(name string, rest []string, assigns []string) error {
 	if interpreterFull(name) {
 		si, ci, _ := InterpArgs(name, rest)

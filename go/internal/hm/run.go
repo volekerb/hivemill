@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -58,6 +59,10 @@ type Runner struct {
 	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
 	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
+	poll       *prPoll                // the pass's one read of the open PRs; nil outside a pass
+	queueSlow  bool                   // a PR is queued for CI over its budget: no refresh
+	// DiskFree is (total, available) bytes of a path's filesystem; nil = statfs. Tests replace it.
+	DiskFree func(path string) (uint64, uint64, error)
 }
 
 // NewRunner opens the factory DB of the environment.
@@ -437,6 +442,7 @@ func (r *Runner) prepareClone(wt string) error {
 
 func (r *Runner) fail(run *Run, reason string) {
 	run.State, run.Outcome, run.FailReason, run.Ended = Failed, "failed", reason, nowISO()
+	run.HookStarted = ""
 	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-fail", truncate(reason, 900))
 	if !run.Eval {
@@ -478,6 +484,10 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
 	run.LongPct, run.LongResumed, run.LongSendFailed = 0, "", ""
+	run.HookStarted = ""
+	if run.Head != "" { // sent back for more work: this head must not go to evaluation unchanged (rescueOpenPR)
+		run.RescuedHead = run.Head
+	}
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	send := r.Prompt
 	list, listed := Terminals(r.Tools)
@@ -503,7 +513,8 @@ func truncate(s string, n int) string {
 	return s
 }
 
-// Pass advances every active run once (one gh read per run; a red CI also reads the failed logs), checks for a revert, then starts ready tasks.
+// Pass reads every open PR with one query (prpoll.go), advances every active run once, checks for a revert, then starts
+// ready tasks.
 func (r *Runner) Pass(startNew bool) error {
 	// the daemon reuses the Runner: each pass, a skipped one too, reads the machines again
 	r.usageFiles, r.usageRead = nil, false
@@ -522,15 +533,21 @@ func (r *Runner) Pass(startNew bool) error {
 	if err != nil {
 		return err
 	}
-	r.sweepLocalCI() // results first: they free job slots, and the runs below read them
+	defer r.countGH()() // the gh calls of this pass, for the digest
+	r.sweepLocalCI()    // results first: they free job slots, and the runs below read them
 	if runs, err = r.Store.Runs(); err != nil {
 		return err
 	}
+	r.poll = r.pollPRs(runs)
+	defer func() { r.poll, r.queueSlow = nil, false }()
+	r.queueSlow = r.queuedTooLong(runs)
+	fifo(runs)
 	for _, x := range runs {
 		if heldForOwner(&x) && !x.Eval {
 			if l := r.lock(x.Task, false); l != nil {
 				if run, _ := r.Store.Run(x.Task); run != nil && heldForOwner(run) {
 					r.checkHeld(run)
+					r.trackFlow(run)
 					_ = r.Store.PutRun(run)
 				}
 				l.Close()
@@ -594,6 +611,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		return "", err
 	}
 	defer func() {
+		if r.poll != nil {
+			r.trackFlow(run)
+		}
 		if run.State != Gated && (run.State != Merging || !r.ciNone(run.Project)) {
 			r.endCIWait(run) // the run left the CI wait, however it did
 		}
@@ -604,6 +624,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	}
 	if r.reconcile(run, list, listed) {
 		return run.State, nil
+	}
+	if r.poll != nil && (run.State == Gated || run.State == Merging) {
+		r.rerunPending(run)
 	}
 	switch run.State {
 	case Working:
@@ -634,12 +657,15 @@ func (r *Runner) gated(run *Run) {
 	if !r.ciPollDue(run, now) {
 		return
 	}
-	pr, err := PRView(r.Tools, run.PRURL)
+	pr, err := r.prView(run)
 	if err != nil {
 		r.ciPolled(run, now)
 		run.MergeHold = err.Error()
 		r.ciOverdue(run, now) // an unreadable PR is a pending one
 		return
+	}
+	if r.poll != nil && pr.HeadRefOid != run.Head && run.Gated >= r.poll.at {
+		return // pushed and gated after the poll: the next pass reads the new head
 	}
 	run.MergeHold = "" // set again below by what still holds the run
 	switch {
@@ -687,6 +713,10 @@ func (r *Runner) gated(run *Run) {
 		}
 		switch verdict {
 		case "red":
+			if !none && r.flakyRerun(run, pr.HeadRefOid, rows) {
+				run.MergeHold = "re-running failed jobs that passed on " + run.Base + " in the last 24 h"
+				return
+			}
 			if run.Machine != "" && machineDown(r.Tools, run.Machine) {
 				run.MergeHold = "CI is red; waiting for machine " + run.Machine + " to resume the session"
 				r.ciOverdue(run, now)
@@ -702,7 +732,12 @@ func (r *Runner) gated(run *Run) {
 				r.fail(run, "the judge did not start: "+err.Error())
 			}
 		default:
-			r.ciOverdue(run, now)
+			// in a pass, running Actions checks over budget are re-run (trackFlow); the rest alert the owner, and so does
+			// a wait of twice the budget, which a series of short jobs can reach without one job running over it
+			capped := now.Unix()-run.CI.Since >= 2*int64(cfgInt(r.Store, "ci_timeout_s"))
+			if rows, actions := unfinishedActions(pr.Checks); capped || r.poll == nil || run.Eval || none || !actions || !slices.ContainsFunc(rows, onRunner) {
+				r.ciOverdue(run, now)
+			}
 		}
 	}
 }
@@ -755,6 +790,9 @@ func (r *Runner) Stop(task string) error {
 	}
 	r.closeSessions(run)
 	r.endCIWait(run)
+	if run.Flow != nil {
+		r.enterFlow(run, "", "")
+	}
 	run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
 	r.endSessions(run)
 	_ = r.Log.Emit("task.cancelled", run, Event{})
@@ -773,8 +811,12 @@ func (r *Runner) Status() error {
 		if (x.State == Merging || x.State == Gated) && x.MergeHold != "" {
 			hold = " hold: " + truncate(x.MergeHold, 100)
 		}
-		r.printf("%s %-9s round %d blocks %d judge %d ci %d on %s %s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
-			x.CIRounds, machineLabel(x.Machine), x.PRURL, hold)
+		flow := ""
+		if x.Flow != nil && (Active(x.State) || heldForOwner(&x)) {
+			flow = " " + x.Flow.String()
+		}
+		r.printf("%s %-9s round %d blocks %d judge %d ci %d on %s %s%s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
+			x.CIRounds, machineLabel(x.Machine), x.PRURL, flow, hold)
 	}
 	return nil
 }
@@ -803,8 +845,20 @@ func (r *Runner) budgetEvent(why string) {
 	_ = r.Log.Emit(kind, nil, Event{Data: map[string]any{"why": why}})
 }
 
+// failUnlessRescued fails a stalled or timed out run, unless an open PR takes it to evaluation (rescueOpenPR). The
+// task session of a rescued run is closed, so that it does not change the worktree under the judge; a later round
+// relaunches it.
+func (r *Runner) failUnlessRescued(run *Run, reason string) {
+	if !r.rescueOpenPR(run, reason) {
+		r.fail(run, reason)
+		return
+	}
+	r.Close(run.Agent)
+}
+
 // idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a
-// background review was running); after a second idle spell the run is FAIL "stalled".
+// background review was running); after a second idle spell the run is FAIL "stalled". A running gate hook is not
+// idleness: a session whose hook passed its timeout without a result fails as "gate hook timed out" instead.
 func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	idle := false
 	for _, t := range list {
@@ -812,8 +866,21 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 			idle = t.Status == "idle" || t.Status == "done"
 		}
 	}
+	if !idle { // a session that works on has left its hook behind; its next stop records a new start
+		run.HookStarted = ""
+	}
+	started, err := time.Parse(time.RFC3339, run.HookStarted)
+	if err == nil && time.Since(started) < gateHookTimeout {
+		run.IdleSince = ""
+		return
+	}
 	if !idle || r.workflowBusy(run, time.Now().Add(-15*time.Minute)) {
 		run.IdleSince = ""
+		return
+	}
+	if err == nil { // the hook passed its timeout without a result
+		run.HookStarted, run.IdleSince = "", ""
+		r.failUnlessRescued(run, fmt.Sprintf("gate hook timed out: no result after %d seconds", int(gateHookTimeout/time.Second)))
 		return
 	}
 	if run.IdleSince == "" {
@@ -826,7 +893,7 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	}
 	run.IdleSince = ""
 	if run.IdleNudges >= 1 {
-		r.fail(run, "stalled: the task session stayed idle without a passing gate after a nudge")
+		r.failUnlessRescued(run, "stalled: the task session stayed idle without a passing gate after a nudge")
 		return
 	}
 	run.IdleNudges++

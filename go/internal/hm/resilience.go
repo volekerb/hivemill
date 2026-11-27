@@ -28,7 +28,7 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 		}
 	}
 	if (run.State == Working || run.State == Judging) && run.PRURL != "" {
-		if pr, err := PRView(r.Tools, run.PRURL); err == nil && pr.State != "OPEN" {
+		if pr, err := r.prView(run); err == nil && pr.State != "OPEN" {
 			if pr.State == "MERGED" && !run.Eval {
 				r.finish(run, pr)
 				fixed = append(fixed, "PR merged by hand")
@@ -56,7 +56,7 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 		} else {
 			run.Resumes++
 			if name == run.Agent { // the time the session was gone is not its fault: a new message and a new grace
-				run.LongResumed, run.LongSendFailed = "", ""
+				run.LongResumed, run.LongSendFailed, run.HookStarted = "", "", ""
 			}
 			fixed = append(fixed, "session "+name+" resumed")
 		}
@@ -262,6 +262,10 @@ func (r *Runner) Daemon(ctx context.Context) error {
 		r.printf("guard export: %v\n", err)
 	}
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
+	cleaned := make(chan struct{})
+	cleanCtx, stopClean := context.WithCancel(ctx) // a take-over returns with ctx still live
+	go func() { defer close(cleaned); r.keepClean(cleanCtx) }()
+	defer func() { stopClean(); <-cleaned }() // the daemon lock is held until a running clean has stopped
 	sdNotify("READY=1")
 	for {
 		if err := r.refreshDaemonLock(host, time.Now()); errors.Is(err, ErrRefused) { // another host took over

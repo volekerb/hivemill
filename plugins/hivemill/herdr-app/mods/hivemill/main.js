@@ -1,27 +1,28 @@
 // Hivemill dashboard for the Herdr app. Two faces from one mod:
 //   props {mode: "bar"}  the window's status bar (the "hivemill" layout puts it in place of workspace-status):
-//                        where you are, each project and the factory in one line, and the most urgent alert.
-//   otherwise            the dashboard tab: alerts, budget and cost, resources, projects' PRs, the factory.
+//                        where you are, each factory in one line, and the most urgent alert.
+//   otherwise            the dashboard tab: what waits for you, the factories as one table, what is worth a
+//                        look, the runs, and a narrow column for usage, spend and machines.
+// The look follows docs/design/obs-ui.md: no cards and no number tiles, hairlines, one accent, red only for trouble.
+// A factory is one hivemill runner; its numbers come from its read-only obs API (`hivemill obs`).
 // Agents themselves live in the app's agents list; this shows only what that list can't.
 // Settings: ~/.config/hivemill/dashboard.json. Docs: docs/herdr-app-dashboard.md.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { props, theme, run, exec, spaces, panes, window, keys, notify, nextCommand } from "herdr";
-import { ROLE, data, oneRead, config, tick, ago, money, dur, pipeline, alerts, usage, orgsShown, webUrl, levelColor, warn, good, demo, hidden, clean, machineRows, teamViews, barSegments, locationLabel, resolveSpace } from "./data.js";
+import { data, oneRead, config, tick, ago, money, dur, brief, alerts, usage, webUrl, taskUrl, levelColor, warn, good, demo, hidden, clean, machineRows, factoryViews, barSegments, spendToday, workerTerminal, stuckLimit, locationLabel, resolveSpace, loadBoard, traceView, traceLists, STAGE_WORDS, loadTrace } from "./data.js";
 
 const MOD = "hivemill";
 const alpha = (c, a) => (typeof c === "string" && c.length === 7 ? c + a : c);
 const pct = (v) => (v == null ? "–" : `${Math.round(Number(v))}%`);
-const toneColor = (t, tone) => ({ danger: t.blocked, error: t.blocked, warning: warn(t), success: good(t), info: t.accent }[tone] ?? t.muted);
 
-function openUrl(href, team) {
-  const url = href?.startsWith("http") ? href : webUrl(href ?? "/", team);
+function openUrl(url) {
   if (url) exec(window()?.platform === "macos" ? "open" : "xdg-open", [url]);
-  else notify({ title: "Hivemill", body: "Set web_url (teams[N].web_url, or factory.web_url) in ~/.config/hivemill/dashboard.json to open a team's pages.", level: "info" });
+  else notify({ title: "Hivemill", body: "Set web_url on the factory in ~/.config/hivemill/dashboard.json to open its pages.", level: "info" });
 }
 
-// The dashboard tab: show it, or make it in the first project's space (else the shown space).
+// The dashboard tab: show it, or make it in the shown space.
 export function showDashboard() {
   const pane = panes().find((p) => p.mod === MOD);
   if (pane) {
@@ -30,14 +31,29 @@ export function showDashboard() {
     run("tab.select", { id: pane.tab });
     return;
   }
-  const want = (config().projects ?? [])[0]?.space;
-  const sp = resolveSpace(want, spaces()); // "machine/space" opens a space on an hc machine
-  if (sp) run("space.select", { id: sp.id });
-  run("tab.new", { ...(sp ? { space: sp.id } : {}), name: "hivemill", mod: MOD, props: { mode: "full" } });
+  run("tab.new", { name: "hivemill", mod: MOD, props: { mode: "full" } });
 }
 
-function focusAgent(a) {
+// A factory's planner lives in the Herdr space its settings name.
+const plannerSpace = (v) => resolveSpace(v.factory.space, spaces());
+function showPlanner(v) {
+  const sp = plannerSpace(v);
+  if (sp) run("space.select", { id: sp.id });
+  else openUrl(webUrl("/", v.factory));
+}
+
+// A task: its session's terminal when one is open here, else its trace page in the browser.
+function openTask(v, row) {
+  const term = workerTerminal(row.task);
+  if (term) return run("agent.focus", { terminal: term });
+  openUrl(taskUrl(v.factory, row.key));
+}
+
+// Where an alert goes: the agent, the page that shows it, or the dashboard.
+function follow(a) {
+  if (a?.agent?.agent?.address) return run("agent.focus", { terminal: a.agent.agent.address });
   if (a?.agent?.address) return run("agent.focus", { terminal: a.agent.address });
+  if (a?.href) return openUrl(a.href);
   showDashboard();
 }
 
@@ -46,6 +62,12 @@ export default class Dashboard extends View {
     this.me = Math.random().toString(36).slice(2);
     this.mode = props()?.mode === "bar" ? "bar" : "full";
     this.width = 0;
+    this.tab = ["board", "traces", "spend"].includes(props()?.view) ? props().view : "overview"; // props {view} opens on that tab
+    this.list = "look"; // the Traces tab's list
+    this.shown = {}; // prompts opened in the trace
+    this.first = props()?.view === "traces" ? props().task ?? null : null; // props {view: "traces", task: KEY} opens that trace
+    this.fac = null; // the factory the Board, Traces and Spend tabs show (its key); null = the first
+    this.project = null; // the Board's project; null = all
     try {
       this.told = JSON.parse(localStorage.getItem("told") ?? "{}");
     } catch {
@@ -63,6 +85,7 @@ export default class Dashboard extends View {
     cx.timer.every(15_000, (cx) => {
       tick(this.me, cx);
       if (this.mode === "bar") this.tell();
+      else this.askBoard(cx);
     });
   }
 
@@ -74,6 +97,7 @@ export default class Dashboard extends View {
       if (this.told[a.key]) continue;
       this.told[a.key] = now;
       changed = true;
+      if (a.level === "info") continue; // shown on the dashboard, not worth a notification
       notify({ title: a.level === "danger" ? "Hivemill needs attention" : "Hivemill", body: a.text, level: a.level === "danger" ? "error" : "warning", action: { name: `${MOD}.show`, args: {} } });
     }
     for (const [k, v] of Object.entries(this.told))
@@ -109,43 +133,35 @@ export default class Dashboard extends View {
     const list = alerts(d);
     const top = list[0];
     const u = usage(d);
-    const segments = barSegments(d);
-    const claudeShown = orgsShown(d).has("claude");
+    const today = spendToday(d);
     const seg = (id, onClick, ...kids) =>
       h_flex().id(id).gap(6).items_center().px(6).h_full().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(onClick).children(kids);
     const dot = (c) => div().size(6).rounded(3).flex_none().bg(c);
     const sep = () => div().w(1).h(12).bg(t.border);
     const label = (icon, text) => h_flex().gap(6).items_center().child(svg(`mods/workspace-chrome/${icon}.svg`).size(13)).child(text);
-    const stallMs = (cfg.alerts?.stall_minutes ?? 60) * 60_000;
 
     const bar = h_flex().id("root").size_full().px(8).gap(6).items_center().bg(t.chrome).border_t(1).border_color(t.border).text_size(11.8).text_color(t.muted)
       .child(h_flex().px(6).gap(14).items_center().child(label(space?.machine && !demo() ? "server" : "monitor", locationLabel(space, d)))
         .when(Boolean(space?.branch) && !demo(), (el) => el.child(label("branch", space.branch))));
 
-    for (const p of (cfg.projects ?? []).filter((x) => x.github && !hidden(x.name ?? x.github))) {
-      const pl = pipeline(p.github, d);
-      bar.child(sep()).child(
-        seg(`b-${p.github}`, () => showDashboard(),
-          dot(pl.error ? t.blocked : pl.ready.length && pl.lastMerge && Date.now() - pl.lastMerge > stallMs ? warn(t) : good(t)),
-          div().child(`${p.name ?? p.github} ${pl.loaded ? `${pl.ready.length} PRs` : "…"}`),
-          div().text_color(t.dim).child(pl.lastMerge ? `merged ${ago(pl.lastMerge)} ago` : "")),
-      );
-    }
-    // One segment per team: "<machine> <role> N live", "<machine> offline" or "<machine>…".
-    segments.forEach((s, i) =>
+    // One segment per factory: "<label> 11 working · 14 waiting", "<label> unreachable" or "<label>…".
+    for (const s of barSegments(d))
       bar.child(sep()).child(
         seg(`b-${s.key}`, () => showDashboard(),
-          dot(s.offline ? t.blocked : good(t)),
+          dot(s.state === "down" ? t.blocked : s.state === "live" ? good(t) : s.state === "stale" ? warn(t) : t.dim),
           div().child(s.text),
-          div().text_color(s.needs ? warn(t) : t.dim).child(s.needs ? `${s.needs} need you` : ""),
-          div().text_color(u.seven >= (cfg.alerts?.usage_danger_pct ?? 90) ? t.blocked : t.dim).child(i === 0 && claudeShown && u.seven != null ? `wk ${pct(u.seven)}` : ""),
-          div().text_color(t.dim).child(s.perPR ?? ""),
-          div().text_color(t.dim).child(s.today ?? "")),
-      ));
+          div().text_color(s.needs ? warn(t) : t.dim).child(s.needs ? `${s.needs} need you` : "")),
+      );
+    if (u.seven != null || today != null)
+      bar.child(sep()).child(
+        seg("b-cost", () => showDashboard(),
+          div().text_color(!u.stale && u.seven >= (cfg.alerts?.usage_danger_pct ?? 90) ? t.blocked : t.dim).child(u.seven != null ? `wk ${pct(u.seven)}${u.stale ? " (old)" : ""}` : ""),
+          div().text_color(t.dim).child(today != null ? `${money(today)} today` : "")),
+      );
     bar.child(div().flex_1());
     if (top)
       bar.child(
-        seg("b-alert", () => (top.agent ? focusAgent(top) : showDashboard()),
+        seg("b-alert", () => follow(top),
           div().text_color(levelColor(t, top.level)).child("●"),
           div().max_w(420).truncate().text_color(levelColor(t, top.level)).child(top.text),
           div().text_color(t.dim).child(list.length > 1 ? `+${list.length - 1}` : "")),
@@ -154,363 +170,258 @@ export default class Dashboard extends View {
     return bar.child(div().id("palette").px(6).text_color(t.dim).hover((s) => s.text_color(t.foreground)).on_click(() => run("app.palette")).child(hint ? `${hint}  commands` : "commands"));
   }
 
-  // ---- building blocks -----------------------------------------------------------
+  // ---- the dashboard tab ----------------------------------------------------------
 
-  card(t, title, right, body, tag) {
-    return v_flex().flex_none().rounded(10).border(1).border_color(t.border).bg(t.surface).overflow_hidden()
-      .child(h_flex().h(34).px(12).gap(8).items_center().bg(t.chrome).border_b(1).border_color(t.border)
-        .child(div().flex_none().max_w(300).truncate().text_size(12.5).font_semibold().text_color(t.foreground).child(title))
-        .when(Boolean(tag), (el) => el.child(div().flex_none().px(6).rounded(4).bg(t.raised).text_size(10).text_color(t.muted).child(tag)))
-        .child(div().flex_1())
-        .when(Boolean(right), (el) => el.child(right)))
-      .child(body);
+  // One accent (honey, the brand's), chosen for the theme's lightness; everything else is the theme's own.
+  ink(t) {
+    const hex = String(t.background ?? "#161514").replace("#", "");
+    const lum = hex.length >= 6 ? (parseInt(hex.slice(0, 2), 16) * 299 + parseInt(hex.slice(2, 4), 16) * 587 + parseInt(hex.slice(4, 6), 16) * 114) / 1000 : 0;
+    const dark = lum < 140;
+    return { accent: dark ? "#f0a23b" : "#a8650a", ci: dark ? "#8a8578" : "#8c887e", merge: dark ? "#5d594f" : "#c4c0b6", bad: t.blocked, fg: t.foreground, muted: t.muted, dim: t.muted, faint: t.dim, line: t.border, hover: t.hover };
   }
 
-  stat(t, label, value, color) {
-    return v_flex().flex_1().min_w(0).px(10).py(8).rounded(8).bg(t.raised)
-      .child(div().truncate().text_size(16).font_semibold().text_color(color ?? t.foreground).child(String(value)))
-      .child(div().truncate().text_size(10.5).text_color(t.dim).child(label));
+  link(k, id, text, onClick) {
+    return div().id(id).flex_none().cursor_pointer().text_color(k.accent).hover((s) => s.text_color(k.fg)).on_click((_e, cx) => onClick(cx)).child(text);
   }
 
-  sub(t, text, extra) {
-    return h_flex().px(12).pt(12).pb(4).gap(6).items_center().text_size(10.5).text_color(t.dim)
-      .child(div().child(text.toUpperCase()))
-      .when(extra != null, (el) => el.child(div().text_color(t.muted).child(String(extra))));
+  heading(k, text, more) {
+    return h_flex().pt(36).pb(10).gap(8).items_center()
+      .child(div().text_size(13).font_semibold().text_color(k.fg).child(text))
+      .when(Boolean(more), (el) => el.child(div().text_size(13).text_color(k.dim).child(more)));
   }
 
-  row(t, id, onClick, kids) {
-    return h_flex().id(id).mx(6).px(6).py(4).gap(8).rounded(6).items_center().hover((s) => s.bg(t.hover)).on_click(onClick).children(kids);
-  }
-
-  btn(t, id, text, onClick) {
-    return div().id(id).px(8).py(2).rounded(5).text_size(11).text_color(t.muted).border(1).border_color(t.border)
-      .hover((s) => s.bg(t.raised).text_color(t.foreground))
-      .on_click((_e, cx) => onClick(cx))
-      .child(text);
-  }
-
-  meter(t, id, label, value, frac, limitText) {
-    const f = Math.max(0, Math.min(1, frac ?? 0));
-    const c = f >= 0.95 ? t.blocked : f >= 0.8 ? warn(t) : good(t);
-    return v_flex().id(id).px(12).py(5).gap(4)
-      .child(h_flex().gap(6).items_center()
-        .child(div().flex_1().truncate().text_size(12).text_color(t.foreground).child(label))
-        .child(div().flex_none().text_size(12).font_semibold().text_color(frac == null ? t.dim : c).child(value))
-        .when(Boolean(limitText), (el) => el.child(div().flex_none().text_size(10.5).text_color(t.dim).child(limitText))))
-      .child(div().h(5).w_full().rounded(3).bg(t.border).child(div().h_full().w(`${(f * 100).toFixed(1)}%`).rounded(3).bg(c)));
-  }
-
-  bars(t, id, items, valueOf, labelOf, color) {
-    const max = Math.max(1, ...items.map(valueOf));
-    return h_flex().id(id).px(12).pt(6).h(70).gap(3).items_end().children(
-      items.map((x, i) =>
-        v_flex().flex_1().min_w(0).items_center().gap(2).justify_end().h_full()
-          .child(div().w_full().rounded(2).bg(color).h(Math.max(2, Math.round((valueOf(x) / max) * 46))))
-          .child(div().text_size(9).text_color(t.dim).child(labelOf(x, i))),
-      ),
-    );
-  }
-
-  // ---- cards -----------------------------------------------------------------------
-
-  alertsCard(t, d) {
-    const list = alerts(d);
-    const body = v_flex().py(6);
-    if (!list.length) body.child(div().px(12).py(6).text_size(12).text_color(t.dim).child("All clear: nothing is waiting on a person."));
-    body.children(
-      list.map((a, i) =>
-        this.row(t, `al-${i}`, () => (a.agent ? focusAgent(a) : null), [
-          div().size(8).rounded(4).flex_none().bg(levelColor(t, a.level)),
-          div().flex_1().min_w(0).truncate().text_size(12.5).text_color(t.foreground).child(a.text),
-          div().flex_none().text_size(10.5).text_color(t.dim).child(a.agent ? "show ›" : ""),
-        ]),
-      ),
-    );
-    return this.card(t, "Alerts", div().text_size(10.5).text_color(t.dim).child(d.scanAt ? (ago(d.scanAt) === "now" ? "checked just now" : `checked ${ago(d.scanAt)} ago`) : "checking…"), body);
-  }
-
-  projectCard(t, d, p) {
-    const pl = pipeline(p.github, d);
-    const body = v_flex().pb(10);
-    body.child(h_flex().px(10).pt(10).gap(6).children([
-      this.stat(t, "ready PRs", pl.loaded ? pl.ready.length : "–"),
-      this.stat(t, "drafts", pl.loaded ? pl.drafts : "–", t.muted),
-      this.stat(t, "last merge", pl.lastMerge ? ago(pl.lastMerge) : "–", pl.lastMerge && Date.now() - pl.lastMerge > 3600_000 ? warn(t) : good(t)),
-    ]));
-    if (pl.error) body.child(div().px(12).pt(8).text_size(11).text_color(t.blocked).child(`gh: ${pl.error}`));
-    const waiting = [...pl.ready].sort((a, b) => a.updated - b.updated);
-    body.child(this.sub(t, "Open PRs, longest waiting first", waiting.length));
-    body.children(waiting.map((x) =>
-      this.row(t, `pr-${p.github}-${x.number}`, () => openUrl(x.url), [
-        div().flex_none().w(demo() ? 0 : 44).text_size(11).text_color(t.dim).child(demo() ? "" : `#${x.number}`),
-        div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(x.title)),
-        div().flex_none().text_size(10.5).text_color(Date.now() - x.updated > 3 * 3600_000 ? warn(t) : t.dim).child(ago(x.updated)),
-      ])));
-    const merged = pl.merged.slice(0, 4);
-    if (merged.length) {
-      body.child(this.sub(t, "Recently merged", null));
-      body.children(merged.map((m) =>
-        this.row(t, `mg-${p.github}-${m.number}`, () => openUrl(m.url), [
-          div().flex_none().text_size(11).text_color(good(t)).child("✓"),
-          div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(m.title)),
-          div().flex_none().text_size(10.5).text_color(t.dim).child(ago(m.merged)),
-        ])));
-    }
-    return this.card(t, p.name ?? p.github, this.btn(t, `gh-${p.github}`, "GitHub ↗", () => openUrl(`https://github.com/${p.github}/pulls`)), body);
-  }
-
-  budgetCard(t, d) {
-    const orgs = orgsShown(d);
-    const body = v_flex().pb(10);
-    if (orgs.has("claude")) {
-      const u = usage(d);
-      body.child(this.sub(t, "Claude budget", u.resets ? `resets ${new Date(u.resets * 1000).toLocaleDateString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : null));
-      body.child(this.meter(t, "m-7d", "Weekly (7-day)", pct(u.seven), u.seven != null ? u.seven / u.capSeven : null, `cap ${u.capSeven}%`));
-      body.child(this.meter(t, "m-5h", "5-hour window", pct(u.five), u.five != null ? u.five / u.capFive : null, `cap ${u.capFive}%`));
-    }
-    const hv = teamViews(d).filter((v) => v.kind === "hivemill");
-    const cur = hv.map((v) => v.state.res?.cursor ?? v.home?.system?.cursor).find(Boolean);
-    if (orgs.has("cursor") && cur) {
-      const bad = (cur.models ?? []).filter((m) => m.status !== "ok");
-      body.child(this.sub(t, "Cursor", cur.tier ?? null));
-      body.child(h_flex().px(12).py(5).gap(6).items_center()
-        .child(div().flex_1().text_size(12).text_color(t.foreground).child((cur.models ?? []).map((m) => m.model).join(", ") || "models"))
-        .child(div().text_size(12).text_color(bad.length ? t.blocked : good(t)).child(bad.length ? `${bad.map((m) => m.model).join(", ")} limited` : "ok"))
-        .child(div().text_size(10.5).text_color(t.dim).child(cur.hours != null ? `${Math.round(cur.hours)} agent-hours` : "")));
-    }
-    for (const v of hv) {
-      const tk = v.state.tokens, th = v.state.through, orgs = v.orgs;
-      const lab = hv.length > 1 ? ` · ${v.label}` : ""; // with 2+ teams, each team's figures are named
-      if (!tk && !th) continue;
-      const byOrg = (tk?.byOrg ?? []).filter((o) => orgs.has(o.key));
-      const total = byOrg.length ? byOrg.reduce((s, o) => s + (o.cost ?? 0), 0) : tk?.total;
-      // The factory reports per-day spend, cost per PR and per-task cost for all orgs together.
-      if ((tk?.byOrg ?? []).some((o) => !orgs.has(o.key) && o.cost))
-        body.child(div().px(12).pt(8).text_size(10.5).text_color(t.dim).child("Today, cost per PR, spend per day and tasks below cover every org."));
-      body.child(this.sub(t, `Spend${lab} · last ${tk?.period ?? 7} days`, total != null ? money(total) : null));
-      body.child(h_flex().px(10).pt(4).gap(6).children([
-        this.stat(t, "today", money((tk?.byDay ?? [])[0]?.cost)),
-        ...(byOrg.length > 1 ? byOrg.map((o) => this.stat(t, o.key === "cursor" ? "Cursor (est.)" : "Claude", money(o.cost))) : []),
-      ]));
-      const c = th?.cost ?? {};
-      body.child(this.sub(t, `Cost per merged PR${lab}`, c.merged ? `${c.priced}/${c.merged} priced · ${th.days}d` : null));
-      body.child(h_flex().px(10).pt(4).gap(6).children([
-        this.stat(t, "median", money(c.cost_median)),
-        this.stat(t, "p90", money(c.cost_p90), c.cost_p90 > 10 ? warn(t) : null),
-        this.stat(t, "average", money(c.figure)),
-        this.stat(t, "time to merge", th?.median_s != null ? dur(th.median_s) : "–", t.muted),
-      ]));
-      if (c.tokens_median)
-        body.child(div().px(12).pt(4).text_size(10.5).text_color(t.dim).child(
-          `${(c.tokens_median / 1e6).toFixed(1)}M tokens median · ${(c.tokens_p90 / 1e6).toFixed(1)}M p90${orgs.has("cursor") && c.cursor_tasks ? ` · ${c.cursor_tasks} Cursor tasks unpriced` : ""}`));
-      const days = [...(tk?.byDay ?? [])].slice(0, 7).reverse();
-      if (days.length) {
-        body.child(this.sub(t, `Spend per day${lab}`, null));
-        body.child(this.bars(t, `spend-days-${v.key}`, days, (x) => x.cost ?? 0, (x) => money(x.cost).replace(".00", ""), t.accent));
+  // What waits for a person and nothing else: held runs, open questions, an agent waiting at its terminal.
+  waiting(d, views) {
+    const out = [];
+    for (const v of views.filter((x) => x.state === "live"))
+      for (const n of v.needs) {
+        if (n.kind === "held") {
+          const pr = String(n.pr ?? "").match(/\/pull\/(\d+)/)?.[1];
+          out.push({
+            id: `held-${v.key}-${n.key}`, title: demo() ? clean(n.title || "A held run") : n.title || n.task, why: clean(n.text),
+            meta: [v.label, demo() ? null : n.task, pr && !demo() ? `PR ${pr}` : null].filter(Boolean).join(", "),
+            action: n.pr ? "Open PR" : "Open trace", go: () => openUrl(n.href), age: `held ${dur(n.age_s)}`, run: true,
+          });
+        } else out.push({ id: `ask-${v.key}-${n.project}`, title: n.text, why: "The planner asked and waits for your answer.", meta: v.label, action: "Open", go: () => openUrl(n.href), age: "" });
       }
-      const tasks = (tk?.byTask ?? []).filter((x) => !hidden(x.title));
-      if (tasks.length) {
-        body.child(this.sub(t, `Most expensive tasks${lab}`, null));
-        body.children(tasks.map((x) =>
-          this.row(t, `cost-${v.key}-${x.key}`, () => openUrl(`/task/${x.key}`, v.team), [
-            div().flex_none().w(demo() ? 0 : 52).text_size(10.5).text_color(t.dim).child(demo() ? "" : x.key),
-            div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(x.title ?? "")),
-            div().flex_none().text_size(11.5).font_semibold().text_color(x.cost > 10 ? warn(t) : t.muted).child(money(x.cost)),
-          ])));
-      }
-    }
-    return this.card(t, "Budget & cost", this.btn(t, "tok-open", "Tokens ↗", () => openUrl("/tokens", hv[0]?.team)), body);
+    for (const a of alerts(d).filter((x) => /^(wait|login):/.test(x.key)))
+      out.push({ id: `al-${a.key}`, title: a.text, why: "", meta: "", action: "Show", go: () => follow(a), age: "" });
+    return out;
   }
 
-  machinesSection(t, d, body) {
+  needsList(k, items) {
+    const list = v_flex().border_t(1).border_color(k.line);
+    for (const it of items)
+      list.child(h_flex().id(it.id).py(14).gap(24).items_center().border_b(1).border_color(k.line)
+        .child(v_flex().flex_1().min_w(0).gap(2)
+          .child(div().truncate().text_size(15).font_semibold().text_color(k.fg).child(it.title))
+          .when(Boolean(it.why), (el) => el.child(div().truncate().text_size(13).text_color(k.muted).child(it.why)))
+          .when(Boolean(it.meta), (el) => el.child(div().truncate().text_size(12).text_color(k.dim).child(it.meta))))
+        .child(v_flex().flex_none().items_end().gap(4)
+          .child(div().id(`${it.id}-go`).cursor_pointer().px(12).py(5).rounded(6).border(1).border_color(k.line).text_size(13).text_color(k.fg)
+            .hover((s) => s.border_color(k.accent).text_color(k.accent)).on_click(() => it.go()).child(it.action))
+          .when(Boolean(it.age), (el) => el.child(div().text_size(12).text_color(k.dim).child(it.age)))));
+    return list;
+  }
+
+  // Where a factory's open runs sit, as one thin segmented bar: working, in CI, to merge, held.
+  flowBar(k, c, live) {
+    const parts = [[c.working, k.accent], [c.ci, k.ci], [c.merge, k.merge], [c.held, k.bad]].filter((x) => x[0] > 0);
+    const total = parts.reduce((s, x) => s + x[0], 0);
+    const avail = 96 - 2 * Math.max(0, parts.length - 1);
+    return h_flex().flex_none().w(96).h(6).gap(2).children(
+      parts.map(([n, color]) => div().h_full().rounded(2).w(Math.max(3, Math.round((n / total) * avail))).bg(live ? color : k.dim)));
+  }
+
+  factoriesTable(t, k, views) {
+    const COLS = [["Working", 64], ["In CI", 52], ["To merge", 68], ["Held", 48], ["Merged", 60], ["Spent", 64]];
+    const cell = (w, value, live, bad = false) => h_flex().flex_none().w(w).justify_end()
+      .child(value === 0 || value == null
+        ? div().text_size(15).text_color(k.faint).child(value == null ? "–" : "0")
+        : div().text_size(15).font_semibold().text_color(!live ? k.muted : bad ? k.bad : k.fg).child(String(value)));
+    const box = v_flex().rounded(8).border(1).border_color(k.line).bg(t.surface).overflow_hidden();
+    box.child(h_flex().px(14).pt(10).pb(8).gap(12).items_center().border_b(1).border_color(k.line).text_size(12).text_color(k.dim)
+      .child(div().flex_1().min_w(0).child("Name"))
+      .child(div().flex_none().w(96).child("Runs"))
+      .children(COLS.map(([label, w]) => h_flex().flex_none().w(w).justify_end().child(label))));
+    views.forEach((v, i) => {
+      const live = v.state === "live";
+      const p = v.planner;
+      const sub = !v.loaded ? (v.state === "down" ? `has not answered${demo() || !v.error ? "" : `: ${v.error}`}` : "reaching it…")
+        : v.state === "stale" ? `no answer, these numbers are ${ago(v.at)} old`
+        : !p ? "no planner session" : p.on ? `planner on${p.at ? `, session started ${ago(p.at)} ago` : ""}` : `planner off${p.at ? `, ended ${ago(p.at)} ago` : ""}`;
+      const row = h_flex().id(`fac-${v.key}`).px(14).py(12).gap(12).items_center()
+        .child(v_flex().flex_1().min_w(0).gap(1)
+          .child(h_flex().gap(10).items_center()
+            .child(div().id(`fac-${v.key}-name`).cursor_pointer().truncate().text_size(15).font_semibold().text_color(k.accent).hover((s) => s.text_color(k.fg))
+              .on_click(() => openUrl(webUrl("/", v.factory))).child(v.label))
+            .when(Boolean(plannerSpace(v)), (el) => el.child(this.link(k, `fac-${v.key}-planner`, "planner tab", () => showPlanner(v)).text_size(12))))
+          .child(div().truncate().text_size(12).text_color(live && (!p || p.on) ? k.dim : k.bad).child(sub)));
+      if (v.loaded) {
+        const c = v.counts;
+        row.child(this.flowBar(k, c, live))
+          .child(cell(64, c.working, live)).child(cell(52, c.ci, live)).child(cell(68, c.merge, live)).child(cell(48, c.held, live, true))
+          .child(cell(60, v.merged.today, live)).child(cell(64, v.spend.today != null ? money(v.spend.today).replace(/\.\d\d$/, "") : null, live));
+      } else row.child(div().flex_none().w(96 + COLS.reduce((s, x) => s + x[1] + 12, 0)));
+      box.child(i < views.length - 1 ? row.border_b(1).border_color(k.line) : row);
+    });
+    const key = (color, text) => h_flex().gap(6).items_center().child(div().size(8).rounded(2).bg(color)).child(text);
+    return v_flex().gap(10).child(box)
+      .child(h_flex().gap(16).text_size(12).text_color(k.dim).children([key(k.accent, "working"), key(k.ci, "in CI"), key(k.merge, "to merge"), key(k.bad, "held")]));
+  }
+
+  // Stuck and failed runs as sentences, with one link to the page that lists them.
+  lookSection(k, v) {
+    const lines = [];
+    if (v.stuck.length) {
+      const s = v.stuck[0];
+      const stages = [...new Set(v.stuck.map((r) => STAGE[r.stage] ?? r.stage))];
+      lines.push({ id: "stuck", strong: `${v.stuck.length} run${v.stuck.length === 1 ? " is" : "s are"} over ${stuckLimit(v.stuckAfter)} in one stage`,
+        rest: `, ${stages.length === 1 ? `all ${stages[0]}` : stages.join(", ")}. The oldest${demo() ? "" : ` is ${s.task}`} at ${dur(s.age_s)}.`, href: webUrl("/flow", v.factory) });
+    }
+    if (v.failed?.n) {
+      const top = v.failed.groups.slice(0, 3).map((g) => `${g.n} ${clean(g.reason)}`).join(", ");
+      lines.push({ id: "failed", strong: `${v.failed.n} run${v.failed.n === 1 ? "" : "s"} failed today.`, rest: ` ${top}${v.failed.groups.length > 3 ? ", and others" : ""}.`, href: webUrl("/flow", v.factory) });
+    }
+    for (const m of v.machines.filter((x) => x.down)) lines.push({ id: `m-${m.name}`, strong: `Machine ${m.label} is down.`, rest: "", href: webUrl("/machines", v.factory) });
+    if (!lines.length) return null;
+    return v_flex().child(this.heading(k, `Worth a look on ${v.label}`)).children(lines.map((l) =>
+      h_flex().id(`look-${v.key}-${l.id}`).pb(6).gap(6).items_start().text_size(13)
+        .child(div().flex_1().min_w(0).text_color(k.muted)
+          .child(h_flex().flex_wrap().gap(0).child(div().font_semibold().text_color(k.fg).child(l.strong)).child(div().child(l.rest))))
+        .child(this.link(k, `look-${v.key}-${l.id}-go`, "Show them", () => openUrl(l.href)))));
+  }
+
+  runsSection(k, v) {
+    if (!v.running?.length) return null;
+    const over = new Set(v.stuck.map((r) => r.key));
+    const rows = [...v.running].sort((a, b) => b.age_s - a.age_s);
+    const sec = v_flex().child(this.heading(k, `Running on ${v.label}`, `${rows.length} run${rows.length === 1 ? "" : "s"}, longest in stage first`));
+    rows.slice(0, 6).forEach((r, i) => {
+      const row = h_flex().id(`run-${v.key}-${r.key}`).py(7).gap(12).items_center().cursor_pointer().hover((s) => s.bg(k.hover)).on_click(() => openTask(v, r))
+        .child(div().flex_none().w(demo() ? 0 : 60).text_size(13).text_color(k.dim).child(demo() ? "" : r.task))
+        .child(div().flex_1().min_w(0).truncate().text_size(13).text_color(r.title ? k.fg : k.muted).child(r.title ? clean(r.title) : demo() ? "" : r.project ?? ""))
+        .child(div().flex_none().w(96).text_size(13).text_color(k.muted).child(STAGE[r.stage] ?? r.stage ?? ""))
+        .child(h_flex().flex_none().w(72).justify_end().child(div().text_size(13).text_color(over.has(r.key) ? k.bad : k.muted).child(dur(r.age_s))));
+      sec.child(i < Math.min(rows.length, 6) - 1 ? row.border_b(1).border_color(k.line) : row);
+    });
+    if (rows.length > 6) sec.child(h_flex().pt(8).text_size(13).child(this.link(k, `run-${v.key}-all`, `All ${rows.length} runs`, () => openUrl(webUrl("/", v.factory)))));
+    return sec;
+  }
+
+  // Every machine with its figures: sessions, memory, load, disk, swap, uptime. A figure turns red past its limit.
+  resources(t, k, d, views) {
     const rows = machineRows(d);
-    if (!rows.length) return;
+    if (!rows.length) return null;
     const gb = (mb) => (mb / 1024).toFixed(mb >= 10240 ? 0 : 1);
-    body.child(this.sub(t, "Machines", rows.length));
-    body.children(rows.map((m) => {
+    const fac = {};
+    for (const v of views.filter((x) => x.loaded)) for (const m of v.machines) fac[m.name] = { ...m, cap: v.cap };
+    const COLS = [["Sessions", 84], ["Memory used", 112], ["Load", 92], ["Disk free", 84], ["Swap used", 100], ["Up", 56]];
+    const cell = (w, text, bad) => h_flex().flex_none().w(w).justify_end().child(div().text_size(13).text_color(text === "–" ? k.faint : bad ? k.bad : k.fg).child(text));
+    const box = v_flex().rounded(8).border(1).border_color(k.line).bg(t.surface).overflow_hidden();
+    box.child(h_flex().px(14).pt(10).pb(8).gap(12).items_center().border_b(1).border_color(k.line).text_size(12).text_color(k.dim)
+      .child(div().flex_1().min_w(0).child("Machine"))
+      .children(COLS.map(([label, w]) => h_flex().flex_none().w(w).justify_end().child(label))));
+    rows.forEach((m, i) => {
+      const f = fac[m.name ?? ""] ?? null;
       const memUsed = m.mem_total_mb && m.mem_available_mb != null ? 1 - m.mem_available_mb / m.mem_total_mb : null;
       const load = m.load?.[0];
-      const loadFrac = load != null && m.cpus ? load / m.cpus : null;
-      const tone = (f) => (f == null ? t.dim : f >= 0.95 ? t.blocked : f >= 0.8 ? warn(t) : good(t));
-      const facts = [m.os && [m.os, m.arch].filter(Boolean).join(" "), m.cpus ? `${m.cpus} CPUs` : null, m.uptime_s ? `up ${dur(m.uptime_s)}` : null,
-        m.agents ? `${m.agents} agent${m.agents === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
-      const bar = (f) => div().h(4).w_full().rounded(2).bg(t.border).child(div().h_full().w(`${(Math.max(0, Math.min(1, f ?? 0)) * 100).toFixed(1)}%`).rounded(2).bg(tone(f)));
-      const cell = (label, value, f) => v_flex().flex_1().min_w(0).gap(3)
-        .child(h_flex().gap(4).child(div().text_size(10.5).text_color(t.dim).child(label)).child(div().flex_1()).child(div().text_size(11).text_color(f == null ? t.dim : tone(f)).child(value)))
-        .child(bar(f));
-      return v_flex().id(`mach-${m.key}`).mx(6).px(6).py(6).gap(5).rounded(6).hover((s) => s.bg(t.hover))
-        .child(h_flex().gap(8).items_center()
-          .child(div().size(8).rounded(4).flex_none().bg(m.ok ? good(t) : t.blocked))
-          .child(div().flex_none().text_size(12.5).font_semibold().text_color(t.foreground).child(m.label))
-          .when(Boolean(m.role), (el) => el.child(div().flex_none().px(6).rounded(4).bg(t.raised).text_size(10).text_color(t.muted).child(m.role)))
-          .child(div().flex_1().min_w(0).truncate().text_size(10.5).text_color(t.dim).child(m.ok ? facts : `unreachable${m.at ? ` · last seen ${ago(m.at)} ago` : ""}`)))
-        .child(h_flex().gap(10)
-          .child(cell("memory", m.mem_total_mb ? `${gb(m.mem_total_mb - (m.mem_available_mb ?? 0))}/${gb(m.mem_total_mb)} GB` : "–", memUsed))
-          .child(cell("load", load != null ? load.toFixed(1) : "–", loadFrac))
-          .when(m.disk_total_gb != null, (el) => el.child(cell("disk", `${m.disk_free_gb} GB free`, m.disk_total_gb ? 1 - m.disk_free_gb / m.disk_total_gb : null)))
-          .when(m.swap_total_mb > 0 && !hidden("swap"), (el) => el.child(cell("swap", `${gb(m.swap_used_mb)}/${gb(m.swap_total_mb)} GB`, m.swap_used_mb / m.swap_total_mb))));
-    }));
+      const swap = m.swap_total_mb > 0 ? m.swap_used_mb / m.swap_total_mb : null;
+      const diskLow = m.disk_free_gb != null && m.disk_total_gb && (m.disk_free_gb < 20 || m.disk_free_gb / m.disk_total_gb < 0.05);
+      const sub = !m.ok ? `unreachable${m.at ? `, last seen ${ago(m.at)} ago` : ""}`
+        : [m.role ? "runs a factory" : null, [m.os, m.arch].filter(Boolean).join(" ") || null, m.cpus ? `${m.cpus} cores` : null].filter(Boolean).join(", ");
+      const sessions = f ? (f.down ? "down" : `${f.running}${f.cap != null ? ` of ${f.cap}` : ""}`) : m.agents ? String(m.agents) : "–";
+      const row = h_flex().id(`res-${m.key}`).px(14).py(10).gap(12).items_center()
+        .child(v_flex().flex_1().min_w(0)
+          .child(div().truncate().text_size(13).font_semibold().text_color(k.fg).child(m.label))
+          .child(div().truncate().text_size(12).text_color(m.ok ? k.dim : k.bad).child(sub)))
+        .child(cell(84, m.ok ? sessions : "–", Boolean(f?.down)))
+        .child(cell(112, m.ok && m.mem_total_mb ? `${gb(m.mem_total_mb - (m.mem_available_mb ?? 0))} of ${gb(m.mem_total_mb)} GB` : "–", memUsed != null && memUsed >= 0.92))
+        .child(cell(92, m.ok && load != null ? `${load.toFixed(1)}${m.cpus ? ` of ${m.cpus}` : ""}` : "–", load != null && m.cpus && load / m.cpus >= 0.95))
+        .child(cell(84, m.ok && m.disk_free_gb != null ? `${m.disk_free_gb} GB` : "–", diskLow))
+        .child(cell(100, m.ok && swap != null && !hidden("swap") ? `${gb(m.swap_used_mb)} of ${gb(m.swap_total_mb)} GB` : "–", swap != null && swap >= 0.95))
+        .child(cell(56, m.ok && m.uptime_s ? dur(m.uptime_s) : "–", false));
+      box.child(i < rows.length - 1 ? row.border_b(1).border_color(k.line) : row);
+    });
+    return v_flex().child(this.heading(k, "Resources", "sessions are the factory's count; load is the 1-minute average")).child(box);
   }
 
-  resourcesCard(t, d) {
-    const hv = teamViews(d).filter((v) => v.kind === "hivemill");
-    const multi = hv.length > 1;
-    const body = v_flex().pb(10);
-    this.machinesSection(t, d, body);
-    for (const v of hv) {
-      const r = v.state.res;
-      const lab = multi ? ` · ${v.label}` : "";
-      if (!r) {
-        body.child(div().px(12).py(8).text_size(12).text_color(t.dim).child(v.error ? `${v.label} unreachable` : "Loading…"));
-        continue;
+  aside(t, k, d, views) {
+    const col = v_flex();
+    const u = usage(d);
+    const A = config().alerts ?? {};
+    col.child(this.heading(k, "Claude usage"));
+    if (u.seven != null) {
+      const hot = !u.stale && u.seven >= (A.usage_danger_pct ?? 90);
+      const when = u.resets ? ` Resets ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(u.resets * 1000).getDay()]}.` : "";
+      col.child(div().text_size(22).font_semibold().text_color(hot ? k.bad : k.fg).child(pct(u.seven)))
+        .child(div().pt(2).text_size(13).text_color(k.muted).child(u.stale ? `of the weekly limit, read ${ago(u.at)} ago.` : `of the weekly limit.${when}${u.five != null ? ` ${pct(u.five)} of the 5-hour window.` : ""}`));
+    } else col.child(div().text_size(13).text_color(k.dim).child("Set usage_file in dashboard.json to see it."));
+
+    const live = views.filter((v) => v.loaded);
+    if (live.length) {
+      const pair = (label, value) => h_flex().py(4).child(div().flex_1().text_size(13).text_color(k.muted).child(label)).child(div().flex_none().text_size(13).text_color(k.fg).child(value));
+      const sum = (f) => live.reduce((s, v) => s + (f(v) ?? 0), 0);
+      col.child(this.heading(k, "Spend"))
+        .child(pair("Today", money(sum((v) => v.spend.today)))).child(pair("Last 7 days", money(sum((v) => v.spend.week))));
+      for (const v of live) {
+        const lab = live.length > 1 ? `, ${v.label}` : "";
+        if (v.spend.perPR != null) col.child(pair(`Per merged PR${lab}`, money(v.spend.perPR)));
+        if (v.spend.hours != null) col.child(pair(`Time to merge${lab}`, dur(v.spend.hours * 3600)));
       }
-      body.child(this.sub(t, `Spawn gate${lab}`, null));
-      body.children((r.rows ?? []).map((row, i) =>
-        h_flex().id(`gate-${v.key}-${i}`).px(12).py(3).gap(8).items_center()
-          .child(div().size(7).rounded(4).flex_none().bg(row.state === "ok" ? good(t) : row.state === "warn" ? warn(t) : t.blocked))
-          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(row.label))
-          .child(div().flex_none().text_size(12).text_color(t.muted).child(row.value))
-          .child(div().flex_none().w(110).truncate().text_size(10.5).text_color(t.dim).child(row.limit && row.limit !== "-" ? row.limit : ""))));
-      const th = v.state.through;
-      const per = (th?.perDay ?? []).slice(-14);
-      if (per.length) {
-        body.child(this.sub(t, `Merges per day${lab}`, th?.merges != null ? `${th.merges} in ${th.days}d` : null));
-        body.child(this.bars(t, `merge-days-${v.key}`, per, (x) => x.merges ?? 0, (x) => String(x.merges ?? 0), good(t)));
-      }
+      col.child(h_flex().pt(4).text_size(13).child(this.link(k, "spend-open", "Spend by day and task", () => openUrl(webUrl("/spend", live[0].factory)))));
     }
-    return this.card(t, "Resources", this.btn(t, "res-open", "Resources ↗", () => openUrl("/resources", hv[0]?.team)), body);
-  }
 
-  // A team that runs no Hivemill API, declared by projects[].boss: its boss and its project's agents as lanes.
-  projectTeamCard(t, v) {
-    const body = v_flex().pb(10);
-    const dotFor = (s) => (s === "working" ? good(t) : s === "blocked" ? t.blocked : s === "idle" || s === "done" ? warn(t) : t.dim);
-    body.child(this.sub(t, "Boss", null));
-    body.child(v.boss
-      ? this.row(t, `${v.key}-boss`, () => run("agent.focus", { terminal: v.boss.address }), [
-        div().size(7).rounded(4).flex_none().bg(dotFor(v.boss.status)),
-        div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(v.boss.name),
-        div().flex_none().text_size(10.5).text_color(t.muted).child(v.boss.status),
-      ])
-      : div().px(12).py(2).text_size(11.5).text_color(t.dim).child("No boss found: check projects[].boss."));
-    body.child(this.sub(t, "Lanes", v.lanes.length));
-    if (!v.lanes.length) body.child(div().px(12).py(2).text_size(11.5).text_color(t.dim).child("No other agents in this space."));
-    body.children(v.lanes.map((l, i) =>
-      this.row(t, `${v.key}-lane-${i}`, () => run("agent.focus", { terminal: l.address }), [
-        div().size(7).rounded(4).flex_none().bg(dotFor(l.status)),
-        div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(l.name),
-        div().flex_none().text_size(10.5).text_color(t.muted).child(l.status),
-      ])));
-    return this.card(t, v.label, null, body);
-  }
-
-  // One Hivemill team: its boss and lanes, what needs you, goals, agents and shipped work.
-  teamCard(t, d, v) {
-    const f = v.home;
-    const k = v.key;
-    const orgs = v.orgs;
-    const inOrg = (x) => !x.org || orgs.has(x.org);
-    const multi = teamViews(d).filter((x) => x.kind === "hivemill").length > 1;
-    const right = h_flex().gap(6).items_center()
-      .child(div().text_size(10.5).text_color(v.error ? t.blocked : t.dim).child(v.error ? (f ? `offline · ${ago(v.at)} old` : "offline") : f ? ago(v.at) : "loading…"))
-      .child(this.btn(t, `${k}-open`, "Open ↗", () => openUrl("/", v.team)));
-    const body = v_flex().pb(10);
-    if (!f) {
-      body.child(v_flex().m(10).p(12).gap(4).rounded(8).border(1).border_color(v.error ? alpha(t.blocked, "66") : t.border)
-        .child(div().text_size(12.5).text_color(v.error ? t.blocked : t.muted).child(v.error ? `${v.label} unreachable` : `Reaching ${v.label}…`))
-        .when(Boolean(v.error), (el) => el.child(div().text_size(11).text_color(t.dim).child(`${demo() ? "Not reachable" : v.error}. Check the team's url / machine (teams[] or factory) in ~/.config/hivemill/dashboard.json.`))));
-      return this.card(t, v.label, right, body, ROLE);
-    }
-    const sa = f.system?.agents ?? {};
-    const needs = (f.needs_you ?? []).filter((n) => inOrg(n) && !hidden(n.subject));
-    body.child(h_flex().px(10).pt(10).gap(6).children([
-      this.stat(t, "live / cap", `${sa.live ?? f.live_agents ?? 0}/${sa.cap ?? "?"}`, good(t)),
-      this.stat(t, "queued", sa.queued ?? f.queued_agents ?? 0),
-      this.stat(t, "open PRs", f.open_prs ?? 0),
-      this.stat(t, "needs you", needs.length, needs.length ? warn(t) : null),
-    ]));
-    // Each lane shows its boss and director; with 2+ teams the lanes show even for a single org.
-    const lanes = v.lanes;
-    if (multi || lanes.length > 1 || (lanes.length === 1 && orgs.size > 1)) {
-      body.child(this.sub(t, "Lanes", null));
-      body.children(lanes.map((l) =>
-        this.row(t, `${k}-lane-${l.org}`, () => openUrl(`/?org=${l.org}`, v.team), [
-          div().size(7).rounded(4).flex_none().bg(toneColor(t, l.tone)),
-          div().flex_none().w(60).text_size(12).text_color(t.foreground).child(l.label),
-          div().flex_1().min_w(0).truncate().text_size(11).text_color(t.muted).child(l.text),
-          div().flex_none().text_size(10.5).text_color(toneColor(t, l.tone)).child(demo() ? ((n) => (n ? `${n} need${n === 1 ? "s" : ""} you` : "ok"))(needs.filter((x) => x.org === l.org).length) : l.health),
-        ])));
-    }
-    body.child(this.sub(t, "Needs you", needs.length));
-    if (!needs.length) body.child(div().px(12).py(2).text_size(11.5).text_color(t.dim).child("Nothing waiting on you."));
-    body.children(needs.slice(0, 8).map((n, i) =>
-      this.row(t, `${k}-need-${i}`, () => openUrl(n.href, v.team), [
-        div().size(7).rounded(4).flex_none().bg(toneColor(t, n.tone)),
-        v_flex().flex_1().min_w(0)
-          .child(div().truncate().text_size(12).text_color(t.foreground).child(clean(n.subject ?? n.ref ?? "?")))
-          .child(div().truncate().text_size(10.5).text_color(t.dim).child([orgs.size > 1 ? n.org : null, n.kind, demo() ? null : n.ref, n.age].filter(Boolean).join(" · "))),
-      ])));
-    if (needs.length > 8) body.child(this.row(t, `${k}-need-more`, () => openUrl("/", v.team), [div().text_size(11).text_color(t.accent).child(`+${needs.length - 8} more in the browser`)]));
-
-    const goals = (f.goals ?? []).filter((g) => g.status === "active" && inOrg(g) && !hidden(g.title))
-      .sort((a, b) => (a.priority ?? 9) - (b.priority ?? 9) || (b.last_activity ?? "").localeCompare(a.last_activity ?? ""));
-    if (goals.length) {
-      body.child(this.sub(t, "Active goals", `${goals.length} · ${f.goals_by_status?.done ?? 0} done`));
-      body.children(goals.map((g) => {
-        const done = g.tasks_done ?? 0, total = g.tasks_total ?? 0, frac = total ? Math.min(1, done / total) : 0;
-        return v_flex().id(`${k}-goal-${g.id}`).mx(6).px(6).py(4).gap(3).rounded(6).hover((s) => s.bg(t.hover)).on_click(() => openUrl(`/goal/${g.id}`, v.team))
-          .child(h_flex().gap(6).items_center()
-            .child(div().flex_none().text_size(10.5).text_color(t.dim).child(demo() ? "" : g.id))
-            .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(g.title ?? "")))
-            .child(div().flex_none().text_size(10.5).text_color(t.muted).child(`${done}/${total}`)))
-          .child(div().h(4).w_full().rounded(2).bg(t.border).child(div().h_full().w(`${(frac * 100).toFixed(1)}%`).rounded(2).bg(done >= total && total ? good(t) : t.accent)));
-      }));
-    }
-    // A team's agents run on its own terminals, so this app's agents list may not show them.
-    const rows = (f.agents?.rows ?? []).filter((a) => (a.status === "live" || a.status === "running") && inOrg(a) && !hidden(a.task_title));
-    if (rows.length) {
-      body.child(this.sub(t, "Agents", `${rows.length} · ${f.agents?.queued ?? 0} queued`));
-      body.children(rows.map((a, i) =>
-        this.row(t, `${k}-fa-${i}`, () => openUrl("/agents", v.team), [
-          div().size(7).rounded(4).flex_none().bg(good(t)),
-          v_flex().flex_1().min_w(0)
-            .child(h_flex().gap(6).child(div().truncate().text_size(12).text_color(t.foreground).child(clean(a.name))).child(div().flex_none().text_size(10.5).text_color(t.dim).child(a.role ?? "")))
-            .when(Boolean(a.task_title || a.task_id), (el) => el.child(div().truncate().text_size(10.5).text_color(t.muted).child(demo() ? clean(a.task_title ?? "") : [a.task_id, a.task_title].filter(Boolean).join(" ")))),
-          div().flex_none().text_size(10.5).text_color(t.dim).child(ago(Date.parse(a.last_event))),
-        ])));
-    }
-    const shipped = (f.shipped?.recent ?? []).filter((s) => !hidden(s.title)).slice(0, 5);
-    if (shipped.length) {
-      body.child(this.sub(t, "Shipped", f.quality?.first_try_pct != null ? `${f.quality.first_try_pct}% first try` : null));
-      body.children(shipped.map((s, i) =>
-        this.row(t, `${k}-ship-${i}`, () => openUrl(s.pr_url || `/task/${s.task_id}`, v.team), [
-          div().flex_none().text_size(11).text_color(good(t)).child("✓"),
-          div().flex_1().min_w(0).truncate().text_size(12).text_color(t.foreground).child(clean(s.title ?? s.task_id)),
-          div().flex_none().text_size(10.5).text_color(t.dim).child(ago(Date.parse(s.merged))),
-        ])));
-    }
-    return this.card(t, v.label, right, body, ROLE);
+    return col;
   }
 
   renderFull() {
     const t = theme();
+    const k = this.ink(t);
     const d = data();
-    const cols = this.width >= 1300 ? 3 : this.width >= 860 ? 2 : 1;
-    const col = (cards) => v_flex().flex_none().flex_1().min_w(0).gap(12).children(cards);
-    const projects = (config().projects ?? []).filter((p) => p.github && !hidden(p.name ?? p.github)).map((p) => this.projectCard(t, d, p));
-    const alertsC = this.alertsCard(t, d), budget = this.budgetCard(t, d), res = this.resourcesCard(t, d);
-    // One card per team: each Hivemill team, then each team declared by projects[].boss.
-    const teamCards = teamViews(d).map((v) => (v.kind === "project" ? this.projectTeamCard(t, v) : this.teamCard(t, d, v)));
-    const grid =
-      cols === 3
-        ? projects.length
-          ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, ...projects])).child(col([budget, res])).child(col(teamCards))
-          : h_flex().flex_none().gap(12).items_start().child(col([alertsC, res])).child(col([budget])).child(col(teamCards))
-      : cols === 2 ? h_flex().flex_none().gap(12).items_start().child(col([alertsC, budget, ...projects])).child(col([res, ...teamCards]))
-      : v_flex().flex_none().gap(12).children([alertsC, budget, ...projects, res, ...teamCards]);
-    const header = h_flex().gap(8).items_center().px(4)
-      .child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("Hivemill"))
-      .child(this.btn(t, "refresh", "Refresh", (cx) => tick(this.me, cx, true)));
+    const views = factoryViews(d);
+    const items = this.waiting(d, views);
+    const runs = items.length && items.every((x) => x.run);
+    const noun = runs ? `${items.length} run${items.length === 1 ? "" : "s"}` : `${items.length} thing${items.length === 1 ? "" : "s"}`;
+    const heard = views.map((v) => v.at).filter(Boolean);
+    const fresh = heard.length ? (ago(Math.min(...heard)) === "now" ? "updated just now" : `updated ${ago(Math.min(...heard))} ago`) : "loading…";
+    const notes = alerts(d).filter((a) => /^(factory-down|usage-|config):?/.test(a.key));
+
+    const main = v_flex().flex_1().min_w(0);
+    main.child(items.length
+      ? h_flex().gap(7).pb(18).text_size(24).font_semibold().child(div().text_color(k.accent).child(noun)).child(div().text_color(k.fg).child(`${items.length === 1 ? "is" : "are"} waiting for you`))
+      : div().pb(6).text_size(24).font_semibold().text_color(k.fg).child("Nothing is waiting for you"));
+    if (items.length) main.child(this.needsList(k, items));
+    for (const a of notes) main.child(div().pt(10).text_size(13).text_color(a.level === "danger" ? k.bad : k.muted).child(a.text));
+    main.child(this.heading(k, "Factories", "today")).child(this.factoriesTable(t, k, views));
+    const res = this.resources(t, k, d, views);
+    if (res) main.child(res);
+    for (const v of views.filter((x) => x.loaded)) {
+      const look = this.lookSection(k, v);
+      if (look) main.child(look);
+    }
+    for (const v of views.filter((x) => x.loaded)) {
+      const sec = this.runsSection(k, v);
+      if (sec) main.child(sec);
+    }
+
+    const wide = this.width >= 1040;
+    const side = this.aside(t, k, d, views);
+    const tabs = [["overview", "Overview"], ["board", "Board"], ["traces", "Traces"], ["spend", "Spend"]];
+    const header = h_flex().pb(14).gap(14).items_center().text_size(13)
+      .child(div().font_semibold().text_color(k.fg).child("Hivemill"))
+      .child(div().flex_1().text_color(k.dim).child(`${views.length} factor${views.length === 1 ? "y" : "ies"}, ${fresh}`))
+      .child(this.link(k, "refresh", "Refresh", (cx) => tick(this.me, cx, true)));
+    const tabRow = h_flex().mb(26).gap(22).border_b(1).border_color(k.line).children(tabs.map(([id, label]) =>
+      div().id(`tab-${id}`).cursor_pointer().pb(8).text_size(13)
+        .when(this.tab === id, (el) => el.font_semibold().text_color(k.fg).border_b(2).border_color(k.accent))
+        .when(this.tab !== id, (el) => el.text_color(k.muted).hover((st) => st.text_color(k.fg)))
+        .on_click((_e, cx) => { this.tab = id; this.askBoard(cx, true); cx.notify(); }).child(label)));
+    const body = this.tab === "board" ? this.boardTab(t, k, views)
+      : this.tab === "traces" ? this.tracesTab(t, k, views)
+      : this.tab === "spend" ? this.spendTab(t, k, views)
+      : wide ? h_flex().gap(56).items_start().child(main).child(side.flex_none().w(280)) : v_flex().child(main).child(side);
+    const page = v_flex().flex_none().w_full().max_w(this.tab === "board" ? 1440 : 1180).mx_auto().px(32).pt(26).pb(56).child(header).child(tabRow).child(body);
     return v_flex().id("root").size_full().bg(t.background)
       .on_size_change((size, cx) => {
         if (Math.abs(size.width - this.width) > 20) {
@@ -518,7 +429,233 @@ export default class Dashboard extends View {
           cx.notify();
         }
       })
-      .child(v_flex().id("scroll").flex_1().min_h(0).overflow_y_scrollbar()
-        .child(v_flex().flex_none().w_full().p(14).gap(12).child(header).child(grid)));
+      .child(v_flex().id("scroll").flex_1().min_h(0).overflow_y_scrollbar().child(page));
+  }
+
+  // ---- the other tabs ----------------------------------------------------------------
+
+  // Which factory a tab shows, and the chips that pick it (shown when there is more than one).
+  picked(views) {
+    const live = views.filter((v) => v.loaded);
+    return live.find((v) => v.key === this.fac) ?? live[0] ?? null;
+  }
+
+  // The board is asked while the Board or Traces tab is open: at once on a click, else when the last ask is 30 s old.
+  askBoard(cx, now = false) {
+    if (this.tab !== "board" && this.tab !== "traces") return;
+    const v = this.picked(factoryViews());
+    if (!v) return;
+    if (this.first) {
+      const key = this.first;
+      this.first = null;
+      return this.openTrace(cx, v, key);
+    }
+    const project = this.tab === "board" && v.projects.includes(this.project) ? this.project : null;
+    const b = v.board;
+    if (now || !b || (b.project ?? null) !== project || Date.now() - Math.max(b.at ?? 0, b.tried ?? 0) > 30_000) loadBoard(cx, v.factory, project);
+  }
+
+  chips(k, id, items, current, pick) {
+    return h_flex().flex_wrap().gap(14).text_size(13).children(items.map(([value, label]) =>
+      div().id(`${id}-${value ?? "all"}`).cursor_pointer()
+        .when(value === current, (el) => el.font_semibold().text_color(k.fg))
+        .when(value !== current, (el) => el.text_color(k.muted).hover((st) => st.text_color(k.fg)))
+        .on_click((_e, cx) => { pick(value); this.askBoard(cx, true); cx.notify(); }).child(label)));
+  }
+
+  empty(k, text) {
+    return div().py(18).max_w(640).text_size(13).text_color(k.muted).child(text);
+  }
+
+  // Why a factory has no board to show, in a sentence; null when it has one.
+  noBoard(k, v) {
+    const b = v.board;
+    if (b?.columns) return null;
+    if (!b) return this.empty(k, "Loading the board…");
+    if (b.old) return this.empty(k, `${v.label} runs a build from before the board. Update the factory to see its tasks by column. Overview and Spend work as before.`);
+    return div().py(18).text_size(13).text_color(k.bad).child(`The board did not load: ${demo() ? "not reachable" : b.error}`);
+  }
+
+  openTrace(cx, v, key) {
+    this.tab = "traces";
+    this.fac = v.key;
+    this.shown = {};
+    loadTrace(cx, v.factory, key);
+    this.askBoard(cx);
+    cx.notify();
+  }
+
+  // Tasks as cards, in the column of where each is now and under the reason it waits there. A click opens the trace.
+  boardTab(t, k, views) {
+    const v = this.picked(views);
+    const out = v_flex();
+    if (!v) return out.child(this.empty(k, "No factory has answered yet."));
+    const b = v.board;
+    const projects = demo() ? [] : v.projects;
+    const bar = h_flex().pb(18).gap(28).items_center().text_size(13);
+    if (views.length > 1) bar.child(this.chips(k, "bf", views.filter((x) => x.loaded).map((x) => [x.key, x.label]), v.key, (key) => { this.fac = key; this.project = null; }));
+    if (projects.length > 1) bar.child(this.chips(k, "bp", [[null, "All projects"], ...projects.map((p) => [p, p])], projects.includes(this.project) ? this.project : null, (p) => { this.project = p; }));
+    bar.child(div().flex_1());
+    if (b?.columns) bar.child(div().text_color(k.muted).child(`${b.open} open task${b.open === 1 ? "" : "s"}, ${b.done.merged} merged today${b.error ? `, last answer ${ago(b.at)} ago` : ""}`));
+    out.child(bar);
+    const none = this.noBoard(k, v);
+    if (none) return out.child(none);
+    const drift = Math.max(0, Math.round((Date.now() - b.at) / 1000));
+    const card = (col, g, c, i) => {
+      const right = col.id === "done" ? (c.note ? brief(c.note, 22) : clock(c.at)) : c.note && c.note.length <= 22 && !demo() && col.id !== "held" ? c.note : dur(c.age_sec + drift);
+      const title = c.title ? clean(c.title) : demo() ? "Task" : c.task;
+      const el = v_flex().id(`card-${col.id}-${g.cause}-${i}`).mb(6).px(10).py(9).rounded(6).border(1).border_color(k.line).bg(t.surface)
+        .child(div().when(Boolean(c.title), (x) => x.h(36)).overflow_hidden().whitespace_normal().line_height(1.38).text_size(13).text_color(k.fg).child(title))
+        .child(h_flex().pt(6).gap(8).text_size(12)
+          .child(div().flex_1().min_w(0).truncate().text_color(k.muted).child(demo() || !c.title ? "" : c.task))
+          .child(div().flex_none().text_color(g.bad ? k.bad : k.muted).child(right)));
+      return c.key ? el.cursor_pointer().hover((st) => st.border_color(k.accent)).on_click((_e, cx) => this.openTrace(cx, v, c.key)) : el;
+    };
+    const column = (col) => {
+      const el = v_flex().flex_1().min_w(0)
+        .child(h_flex().mb(8).pb(8).border_b(1).border_color(k.line).text_size(13)
+          .child(div().flex_1().font_semibold().text_color(k.fg).child(col.name)).child(div().text_color(k.muted).child(String(col.count))));
+      if (col.id === "done") {
+        const d = b.done;
+        const parts = [[d.merged, "merged"], [d.failed_refiled, "failed and re-filed"], [d.cancelled, "cancelled"]].filter(([n]) => n > 0);
+        if (parts.length) el.child(div().pb(4).whitespace_normal().text_size(13).text_color(k.muted).child(parts.map(([n, w]) => `${n} ${w}`).join(", ")));
+      }
+      if (!col.count) el.child(div().py(4).text_size(12).text_color(k.faint).child("none"));
+      for (const g of col.groups) {
+        const cause = g.cause || (g.bad && col.id !== "held" ? "Over the stage limit" : "");
+        if (cause) el.child(div().pt(8).pb(6).text_size(12).text_color(g.bad ? k.bad : k.muted).child(col.id === "done" && !g.bad ? cause : `${cause} (${g.count})`));
+        g.cards.forEach((c, i) => {
+          el.child(card(col, g, c, i));
+          if (col.id === "held" && c.pr && !demo()) el.child(h_flex().pb(8).px(2).text_size(12).child(this.link(k, `held-pr-${i}`, `Open PR ${String(c.pr).split("/").pop()}`, () => openUrl(c.pr))));
+        });
+        if (g.count > g.cards.length && !(col.id === "done" && !g.bad)) el.child(div().px(2).pb(4).text_size(12).text_color(k.muted).child(`${g.count - g.cards.length} more`));
+      }
+      if (col.id === "done" && col.count && webUrl("/flow", v.factory)) el.child(h_flex().px(2).pt(2).text_size(12).child(this.link(k, "done-all", "All of today", () => openUrl(webUrl("/flow", v.factory)))));
+      return el;
+    };
+    const rows = this.width && this.width < 1100 ? [b.columns.slice(0, 3), b.columns.slice(3)] : [b.columns];
+    for (const r of rows) out.child(h_flex().pb(22).gap(14).items_start().children(r.map(column)));
+    return out;
+  }
+
+  // One task from dispatch to merge, as phases: what the runner did, what it sent, what it cost.
+  tracesTab(t, k, views) {
+    const v = this.picked(views);
+    const out = v_flex();
+    if (!v) return out.child(this.empty(k, "No factory has answered yet."));
+    const lists = traceLists(v);
+    const LISTS = [["look", "Needs a look"], ["running", "Running"], ["merged", "Merged today"], ["failed", "Failed today"]];
+    const bar = h_flex().pb(18).gap(28).items_center().text_size(13);
+    if (views.length > 1) bar.child(this.chips(k, "tf", views.filter((x) => x.loaded).map((x) => [x.key, x.label]), v.key, (key) => { this.fac = key; }));
+    bar.child(this.chips(k, "tl", LISTS.map(([id, label]) => [id, `${label} ${lists[id].length}`]), this.list, (id) => { this.list = id; }));
+    out.child(bar);
+    const tr = v.trace;
+    const rows = lists[this.list] ?? [];
+    const list = v_flex().flex_none().w(340);
+    for (const r of rows.slice(0, 40))
+      list.child(v_flex().id(`tl-${r.key}`).px(10).py(8).rounded(6).border(1).cursor_pointer()
+        .when(tr?.key === r.key, (el) => el.bg(t.surface).border_color(k.line))
+        .when(tr?.key !== r.key, (el) => el.border_color(alpha(t.background, "00")).hover((st) => st.bg(k.hover)))
+        .on_click((_e, cx) => this.openTrace(cx, v, r.key))
+        .child(div().truncate().text_size(13).text_color(k.fg).child(r.title ? clean(r.title) : demo() ? "Task" : r.task))
+        .child(div().truncate().pt(2).text_size(12).text_color(k.muted).child([demo() || !r.title ? null : r.task, demo() ? r.why.replace(/\bT-\d+\b/g, "a task") : r.why].filter(Boolean).join(", "))));
+    if (!rows.length) list.child(div().px(10).py(8).text_size(13).text_color(k.muted).child(this.list === "look" ? "Nothing needs a look." : "None today."));
+    if (v.board?.old) list.child(div().px(10).pt(12).whitespace_normal().text_size(12).text_color(k.muted).child("This factory runs an older build: no titles and no prompt text until it is updated."));
+
+    const detail = v_flex().flex_1().min_w(0);
+    if (!tr) detail.child(this.empty(k, "Pick a task on the left, or click a card on the Board."));
+    else if (tr.loading) detail.child(this.empty(k, "Loading the trace…"));
+    else if (tr.error) detail.child(div().py(18).text_size(13).text_color(k.bad).child(`The trace did not load: ${demo() ? "not reachable" : tr.error}`));
+    else {
+      const tv = traceView(tr);
+      const title = tr.title ?? [...rows, ...lists.running].find((r) => r.key === tr.key)?.title;
+      const held = tv.state === "held" ? [...tr.steps].reverse().find((s) => s.kind === "run.held")?.summary.replace(/^held:\s*/, "") : null;
+      const lede = [demo() ? null : tr.task, tr.goal && !demo() ? `goal ${tr.goal}` : null, tr.project && !demo() ? `project ${tr.project}` : null].filter(Boolean).join(", ");
+      const state = held ? `Held for you: ${clean(held)}.` : `${tv.state[0].toUpperCase()}${tv.state.slice(1)}.`;
+      detail.child(div().text_size(22).font_semibold().text_color(k.fg).child(title ? clean(title) : demo() ? "Task" : tr.task))
+        .child(h_flex().flex_wrap().pt(4).pb(18).gap(14).text_size(13)
+          .child(div().text_color(k.muted).child(`${lede ? `${lede}. ` : ""}${state}`))
+          .when(Boolean(tr.pr) && !demo(), (el) => el.child(this.link(k, "tr-pr", `Open PR ${String(tr.pr).split("/").pop()}`, () => openUrl(tr.pr))))
+          .when(Boolean(taskUrl(v.factory, tr.key)), (el) => el.child(this.link(k, "tr-open", "Open the full page", () => openUrl(taskUrl(v.factory, tr.key))))));
+      const fact = (big, small) => v_flex().child(div().text_size(15).font_semibold().text_color(k.fg).child(big)).child(div().text_size(12).text_color(k.muted).child(small));
+      const n = (c, w) => `${c} ${w}${c === 1 ? "" : "s"}`;
+      detail.child(h_flex().py(12).gap(36).border_t(1).border_b(1).border_color(k.line)
+        .child(fact(tv.sec != null ? dur(tv.sec) : "–", tv.open ? "since dispatch" : "from dispatch to the end"))
+        .child(fact(tr.usd ? money(tr.usd) : "–", n(tv.sessions, "session")))
+        .child(fact(n(tv.rounds, "gate round"), `${tv.blocks} blocked`))
+        .child(fact(n(tv.prompts, "prompt"), "sent by the runner")));
+      tv.phases.forEach((ph, pi) => {
+        detail.child(h_flex().pt(22).pb(4).gap(10).items_center().text_size(13)
+          .child(div().font_semibold().text_color(k.fg).child(ph.name))
+          .child(div().text_color(k.muted).child([ph.sec ? dur(ph.sec) : null, ph.usd ? money(ph.usd) : null].filter(Boolean).join(", "))));
+        ph.rows.forEach((r, i) => {
+          const id = `${pi}-${i}`;
+          const open = Boolean(this.shown[id]);
+          const body = v_flex().flex_1().min_w(0)
+            .child(h_flex().gap(10).items_start()
+              .child(div().flex_1().min_w(0).whitespace_normal().text_color(r.bad ? k.bad : k.fg).child(`${clean(r.text)}${r.times > 1 ? `, ${r.times} times` : ""}`))
+              .when(Boolean(r.prompt), (el) => el.child(this.link(k, `pr-${id}`, open ? "Hide" : "Show", (cx) => { this.shown[id] = !open; cx.notify(); })))
+              .when(Boolean(r.pr) && !demo(), (el) => el.child(this.link(k, `st-${id}-pr`, "PR", () => openUrl(r.pr)))));
+          if (r.prompt && open && !demo())
+            body.child(v_flex().mt(6).mb(4).px(12).py(10).rounded(6).border(1).border_color(k.line).bg(t.surface).text_size(12).text_color(k.muted)
+              .children(r.prompt.text.split("\n").slice(0, 60).map((line) => div().whitespace_normal().min_h(16).child(line)))
+              .when(r.prompt.cut || r.prompt.lines > 60, (el) => el.child(div().pt(8).text_color(k.faint).child(`The start of ${r.prompt.lines} lines. The whole prompt is on the factory's page.`))));
+          detail.child(h_flex().id(`st-${id}`).py(6).gap(12).items_start().border_b(1).border_color(k.line).text_size(13)
+            .child(div().flex_none().w(48).text_color(k.muted).child(clock(r.ts)))
+            .child(body)
+            .child(h_flex().flex_none().w(60).justify_end().child(div().text_color(k.muted).child(r.usd ? money(r.usd) : ""))));
+        });
+      });
+      if (!tr.v1) detail.child(div().pt(10).text_size(12).text_color(k.muted).child("Prompt text shows here once this factory is updated."));
+    }
+    return out.child(h_flex().gap(40).items_start().child(list).child(detail));
+  }
+
+  // Where the money went: per day, per role, and the most expensive tasks of the last 7 days.
+  spendTab(t, k, views) {
+    const live = views.filter((v) => v.loaded);
+    const out = v_flex();
+    if (!live.length) return out.child(this.empty(k, "No factory has answered yet."));
+    const sum = (f) => live.reduce((s, v) => s + (f(v) ?? 0), 0);
+    out.child(h_flex().gap(8).pb(4).text_size(24).font_semibold().child(div().text_color(k.accent).child(money(sum((v) => v.spend.today)))).child(div().text_color(k.fg).child("spent today")))
+      .child(div().pb(8).text_size(13).text_color(k.muted).child(`${money(sum((v) => v.spend.week))} in the last 7 days, over ${live.length} factor${live.length === 1 ? "y" : "ies"}. Prices are API prices.`));
+    const table = (id, head, rows) => {
+      const box = v_flex();
+      box.child(h_flex().pb(8).gap(12).border_b(1).border_color(k.line).text_size(12).text_color(k.dim)
+        .children(head.map(([label, w]) => (w ? h_flex().flex_none().w(w).justify_end().child(label) : div().flex_1().min_w(0).child(label)))));
+      rows.forEach((r, i) => box.child(h_flex().id(`${id}-${i}`).py(7).gap(12).items_center().border_b(1).border_color(k.line).text_size(13)
+        .when(Boolean(r.go), (el) => el.cursor_pointer().hover((st) => st.bg(k.hover)).on_click((_e, cx) => r.go(cx)))
+        .children(r.cells.map((c, j) => (head[j][1] ? h_flex().flex_none().w(head[j][1]).justify_end().child(div().text_color(c.color ?? k.fg).child(c.text)) : div().flex_1().min_w(0).truncate().text_color(c.color ?? k.fg).child(c.text))))));
+      return box;
+    };
+    for (const v of live) {
+      const s = v.spend;
+      const lab = live.length > 1 ? ` on ${v.label}` : "";
+      const max = Math.max(1, ...s.daily.map((x) => x.usd ?? 0));
+      out.child(this.heading(k, `Per day${lab}`, s.perPR != null ? `${money(s.perPR)} per merged PR` : null));
+      const days = v_flex();
+      const from = Math.max(0, s.daily.findIndex((x) => x.usd));
+      for (const x of s.daily.slice(from)) days.child(h_flex().py(5).gap(12).items_center().text_size(13)
+        .child(div().flex_none().w(92).text_color(k.muted).child(String(x.day).slice(5)))
+        .child(h_flex().flex_1().child(div().h(8).rounded(2).w(Math.max(x.usd ? 3 : 0, Math.round(((x.usd ?? 0) / max) * 420))).bg(x.usd === max ? k.accent : k.merge)))
+        .child(h_flex().flex_none().w(72).justify_end().child(div().text_color(x.usd ? k.fg : k.faint).child(x.usd ? money(x.usd) : "0"))));
+      out.child(days);
+      if (s.roles.length) out.child(this.heading(k, `By role${lab}`, "last 7 days"))
+        .child(table(`role-${v.key}`, [["Role", 0], ["Of it, waiting", 110], ["Spent", 90]], s.roles.map((r) => ({ cells: [{ text: r.role }, { text: r.pollingPct != null ? `${Math.round(r.pollingPct)}%` : "–", color: r.pollingPct >= 30 ? k.bad : k.muted }, { text: money(r.usd) }] }))));
+      if (s.top.length && !demo()) out.child(this.heading(k, `Most expensive tasks${lab}`, "last 7 days"))
+        .child(table(`top-${v.key}`, [["Task", 0], ["Sessions", 90], ["Spent", 90]], s.top.map((x) => ({
+          go: () => openUrl(taskUrl(v.factory, x.key)),
+          cells: [{ text: x.title ? `${x.title}` : x.task, color: k.fg }, { text: x.sessions != null ? String(x.sessions) : "–", color: k.muted }, { text: money(x.usd), color: x.usd > 10 ? k.bad : k.fg }] }))));
+      out.child(h_flex().pt(10).text_size(13).child(this.link(k, `sp-${v.key}`, `Open the Spend page${lab}`, () => openUrl(webUrl("/spend", v.factory)))));
+    }
+    return out;
   }
 }
+
+const clock = (ts) => {
+  const dt = new Date(ts);
+  return Number.isNaN(dt.getTime()) ? "" : `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+};
+
+// The stages in plain words.
+const STAGE = { dispatched: "working", gate: "in the gate", judge: "with the judge", ci: "in CI", merge: "to merge", held: "held" };

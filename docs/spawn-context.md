@@ -7,9 +7,9 @@ It takes no parameters and forwards the whole transcript to a second model on ev
 every factory agent, boss included (director M3599/M3625; G-011 may trial it later with a cost measurement).
 
 - One flip point per role file in `roles/settings/<role>.json.in`: `env.CLAUDE_CODE_DISABLE_ADVISOR_TOOL = "1"` (the documented Claude Code
-  switch, found in the 2.1.310 binary; it removes the tool from the session) plus `"advisor"` in `permissions.deny` as a second layer.
-  To trial it, remove both lines from the role file under test.
-- `tests/test_advisor_deny.py` fails if any settings file lacks either line.
+  switch, found in the 2.1.310 binary; it removes the tool from the session). There is no `permissions.deny` entry: Claude Code reports
+  that it matches no tool (T-2093). To trial it, remove that line from the role file under test.
+- `tests/test_advisor_deny.py` fails if any settings file lacks it.
 - Check a live agent: its tool list has no `advisor`.
 
 ### Audit of past use
