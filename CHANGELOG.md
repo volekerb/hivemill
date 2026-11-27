@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`hivemill proofs touched --ios-dir` no longer passes on a mistyped directory.** An iOS directory that is missing under the root, or differs in letter case from the real one, is now a usage error (exit 2) that names it, not `SKIP xcodebuild: no iOS change` (T-2074).
+
 ### Added
 
 - **A PR flow controller keeps runner PRs moving.** Each pass reads all open runner PRs with one batched GraphQL query, gives every flow state a time budget with a fixed action when it runs out, merges a train of PRs that share no file, and emits `pr.stale` for a PR that stops changing. New config keys: `ci_queue_max_min`, `merge_train`, `stale_pr_min`. See [docs/pr-flow.md](https://github.com/volekerb/hivemill/blob/main/docs/pr-flow.md) (T-2079).
