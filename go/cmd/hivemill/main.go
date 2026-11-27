@@ -12,6 +12,7 @@
 //	hivemill eval T-1234 [--judge-only|--review-only]  eval run on a prepared branch with a draft PR: measures gate, review and judge, never merges
 //	hivemill task lint T-1234|--all  spec gate: every criterion names its proof, none runs a whole Go module (--all: todo and draft tasks)
 //	hivemill task add|list|show|update|cancel   file and change tasks (add and update refuse criteria that fail the spec gate; --draft)
+//	hivemill task requeue T-x      a failed or cancelled task goes back to todo; the next dispatch starts a new run
 //	hivemill goal new|list|show|close           goals
 //	hivemill project add ID --repo OWNER/NAME --path DIR [--gate CMD]... | project list | project profile ID [--sensitive GLOB]...
 //	hivemill init [--home DIR]     make a standalone factory home (DB tables, state dirs, ci/scrub_allowlist.txt); idempotent
@@ -69,7 +70,7 @@ func main() {
 // Main is the whole CLI; it returns the exit code.
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 	usage := "usage: hivemill run [T-1234|status|stop T-1234] | gate hook|T-1234 | judge hook|packet T-1234 | merge T-1234 [--dry-run] | " +
-		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel | goal new|list|show|close|status | " +
+		"report [--json] | eval T-1234 [--judge-only|--review-only] | task lint|add|list|show|update|cancel|requeue T-x | goal new|list|show|close|status | " +
 		"project add|list | config [KEY [VALUE]] | daemon [--take-over] | standby check --from HOST[:DIR] | health [--alert] | drain [--status] | resume | " +
 		"clean [--dry-run] | backup | restore <snapshot> [--dry-run] | init [--home DIR] | launchd daemon|digest|health|obs | planner start|stop|status|wake|done ID... [--note TEXT] | " +
 		"ask add|list|answer|withdraw | digest [--date YYYY-MM-DD] [--json] [--send] | pr create|ready | " +
@@ -355,8 +356,23 @@ func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) (code int) {
 		}
 	case "report":
 		err = r.Report(arg(1) == "--json")
+		if err == nil && arg(1) != "--json" {
+			err = r.PrintRetiredRuns("")
+		}
 	case "task":
-		return cmdTask(r, args[1:], stdin, stdout, stderr)
+		if arg(1) != "requeue" {
+			code := cmdTask(r, args[1:], stdin, stdout, stderr)
+			if code != 0 || arg(1) != "show" {
+				return code
+			}
+			err = r.PrintRetiredRuns(strings.ToUpper(arg(2)))
+			break
+		}
+		if len(args) != 3 || !taskRe.MatchString(arg(2)) {
+			fmt.Fprintln(stderr, "usage: hivemill task requeue T-x")
+			return 2
+		}
+		err = r.Requeue(strings.ToUpper(arg(2)))
 	case "planner":
 		if arg(1) == "done" {
 			return cmdPlannerDone(r, args[2:], stdout, stderr)

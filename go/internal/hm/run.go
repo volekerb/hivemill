@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -301,6 +302,11 @@ func (r *Runner) Start(id string) error {
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
+	if s, err := r.sq(); err == nil { // an answer about an earlier run (stopped, then started again) is not about this one
+		if err := s.RetireHeldAsks(id); err != nil {
+			return err
+		}
+	}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
@@ -323,6 +329,61 @@ func (r *Runner) Start(id string) error {
 	}
 	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,
 		machineLabel(pl.Machine))
+	return nil
+}
+
+// Requeue puts a failed or cancelled task back to todo: its run is retired (the row stays), so the next dispatch makes a
+// new one.
+func (r *Runner) Requeue(id string) error {
+	s, err := r.sq()
+	if err != nil {
+		return err
+	}
+	l := r.lock(id, false)
+	if l == nil {
+		return fmt.Errorf("%w: %s is busy; try again", ErrRefused, id)
+	}
+	defer l.Close()
+	t, err := r.Store.Task(id)
+	if err != nil {
+		return err
+	}
+	run, err := r.Store.Run(id)
+	if err != nil {
+		return err
+	}
+	switch {
+	case t.Status == "done":
+		return fmt.Errorf("%w: %s is done", ErrRefused, id)
+	case run != nil && run.State != Failed && run.State != Cancelled:
+		return fmt.Errorf("%w: %s has a %s run; only a failed or cancelled task is requeued", ErrRefused, id, run.State)
+	case run == nil && t.Status != "cancelled":
+		return fmt.Errorf("%w: %s is %s; only a failed or cancelled task is requeued", ErrRefused, id, t.Status)
+	}
+	if run != nil {
+		if run.cloned() && !run.RemoteDone {
+			r.removeRemoteWorktree(run) // no pass sees a retired run, so its worktree is removed now
+			under := path.Join(remoteBase(run.RemoteHome), "worktrees") + "/"
+			if !run.RemoteDone && strings.HasPrefix(run.Worktree, under) {
+				return fmt.Errorf("%w: the worktree of %s is still on %s; try again", ErrRefused, id, run.Machine)
+			}
+		}
+	}
+	// the old run's PR is not the new run's: an open one on the branch is found again by its head
+	if err := r.Store.TaskPR(id, "", ""); err != nil {
+		return err
+	}
+	if err := r.Store.TaskStatus(id, "todo", "internal"); err != nil {
+		return err
+	}
+	// last: a requeue that failed above can be run again, and a run still in place is never dispatched over
+	if run != nil {
+		if err := s.RetireRun(id); err != nil {
+			return err
+		}
+	}
+	_ = r.Store.Event(r.actor(), "task", id, "run-requeue", nil)
+	r.printf("%s: todo again; the next dispatch starts a new run\n", id)
 	return nil
 }
 
@@ -528,12 +589,16 @@ func (r *Runner) fail(run *Run, reason string) {
 	r.closeSessions(run)
 }
 
-// resume sends text to the same task session and starts a new round. A session whose pane has closed is relaunched by
-// its session id with text as its first message.
+// resume sends text to the same task session and starts a new round. A session whose pane has closed (a held run closes
+// it) is relaunched by its session id with text as its first message.
 func (r *Runner) resume(run *Run, text string) { r.resumeAs(run, "resume", text) }
 
 // resumeAs is resume with the kind a prompt to the warm session is recorded under (a relaunch records its own).
 func (r *Runner) resumeAs(run *Run, kind, text string) {
+	if err := r.remakeWorktree(run); err != nil {
+		r.fail(run, "cannot make the worktree again: "+err.Error())
+		return
+	}
 	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
 	// are deferred until the session writes fresh findings.
 	if run.Worktree != "" {
@@ -567,6 +632,23 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 		r.recordPrompt(run, "task", kind, text)
 	}
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-resume", truncate(text, 300))
+}
+
+// remakeWorktree gives a cloned run its worktree again; a held run gave it back.
+func (r *Runner) remakeWorktree(run *Run) error {
+	if !run.cloned() || !run.RemoteDone {
+		return nil
+	}
+	t, err := r.Store.Task(run.Task)
+	if err != nil {
+		return err
+	}
+	wt, err := r.remoteWorktree(run.Machine, run.RemoteHome, t, run.Branch)
+	if err != nil {
+		return err
+	}
+	run.Worktree, run.RemoteDone = wt, false
+	return nil
 }
 
 func truncate(s string, n int) string {
@@ -611,6 +693,9 @@ func (r *Runner) Pass(startNew bool) error {
 			if l := r.lock(x.Task, false); l != nil {
 				if run, _ := r.Store.Run(x.Task); run != nil && heldForOwner(run) {
 					r.checkHeld(run)
+					if heldForOwner(run) {
+						r.answeredHeld(run, list, ok)
+					}
 					r.trackFlow(run)
 					_ = r.Store.PutRun(run)
 				}
@@ -863,6 +948,27 @@ func (r *Runner) Stop(task string) error {
 	_ = r.Log.Emit("task.cancelled", run, Event{})
 	_ = r.Store.TaskStatus(task, "todo", "")
 	return r.Store.PutRun(run)
+}
+
+// PrintRetiredRuns lists the runs `task requeue` retired, of one task or of every task when task is "".
+func (r *Runner) PrintRetiredRuns(task string) error {
+	runs, err := r.Store.RetiredRuns()
+	if err != nil {
+		return err
+	}
+	n := map[string]int{}
+	for _, x := range runs {
+		n[x.Task]++
+		if task != "" && x.Task != task {
+			continue
+		}
+		pr := x.PRURL
+		if pr == "" {
+			pr = "no PR"
+		}
+		r.printf("%s requeued run %d: %s, round %d, %s %s\n", x.Task, n[x.Task], x.State, x.Round, pr, truncate(x.FailReason, 100))
+	}
+	return nil
 }
 
 // Status prints one line per run.

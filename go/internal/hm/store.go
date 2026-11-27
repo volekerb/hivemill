@@ -115,6 +115,7 @@ type Store interface {
 	Run(task string) (*Run, error)
 	PutRun(r *Run) error
 	Runs() ([]Run, error)
+	RetiredRuns() ([]Run, error)
 	AddSession(s Session) error
 	Sessions(task string) ([]Session, error)
 	RedMain(slug string) (map[string]any, bool)
@@ -466,8 +467,19 @@ func (s *SQLite) PutRun(r *Run) error {
 	return err
 }
 
+// Runs lists the current run of every task; a run retired by `task requeue` (key T-x#n) is kept but not listed.
 func (s *SQLite) Runs() ([]Run, error) {
-	rows, err := s.db.Query(`SELECT data FROM hm_runs ORDER BY task`)
+	return s.queryRuns(`SELECT data FROM hm_runs WHERE instr(task,'#')=0 ORDER BY task`)
+}
+
+// RetiredRuns lists the runs `task requeue` retired, oldest first per task; Task is the task id, not the row key.
+func (s *SQLite) RetiredRuns() ([]Run, error) {
+	return s.queryRuns(`SELECT data FROM hm_runs WHERE instr(task,'#')>0
+		ORDER BY substr(task,1,instr(task,'#')), CAST(substr(task,instr(task,'#')+1) AS INTEGER)`)
+}
+
+func (s *SQLite) queryRuns(query string) ([]Run, error) {
+	rows, err := s.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -958,6 +970,35 @@ func (s *SQLite) Asks(status string) ([]Ask, error) {
 		out = append(out, *a)
 	}
 	return out, rows.Err()
+}
+
+// RetireAskRef takes a used question off its ref, so the next question about the same thing is filed anew.
+func (s *SQLite) RetireAskRef(id int64) error {
+	_, err := s.db.Exec(`UPDATE hm_asks SET ref = 'used:' || id || ':' || ref WHERE id=?`, id)
+	return err
+}
+
+// RetireHeldAsks ends the held-run questions of a task before it gets a new run: open ones are withdrawn, and none of
+// them (answered ones included) applies to the new run or blocks a question about it.
+func (s *SQLite) RetireHeldAsks(task string) error {
+	if _, err := s.db.Exec(`UPDATE hm_asks SET status='withdrawn', answer='the run was replaced', answered_by='runner', answered=?
+		WHERE status='open' AND (ref=? OR ref LIKE ?)`, nowISO(), "held:"+task, "held:"+task+":%"); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`UPDATE hm_asks SET ref = 'used:' || id || ':' || ref WHERE ref=? OR ref LIKE ?`,
+		"held:"+task, "held:"+task+":%")
+	return err
+}
+
+// RetireRun moves the run of a task aside (key T-x#n) and ends its held-run questions: the task has no run again, and
+// the old row stays for the record.
+func (s *SQLite) RetireRun(task string) error {
+	if err := s.RetireHeldAsks(task); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`UPDATE hm_runs SET task = task || '#' || (SELECT COUNT(*) FROM hm_runs WHERE task=? OR task LIKE ?)
+		WHERE task=?`, task, task+"#%", task)
+	return err
 }
 
 // CloseAsk answers (status answered) or withdraws (status withdrawn) an open question.

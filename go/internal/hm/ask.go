@@ -74,6 +74,69 @@ func (r *Runner) AskClose(id int64, answered bool, text string) error {
 	return nil
 }
 
+// answeredHeld acts on the owner's answer to the question about a held run (ref held:T-x[:round]): an answer starting
+// with "merge" merges a run the judge passed, the normal way (tier rules unchanged); any other answer goes to the task
+// session as a new round. A merged PR is recorded by checkHeld before this. Called with the task lock held.
+func (r *Runner) answeredHeld(run *Run, list []Terminal, listed bool) {
+	s, err := r.sq()
+	if err != nil {
+		return
+	}
+	asks, err := s.Asks("answered")
+	if err != nil {
+		return
+	}
+	var found []Ask
+	for _, x := range asks { // oldest first: the latest question wins
+		// only the owner's own answer acts, as in approveHeld: a director or planner answer moves nothing
+		if x.AnsweredBy == "owner" && (x.Ref == "held:"+run.Task || x.Ref == fmt.Sprintf("held:%s:%d", run.Task, run.Round)) {
+			found = append(found, x)
+		}
+	}
+	if len(found) == 0 {
+		return
+	}
+	a := found[len(found)-1]
+	if t, err := r.Store.Task(run.Task); err != nil || t.Status == "cancelled" {
+		return // the owner cancelled the task: no answer brings it back
+	}
+	if run.PRURL != "" {
+		if pr, err := PRView(r.Tools, run.PRURL); err != nil || pr.State != "OPEN" {
+			return // checkHeld records a merged or closed PR; an unread one waits for the next pass
+		}
+	}
+	merge := strings.HasPrefix(strings.ToLower(strings.TrimSpace(a.Answer)), "merge") &&
+		len(run.Verdicts) > 0 && run.Verdicts[len(run.Verdicts)-1].Verdict == VerdictMerge
+	if !merge && (!listed || (run.Machine != "" && machineDown(r.Tools, run.Machine))) {
+		return // cannot tell whether the session is there: next pass
+	}
+	if !merge {
+		if err := r.remakeWorktree(run); err != nil { // the run stays held and the answer unused: next pass
+			r.printf("%s: cannot make the worktree again: %v\n", run.Task, err)
+			return
+		}
+	}
+	// used once, and retired before acting: a run held again gets a new question, and no older answer is left over
+	for _, x := range found {
+		if err := s.RetireAskRef(x.ID); err != nil {
+			r.printf("%s: question #%d: %v\n", run.Task, x.ID, err)
+			return
+		}
+	}
+	run.Outcome, run.FailReason, run.Ended, run.MergeHold = "", "", "", ""
+	run.IdleSince, run.IdleNudges, run.Resumes = "", 0, 0 // the counts from before the hold are not this round's
+	_ = r.Store.TaskStatus(run.Task, "in_progress", "internal")
+	if merge {
+		run.State = Merging
+		_ = r.Store.Event(r.actor(), "task", run.Task, "run-answered-merge", a.ID)
+		r.printf("%s: question #%d answered: merging\n", run.Task, a.ID)
+		return
+	}
+	r.printf("%s: question #%d answered: back to the task session\n", run.Task, a.ID)
+	r.resumeAs(run, "answer", fmt.Sprintf("The owner answered the question about your held run: %s\n\nAct on it, %s",
+		a.Answer, r.pushAndStop(run.Project)))
+}
+
 // AskLine is one question as `ask list` prints it.
 func AskLine(a Ask, now time.Time) string {
 	scope := strings.TrimSpace(strings.Join([]string{a.Project, a.Goal, a.Task}, " "))

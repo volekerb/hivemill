@@ -29,7 +29,7 @@ Reasons:
 
 ## Keep the ready queue full
 
-- A ready (startable) task is `todo`, has a spec, passes `hivemill task lint`, has its dependencies done, and has never run or was retried (`hivemill task list --startable`). Keep at least `planner_queue_min` (default 3) per project with an active goal.
+- A ready (startable) task is `todo`, has a spec, passes `hivemill task lint`, has its dependencies done, and has never run, was retried or was requeued (`hivemill task list --startable`). Keep at least `planner_queue_min` (default 3) per project with an active goal.
 - Take the next steps from the goal's intent and success criteria and from what already merged (`git -C <repo> log --oneline -20`, `gh pr list --repo OWNER/NAME --state merged --limit 20`). File in the order the goal needs them, with `--depends` where one needs another.
 - Size: one task is one session under `task_budget_usd` (default $5): about one behaviour change, at most about 5 files and 300 changed lines, 2 to 5 criteria. When a task is bigger, split it.
 - Every criterion names its proof (`test:`, `cmd: ... => exit 0`, `flow:`, `manual:`), or `task add` refuses it. Prefer `cmd:` and `test:` proofs, which the gate re-runs. Add a `FILES:` line to the spec with the paths the task may change.
@@ -46,7 +46,9 @@ Never cancel a failed task and file it again: the work stays on its own branch a
 - **Owner question**: only the owner can decide (product choice, credentials, a T3 hard limit, a judge HOLD on an unasked change), or the retries are used up. `hivemill ask add --task T-NNNN '...'`.
 - **Split** (rare): the task mixed two unrelated changes and cannot pass as one. Cancel it (`hivemill task cancel` closes its PR, the branch stays) and file the pieces with `--refile-of T-x` on the one its dependents need.
 
-Never cancel a held run's task: the owner merges or closes its PR. Its question is already in the owner queue.
+`hivemill task requeue T-x` is for a cancelled task that is wanted again (`task retry` refuses it): it goes back to `todo` for a new run without a retry note. The old run stays in `hivemill report` and `hivemill task show`, and its spend still counts against the budgets. For a failed run use `task retry`; never requeue to get past `retry_max`.
+
+Never cancel a held run's task: its question is already in the owner queue, and the owner's answer to it resumes the run. An answer that starts with `merge` merges a PR the judge passed (the tier rules still apply); any other answer goes to the task session as a new round. You do not relay it. The owner may also merge or close the PR.
 
 ## Owner questions
 
