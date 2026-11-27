@@ -259,12 +259,16 @@ func (r *Runner) ciTimedOut(run *Run) {
 			since, _ := time.Parse(time.RFC3339, run.Flow.Since)
 			age := int64(time.Since(since).Seconds())
 			run.Flow.BudgetS = age + max(wait, 60)
+			limit := 2 * r.flowBudget(FlowCIRunning)
+			if age < limit {
+				run.Flow.BudgetS = min(run.Flow.BudgetS, limit) // look again when the alert below is due
+			}
 			_ = r.Log.Emit("pr.flow", run, Event{Data: map[string]any{"state": run.Flow.State, "since": run.Flow.Since,
 				"budget_s": run.Flow.BudgetS, "pr": run.PRURL}})
 			switch {
 			case !slices.ContainsFunc(rows, onRunner):
 				r.alertMergingCI(run, "jobs still wait for a runner")
-			case age >= 2*r.flowBudget(FlowCIRunning):
+			case age >= limit:
 				r.alertMergingCI(run, "checks are not settled after twice their budget")
 			}
 			return

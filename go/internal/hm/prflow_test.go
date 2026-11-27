@@ -566,6 +566,12 @@ func TestPRFlowDisabledTestsWorkflowIsNoMainRun(t *testing.T) {
 	if got := f.ghCalls("api repos/"); len(got) != 2 {
 		t.Errorf("one read per pass: %q", got)
 	}
+	state = "disabled_manually"
+	f.base = []string{baseNode("m0", "COMPLETED", "CANCELLED")}
+	f.r.poll = f.r.pollPRs([]Run{*f.run(t, 1)})
+	if got := f.r.mainRun("zz-test/www", f.repo, "main"); got != "none" {
+		t.Errorf("a cancelled head run of a disabled tests.yml: %q", got)
+	}
 }
 
 func TestPRFlowShortJobsStillAlert(t *testing.T) {
@@ -581,8 +587,13 @@ func TestPRFlowShortJobsStillAlert(t *testing.T) {
 		t.Errorf("a gated run over twice the budget: %+v", run.CI)
 	}
 	run.State = Merging
-	run.Flow = &FlowState{State: FlowCIRunning, Since: time.Now().Add(-2 * time.Hour).Format(time.RFC3339), Head: run.Head, BudgetS: 2700}
+	run.Flow = &FlowState{State: FlowCIRunning, Since: time.Now().Add(-80 * time.Minute).Format(time.RFC3339), Head: run.Head, BudgetS: 4800}
 	f.r.poll = f.r.pollPRs([]Run{*run})
+	f.r.ciTimedOut(run)
+	if run.Flow.Alerted || run.Flow.BudgetS != 5400 {
+		t.Errorf("the next look must be at twice the budget: %+v", run.Flow)
+	}
+	run.Flow.Since = time.Now().Add(-90 * time.Minute).Format(time.RFC3339)
 	f.r.ciTimedOut(run)
 	if !run.Flow.Alerted {
 		t.Errorf("a merging run over twice the budget: %+v", run.Flow)

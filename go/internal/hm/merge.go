@@ -200,8 +200,8 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 		}
 		head = strings.TrimSpace(head)
 		state := b.mainState(head)
-		// "pending" with no run for the head comes from older commits' runs: a disabled tests.yml will never add one
-		if state == "pending" && b.pushState(head) == "" && r.poll.testsOff(r.Tools, slug) {
+		// "pending" with no run for the head, or only a cancelled one: a disabled tests.yml will never add another
+		if s := b.pushState(head); state == "pending" && (s == "" || s == "cancelled") && r.poll.testsOff(r.Tools, slug) {
 			return "none"
 		}
 		return state

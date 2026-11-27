@@ -9,7 +9,7 @@ At its start a pass reads every open runner PR with one batched GraphQL query (`
 - per PR: state, draft, mergeable, head SHA, title, body, merge commit, and the check runs with status, timestamps and job link;
 - per repo and base branch: the base protection (strict or not) and the GitHub Actions checks of the last 30 base commits (main's push runs, and which job names passed in the last 24 h).
 
-The pass makes no other `gh` status call, with one exception: when main's head has no `tests.yml` run but older commits have one, it reads once per repo whether that workflow is disabled (a disabled one counts as no main run, not as pending). A PR the query could not read counts as pending until the next pass, and so does a new head that was pushed and gated after the query went out. The only other `gh` calls are the actions below (re-run, cancel, failed-job logs, merge and its confirmation, revert). A pass with no open runner PR makes no call, except to read the base of a red main whose merge train still has to be blamed. Commands run by hand (`hivemill merge T`) read their one PR directly.
+The pass makes no other `gh` status call, with one exception: when main's head has no `tests.yml` run (or only a cancelled one) but the base has such runs, it reads once per repo whether that workflow is disabled (a disabled one counts as no main run, not as pending). A PR the query could not read counts as pending until the next pass, and so does a new head that was pushed and gated after the query went out. The only other `gh` calls are the actions below (re-run, cancel, failed-job logs, merge and its confirmation, revert). A pass with no open runner PR makes no call, except to read the base of a red main whose merge train still has to be blamed. Commands run by hand (`hivemill merge T`) read their one PR directly.
 
 ## 2. Flow states and budgets
 
@@ -48,7 +48,7 @@ A flow state that has not changed for `stale_pr_min` (90) emits one `pr.stale` e
 
 ## 6. Rate
 
-At most one GraphQL call per pass, plus the actions above. The runner counts the `gh` calls of its passes per hour; `hivemill digest` reports them.
+At most one GraphQL call per pass, plus the actions above and the disabled-workflow read of section 1 (once per repo and pass, only when needed). The runner counts the `gh` calls of its passes per hour; `hivemill digest` reports them.
 
 ## Events
 
