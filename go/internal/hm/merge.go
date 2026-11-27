@@ -230,7 +230,19 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 	if len(runs) == 0 {
 		return "none"
 	}
+	// No run for main's head while tests.yml is switched off (gh workflow disable, as during the 2026-11-26 local-CI
+	// period): nothing will ever run, so it counts as a repo without the workflow, not as pending forever.
+	if workflowDisabled(r.Tools, slug, "tests.yml") {
+		return "none"
+	}
 	return "pending"
+}
+
+// workflowDisabled reports whether the repo's workflow is disabled (disabled_manually or disabled_inactivity).
+// Any error answers false: an unknown state keeps the old "pending" behaviour.
+func workflowDisabled(t Tools, slug, file string) bool {
+	rc, out, _ := t.GH("", "api", "repos/"+slug+"/actions/workflows/"+file, "--jq", ".state")
+	return rc == 0 && strings.HasPrefix(strings.TrimSpace(out), "disabled")
 }
 
 // Merge is one merge attempt of a run in state merging.
