@@ -12,6 +12,8 @@ import (
 // Defaults are the runner's own config keys (table hm_config). They are independent of the old pipeline's caps
 // (max_live_agents, max_total_claude, dispatch_max_per_tick are never read).
 var Defaults = map[string]string{
+	// the PR flow controller (docs/pr-flow.md)
+	"ci_queue_max_min": "40", "merge_train": "3", "stale_pr_min": "90",
 	"max_concurrent": "2",                 // working runs at one time (working, judging)
 	"max_waiting":    "20",                // waiting runs (CI, merge, held for the owner): reached = no new run
 	"projects":       "",                  // project ids a plain `hivemill run` may pick ready tasks from; empty = explicit ids only
@@ -67,6 +69,11 @@ var Defaults = map[string]string{
 	"machine_mem_floor_mb": "2500", // a listed machine needs this much MemAvailable to take a new task session
 	// `hivemill obs` bind host (obs_http.go): an IP address or localhost; beyond loopback that network can read the page
 	"obs_listen": "127.0.0.1",
+	// disk cleanup (clean.go): `hivemill clean` and the daemon's step
+	"clean_every_min":   "60", // the daemon cleans this often; 0 or off = only `hivemill clean`
+	"worktree_keep_h":   "24", // a done or cancelled task keeps its worktree this long
+	"disk_trim_pct":     "80", // above this disk use of the home, Go build caches idle for 7 days are emptied
+	"transcript_keep_d": "30", // transcripts of runs ended longer ago are gzipped
 }
 
 // DefaultKeys returns the config keys, sorted.

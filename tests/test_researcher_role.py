@@ -44,8 +44,7 @@ class SettingsTests(unittest.TestCase):
         deny, allow = data["permissions"]["deny"], data["permissions"]["allow"]
         bin_edit = next(d for d in deny if d.startswith("Edit(/") and d.endswith("/bin/**)"))
         live = bin_edit[len("Edit("):-len("bin/**)")]  # the rendered live home, with its trailing slash
-        for tool in ("Edit", "Write"):
-            self.assertIn(f"{tool}({live}**)", deny)
+        self.assertIn(f"Edit({live}**)", deny)
         for need in ("NotebookEdit", "Bash(git push:*)", "Bash(git commit:*)", "Bash(gh pr merge:*)",
                      "Bash(factory spawn:*)", "Bash(factory judge:*)", "Bash(sqlite3:*)", "Bash(docker:*)",
                      "Bash(gh issue create:*)", "Bash(gh api --method:*)"):

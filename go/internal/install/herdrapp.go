@@ -137,74 +137,74 @@ func objectOrEmpty(v any, what string) (*OMap, error) {
 	return copyValue(m).(*OMap), nil
 }
 
+// ObsPort is the port of `hivemill obs` (config obs_port).
+const ObsPort = 7461
+
+// herdrAppOldKeys are the settings of the dashboard before it read the obs API.
+var herdrAppOldKeys = []string{"factory", "teams", "orgs"}
+
 // dashboardConfig is ~/.config/hivemill/dashboard.json: the existing one with only the flags given changed;
-// projects are kept.
-func dashboardConfig(existing any, a *Args) (*OMap, error) {
+// projects are kept. --factory replaces the list of factories (an entry whose URL stays keeps its other fields).
+// The old dashboard's keys (factory, teams, orgs) named a server that is gone: they are dropped and returned.
+func dashboardConfig(existing any, a *Args) (*OMap, []string, error) {
 	cfg, err := objectOrEmpty(existing, "dashboard.json")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	cur, _ := cfg.Get("factory")
-	factory, err := objectOrEmpty(cur, "dashboard.json factory")
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := factory.Get("url"); !ok {
-		factory.Set("url", fmt.Sprintf("http://%s:%d", Loopback, DefaultPort))
-	}
-	if a.FactoryURL != nil && *a.FactoryURL != "" {
-		factory.Set("url", *a.FactoryURL)
-	}
-	if a.FactoryMachine != nil {
-		if *a.FactoryMachine == "" {
-			factory.Set("machine", nil)
-		} else {
-			factory.Set("machine", *a.FactoryMachine)
+	var dropped []string
+	for _, k := range herdrAppOldKeys {
+		if _, ok := cfg.Get(k); ok {
+			cfg.Del(k)
+			dropped = append(dropped, k)
 		}
 	}
-	if a.FactoryWebURL != nil && *a.FactoryWebURL != "" {
-		factory.Set("web_url", *a.FactoryWebURL)
-	}
-	cfg.Set("factory", factory)
-	if a.Orgs != nil && *a.Orgs != "" {
-		if *a.Orgs == "auto" {
-			cfg.Set("orgs", "auto")
-		} else {
-			var list []any
-			for _, o := range strings.Split(*a.Orgs, ",") {
-				list = append(list, o)
+	var old []any
+	if cur, _ := cfg.Get("factories"); cur != nil {
+		list, _ := cur.([]any)
+		for _, e := range list {
+			if m, ok := e.(*OMap); ok {
+				if u, _ := m.Vals["url"].(string); u != "" {
+					old = append(old, m)
+				}
 			}
-			cfg.Set("orgs", list)
 		}
 	}
-	if _, ok := cfg.Get("orgs"); !ok {
-		cfg.Set("orgs", "auto")
+	if len(a.Factories) > 0 {
+		byURL := map[string]*OMap{}
+		for _, e := range old {
+			m := e.(*OMap)
+			byURL[strings.TrimRight(m.Vals["url"].(string), "/")] = m
+		}
+		old = nil
+		for _, spec := range a.Factories {
+			label, url, ok := parseFactory(spec)
+			if !ok {
+				return nil, nil, errors.New("--factory takes URL or LABEL=URL, with an http(s) URL")
+			}
+			f := NewOMap()
+			if prev := byURL[url]; prev != nil {
+				f = copyValue(prev).(*OMap)
+			}
+			f.Set("url", url)
+			if label != "" {
+				f.Set("label", label)
+			}
+			old = append(old, f)
+		}
 	}
+	if len(old) == 0 {
+		f := NewOMap()
+		f.Set("url", fmt.Sprintf("http://%s:%d", Loopback, ObsPort))
+		old = []any{f}
+	}
+	cfg.Set("factories", old)
 	if _, ok := cfg.Get("projects"); !ok {
 		cfg.Set("projects", []any{})
 	}
-	return cfg, nil
+	return cfg, dropped, nil
 }
 
-// orgsText and projectsLen read the two config fields for the plan line.
-func orgsText(v any) (string, error) {
-	switch t := v.(type) {
-	case string:
-		return t, nil
-	case []any:
-		parts := make([]string, len(t))
-		for i, e := range t {
-			s, ok := e.(string)
-			if !ok {
-				return "", errors.New("dashboard.json orgs holds a non-string entry")
-			}
-			parts[i] = s
-		}
-		return strings.Join(parts, ","), nil
-	}
-	return "", errors.New("dashboard.json orgs is neither a string nor a list")
-}
-
+// projectsLen reads the projects field for the plan line.
 func projectsLen(v any) (int, error) {
 	switch t := v.(type) {
 	case []any:
@@ -262,7 +262,7 @@ func runHerdrApp(host Host, a *Args, out io.Writer) int {
 			}
 			haveExisting = existing != nil
 		}
-		cfg, err := dashboardConfig(existing, a)
+		cfg, dropped, err := dashboardConfig(existing, a)
 		if err != nil {
 			return err
 		}
@@ -270,10 +270,10 @@ func runHerdrApp(host Host, a *Args, out io.Writer) int {
 		if err != nil {
 			return err
 		}
-		fac, _ := cfg.Vals["factory"].(*OMap)
-		orgs, err := orgsText(cfg.Vals["orgs"])
-		if err != nil {
-			return err
+		facs, _ := cfg.Vals["factories"].([]any)
+		urls := make([]string, len(facs))
+		for i, f := range facs {
+			urls[i], _ = f.(*OMap).Vals["url"].(string)
 		}
 		nproj, err := projectsLen(cfg.Vals["projects"])
 		if err != nil {
@@ -297,12 +297,14 @@ func runHerdrApp(host Host, a *Args, out io.Writer) int {
 		if haveExisting {
 			verb = "update"
 		}
-		url, _ := fac.Vals["url"].(string)
-		via := ""
-		if mach, _ := fac.Vals["machine"].(string); mach != "" {
-			via = " via machine " + mach
+		plural := "ies"
+		if len(facs) == 1 {
+			plural = "y"
 		}
-		c.emit(fmt.Sprintf("[%s] 2 config: %s %s (factory %s%s, orgs %s, %d project(s))", mode, verb, cfgPath, url, via, orgs, nproj))
+		c.emit(fmt.Sprintf("[%s] 2 config: %s %s (%d factor%s: %s; %d project(s))", mode, verb, cfgPath, len(facs), plural, strings.Join(urls, ", "), nproj))
+		if len(dropped) > 0 {
+			c.note(fmt.Sprintf("dropped the old dashboard's settings (%s): the dashboard now reads each factory's `hivemill obs`", strings.Join(dropped, ", ")))
+		}
 		if !c.plan {
 			if err := host.Mkdirs(filepath.Dir(cfgPath)); err != nil {
 				return fmt.Errorf("create %s: %w", filepath.Dir(cfgPath), err)

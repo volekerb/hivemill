@@ -42,13 +42,14 @@ def settings(role):
 
 
 def denied(deny, tool, path):
-    """True if a deny rule for `tool` covers absolute `path` (exact, or X/** prefix, or bare tool name)."""
+    """True if a deny rule covers absolute `path` for `tool`: the bare tool name, or an Edit(...) path rule
+    (exact, or X/** prefix), the only path form Claude Code applies to the editing tools."""
     for rule in deny:
         if rule == tool:
             return True
-        if not rule.startswith(tool + "(") or not rule.endswith(")"):
+        if not rule.startswith("Edit(") or not rule.endswith(")"):
             continue
-        pat = rule[len(tool) + 1:-1]
+        pat = rule[len("Edit("):-1]
         if pat.startswith("//"):
             pat = pat[1:]
         if pat.endswith("/**"):
@@ -95,20 +96,16 @@ class LiveCheckoutDeny(unittest.TestCase):
         for role in ("coder", "qa"):
             deny = settings(role)["permissions"]["deny"]
             for entry in PLANNED_ENTRIES:
-                for tool in TOOLS:
-                    if tool in deny:
-                        continue
-                    for rule in (f"{tool}(/{LIVE}/{entry})", f"{tool}(/{LIVE}/{entry}/**)"):
-                        self.assertIn(rule, deny, f"{role}: missing deny rule {rule}")
+                for rule in (f"Edit(/{LIVE}/{entry})", f"Edit(/{LIVE}/{entry}/**)"):
+                    self.assertIn(rule, deny, f"{role}: missing deny rule {rule}")
 
     def test_planned_oss_entries_have_literal_rules_in_task_template(self):
         # T-1859: runner task sessions deny the planned entries too; check the template's literal rules
         with open(os.path.join(ROOT, "roles", "hivemill", "task.json.in")) as f:
             deny = json.load(f)["permissions"]["deny"]
         for entry in PLANNED_ENTRIES:
-            for tool in TOOLS:
-                for rule in (f"{tool}(/@FACTORY_LIVE_HOME@/{entry})", f"{tool}(/@FACTORY_LIVE_HOME@/{entry}/**)"):
-                    self.assertIn(rule, deny, f"task: missing deny rule {rule}")
+            for rule in (f"Edit(/@FACTORY_LIVE_HOME@/{entry})", f"Edit(/@FACTORY_LIVE_HOME@/{entry}/**)"):
+                self.assertIn(rule, deny, f"task: missing deny rule {rule}")
 
     def test_runtime_entries_denied_for_coder_and_qa(self):
         for role in ("coder", "qa"):
@@ -118,15 +115,12 @@ class LiveCheckoutDeny(unittest.TestCase):
                     for path in (f"{LIVE}/{entry}", f"{LIVE}/{RUNTIME_CHILDREN[entry]}"):
                         self.assertTrue(denied(deny, tool, path), f"{role}: {tool} not denied for {path}")
 
-    def test_runtime_notebookedit_data_dirs_have_literal_rules(self):
-        # qa carries a bare NotebookEdit deny, so check the literal rule text, not only denied()
+    def test_runtime_data_dirs_have_literal_edit_rules(self):
+        # denied() also accepts a bare tool name, so check the literal rule text
         for role in ("coder", "qa"):
             deny = settings(role)["permissions"]["deny"]
             for p in ("factory.db*", "db/**", "exports/**", "state/**", "run/settings/**", "run", "run/**", "audit.log", "audit.log*"):
-                self.assertIn(f"NotebookEdit(/{LIVE}/{p})", deny, f"{role}: missing NotebookEdit rule for {p}")
-            for p in ("run", "run/**", "audit.log", "audit.log*"):
-                for tool in ("Edit", "Write"):
-                    self.assertIn(f"{tool}(/{LIVE}/{p})", deny, f"{role}: missing {tool} rule for {p}")
+                self.assertIn(f"Edit(/{LIVE}/{p})", deny, f"{role}: missing Edit rule for {p}")
 
     def test_new_top_level_entry_would_fail(self):
         deny = settings("coder")["permissions"]["deny"]

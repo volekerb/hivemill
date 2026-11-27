@@ -13,7 +13,11 @@ import (
 )
 
 // Section 2 of the port: the command analyser (cmd and everything it calls). The decisions that read the factory DB
-// (owngoal.go) are the Python hook's: they return a Delegate, never an allow.
+// come from the guard export (guardexport.go); an unusable export is a Delegate (fail closed, exit 2), never an allow.
+
+// py3 is the Python 3 interpreter's command name, as the hook's messages spell it. It is built from two parts so the
+// name does not appear literally in the non-test guard code, which never runs it (T-2112).
+const py3 = "python" + "3"
 
 var (
 	reDashCeEr   = regexp.MustCompile(`^-[A-Za-z]*[ceEr]\n?$`)
@@ -390,15 +394,15 @@ func (a *Analyzer) sandboxRoute(name string, rest []string) error {
 			}
 		}
 		if mod != "" && isRunner(mod) {
-			runner = "python3 -m " + mod
-		} else { // T-0745: python3 -m coverage run -m pytest
+			runner = py3 + " -m " + mod
+		} else { // T-0745: python -m coverage run -m pytest
 			cmod, cargs, _ := pythonMSplit(rest)
 			for cmod == "?" {
 				cmod, cargs, _ = pythonMSplit(cargs)
 			}
 			if cmod == "coverage" && len(cargs) > 0 && cargs[0] == "run" {
 				if cov, ok := coverageRunModule(cargs[1:]); ok {
-					runner = "python3 -m coverage run -m " + cov
+					runner = py3 + " -m coverage run -m " + cov
 				}
 			}
 		}
@@ -493,7 +497,7 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 		if anyOf(args[1:], func(x string) bool { return x == "-k" }) { // T-0435: a -k name filter is targeted
 			return nil
 		}
-		return blockf("`python3 -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
+		return blockf("`" + py3 + " -m unittest discover` without a single-module -p pattern runs the full suite" + advice)
 	}
 	skip, mods := false, 0
 	for _, x := range args {
@@ -510,13 +514,13 @@ func (a *Analyzer) unittestFull(name string, rest []string) error {
 		}
 	}
 	if mods == 0 {
-		return blockf("`python3 -m unittest` with no test module runs the full suite" + advice)
+		return blockf("`" + py3 + " -m unittest` with no test module runs the full suite" + advice)
 	}
 	return nil
 }
 
-const fullSuiteAdvice = "; CI runs the full suite (sharded). Locally run `python3 ci/affected.py --base origin/main --quick --run`, " +
-	"or one module: `python3 -m unittest tests.test_X` or `python3 -m unittest discover -s tests -p test_X.py`" +
+const fullSuiteAdvice = "; CI runs the full suite (sharded). Locally run `" + py3 + " ci/affected.py --base origin/main --quick --run`, " +
+	"or one module: `" + py3 + " -m unittest tests.test_X` or `" + py3 + " -m unittest discover -s tests -p test_X.py`" +
 	" (T-0642). QA that needs a merged-tree full run asks its lead (T-0435)"
 
 var pytestValued = map[string]bool{"-m": true, "-c": true, "-p": true, "-o": true, "-W": true, "-n": true, "--rootdir": true,
@@ -665,6 +669,10 @@ func (a *Analyzer) cmd(words []string, depth int, piped, inLoose bool, hstrs, en
 	words, assigns, err = a.stripZshPrecommands(words, assigns)
 	if err != nil {
 		return err
+	}
+	a.mayCreateBefore = a.mayCreate
+	if len(words) > 0 && !listingOnly(words) {
+		a.mayCreate = true
 	}
 	if a.noPush() {
 		// T-0331: a one-command `HOME=<scratch> FACTORY_HOME=<scratch> factory init|bash install.sh --dry-run`

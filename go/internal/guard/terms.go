@@ -17,8 +17,8 @@ func (b *PublicBlock) Error() string { return b.Msg }
 
 // Port of worker-guard.py:terms_bash and its helpers (T-0600): a Bash command that would read the owner-terms
 // file. The source of the terms path here is the exported terms-file variable (spawn exports the configured path to
-// every worker); Python also reads the `scrub_terms_file` key of the factory DB, which Go cannot (no sqlite): with no
-// variable and a DB file the decision is the Python hook's (termsFromDBOnly, see docs/worker-guard-go.md).
+// every worker); Python also reads the `scrub_terms_file` key of the factory DB, which Go reads from the guard export
+// (termsPaths below; no sqlite).
 
 const (
 	termsVar = "SCRUB_TERMS_FILE"
@@ -171,9 +171,10 @@ func termsIDs(paths map[string]struct{}) (map[inode]struct{}, bool) {
 	return ids, true
 }
 
-// isPythonCmd is re.fullmatch(r"(?:.*/)?python3?", s) (`.` does not match a newline).
+// isPythonCmd is the Python hook's fullmatch of an optional directory, "python" and an optional 3 (`.` does not
+// match a newline): the base name is python or python followed by 3 (py3, commands.go).
 func isPythonCmd(s string) bool {
-	for _, base := range []string{"python", "python3"} {
+	for _, base := range []string{"python", py3} {
 		if s == base {
 			return true
 		}

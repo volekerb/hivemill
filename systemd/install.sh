@@ -1,38 +1,31 @@
 #!/usr/bin/env bash
-# Install the factory systemd user units (idempotent). Usage: install.sh [--dry-run] [--with-serve]
-# Links the units from this checkout into $XDG_CONFIG_HOME/systemd/user and enables the
-# boot units. --with-serve also links and enables the opt-in read-only web UI
-# (factory-serve.service); without it that unit is not touched. It never stops or restarts herdr or the tick, and never uses --now.
+# Install the hivemill systemd user units (idempotent). Usage: install.sh [--dry-run] [--disable-herdr-agent-resume]
+# Links hivemill.service and the digest and health services and timers from this checkout into
+# $XDG_CONFIG_HOME/systemd/user and enables hivemill.service, hivemill-digest.timer and
+# hivemill-health.timer for the next boot. It never starts or restarts a unit, and never uses --now.
 set -euo pipefail
 
 dry=0
 disable_resume=0
-with_serve=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) dry=1 ;;
     --disable-herdr-agent-resume) disable_resume=1 ;;
-    --with-serve) with_serve=1 ;;
-    *) echo "usage: $0 [--dry-run] [--disable-herdr-agent-resume] [--with-serve]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--dry-run] [--disable-herdr-agent-resume]" >&2; exit 2 ;;
   esac
 done
 
 src=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 dest="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-units=(herdr-server.service factory-up.service factory-tick.service factory-tick.timer)
-enable=(herdr-server.service factory-up.service factory-tick.timer)
-if ((with_serve)); then
-  units+=(factory-serve.service)
-  enable+=(factory-serve.service)
-fi
+units=(hivemill.service hivemill-digest.service hivemill-digest.timer hivemill-health.service hivemill-health.timer)
+enable=(hivemill.service hivemill-digest.timer hivemill-health.timer)
 
 run() {
   if ((dry)); then echo "[dry-run] $*"; else "$@"; fi
 }
 
 # Opt-in (owner decision): herdr's resume is global, so it also stops resuming the owner's own claude
-# panes. With it off, herdr restores plain shells and `factory up` relaunches each factory agent in
-# its own restored pane with --resume and the full role flags.
+# panes. With it off, herdr restores plain shells. It only edits herdr's config; no unit is touched.
 disable_herdr_resume() {
   local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml" key=resume_agents_on_restore
   if [[ -f "$cfg" ]] && awk -v k="$key" '/^[[:space:]]*\[/ {s=($0 ~ /^[[:space:]]*\[session\][[:space:]]*(#.*)?$/)} s && $0 ~ "^[[:space:]]*" k "[[:space:]]*=[[:space:]]*false[[:space:]]*(#.*)?$" {f=1} END {exit !f}' "$cfg"; then

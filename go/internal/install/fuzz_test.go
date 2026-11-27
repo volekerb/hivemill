@@ -30,7 +30,7 @@ func FuzzAgentStatus(f *testing.F) {
 func FuzzParseArgs(f *testing.F) {
 	f.Add("--dry-run\x00--port\x009000")
 	f.Add("--yes\x00--ref=v1\x00--project-id\x00p\x00--project-repo\x00/x")
-	f.Add("--dry-run\x00--herdr-app\x00--orgs\x00claude,cursor\x00--factory-url\x00http://x")
+	f.Add("--dry-run\x00--herdr-app\x00--factory\x00Workshop=http://x\x00--factory\x00http://y")
 	f.Add("--check\x00--port\x00٣")
 	f.Fuzz(func(t *testing.T, s string) {
 		a, err := ParseArgs(strings.Split(s, "\x00"))
@@ -56,7 +56,8 @@ func FuzzDecodeOrdered(f *testing.F) {
 			t.Fatalf("a decoded document cannot be encoded: %v", err)
 		}
 		_, _, _ = barLayout(v, true)
-		_, _ = dashboardConfig(v, &Args{})
+		_, _, _ = dashboardConfig(v, &Args{})
+		_, _, _ = dashboardConfig(v, &Args{Factories: []string{"A=http://x"}})
 	})
 }
 
