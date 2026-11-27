@@ -97,6 +97,8 @@ type Host interface {
 	RunTTY(argv []string) int
 	// WaitEnter blocks until the user presses Enter; an error means stdin is closed.
 	WaitEnter() error
+	// ReadLine is WaitEnter that returns what the user typed.
+	ReadLine() (string, error)
 }
 
 // OSHost is the real machine.
@@ -108,6 +110,7 @@ type OSHost struct {
 	StatusTimeout time.Duration
 	tlsConfig     *tls.Config   // tests only: trust a local TLS server
 	stdin         *bufio.Reader // WaitEnter's one reader, so nothing typed ahead is dropped between prompts
+	line          string        // the line WaitEnter read last
 }
 
 // NewOSHost reads the home directory and environment of the invoking user.
@@ -578,6 +581,14 @@ func (h *OSHost) WaitEnter() error {
 	if h.stdin == nil {
 		h.stdin = bufio.NewReader(os.Stdin)
 	}
-	_, err := h.stdin.ReadString('\n')
+	line, err := h.stdin.ReadString('\n')
+	h.line = strings.TrimSpace(line)
 	return err
+}
+
+func (h *OSHost) ReadLine() (string, error) {
+	if err := h.WaitEnter(); err != nil {
+		return "", err
+	}
+	return h.line, nil
 }

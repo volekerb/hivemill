@@ -128,7 +128,7 @@ hivemill merge T-1234 --dry-run     # print the merge input and decision
 hivemill report [--json]            # scoreboard
 hivemill daemon [--take-over]       # the pass loop (systemd/launchd run it)
 hivemill standby check --from HOST  # restore HOST's newest snapshot into a temp home and read it (standby.md)
-hivemill health [--alert]           # dead-man check
+hivemill health [--alert]           # dead-man check, dashboard check
 hivemill drain [--status] | resume  # stop / resume new dispatch
 hivemill backup | restore <snap> [--dry-run]
 hivemill planner start|stop|status|wake  # the planner session: keeps ready queues full (hivemill-planner.md)
@@ -143,7 +143,7 @@ Agents other than the director, the boss and the planner may only run `task lint
 The runner needs neither the Python `factory` CLI nor a repo checkout:
 
 ```
-hivemill init --home ~/hivemill [--noreply-email EMAIL] [--scrub-terms FILE]
+hivemill init --home ~/hivemill [--noreply-email EMAIL] [--scrub-terms FILE] [--obs-listen ADDR] [--no-service]
 export FACTORY_HOME=~/hivemill
 hivemill project add www --repo OWNER/NAME --path ~/src/www [--gate 'make test']...
 hivemill goal new --project www --title '...' [--criteria-file F]
@@ -152,7 +152,7 @@ hivemill config projects www         # only now does a plain pass dispatch from 
 ```
 
 - `init` creates `db/factory.db` with the tables the runner reads and writes (`projects`, `goals`, `tasks`, `config`, `agents`, `verdicts`, `events`, `owner_alert_feed`, with the factory schema's columns) and the `hm_*` tables, plus `state/hivemill/*`, `worktrees` and `logs`. Every statement is `CREATE ... IF NOT EXISTS`: on a factory home it changes nothing, and it never sets `user_version`. Run it again at any time.
-- The role prompts, settings templates and the daemon plist are built into the binary (`go/internal/hm/assets`, a copy of `roles/hivemill/*` and `launchd/hivemill.daemon.plist.in`). A home that has its own `roles/hivemill/<file>` (a repo checkout) uses that file. After changing one of the repo files, run `cd go && go generate ./internal/hm`; `TestAssetsMatchTheRepo` fails until the copy matches.
+- The role prompts, settings templates, the launchd plists and the obs unit are built into the binary (`go/internal/hm/assets`, a copy of `roles/hivemill/*`, `launchd/hivemill.*.plist.in` and `systemd/hivemill-obs.service`). A home that has its own `roles/hivemill/<file>` (a repo checkout) uses that file. After changing one of the repo files, run `cd go && go generate ./internal/hm`; `TestAssetsMatchTheRepo` fails until the copy matches.
 - `task add` runs the spec gate and refuses criteria that fail it, printing why. `--draft` stores the task as status `draft` instead: it is never dispatched, and its criteria may still fail. `task update` re-runs the spec gate whenever it changes the criteria or the status of a task that can be dispatched, so promoting a draft (`--status todo`) needs passing criteria. `task cancel` and `task update --status` refuse a task with an active run (`hivemill run stop` first).
 - `goal new` files the goal as `active` (the old CLI starts at `proposed`); `goal close` refuses a goal with open tasks unless `--force`.
 - Sessions (`FACTORY_AGENT`) may only run `task lint|list|show`, `report` and `health`: a session never changes a task row, because the gate re-runs the proofs stored there. A task session also runs `hivemill pr create --title 'T-1234: ...' --body -` (body on stdin) and `hivemill pr ready`: like `factory pr`, the repo and base come from the task's project and the head from the session's own branch (`factory/<task>`), never from arguments, `GH_REPO` or `GH_HOST`; in a `public_text_repos` repo the title, body and branch must pass the public-text check. Raw `gh pr create` stays denied.
@@ -175,6 +175,7 @@ The runner needs no open client. The owner's laptop can be closed, and the runne
 
 - **Linux:** the user unit `systemd/hivemill.service` (`Type=notify`, `WatchdogSec=900`, `Restart=always`). The daemon sends `READY=1` at start and `WATCHDOG=1` after every pass, so a hung pass is restarted. Install it with `install -m 644 systemd/hivemill.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now hivemill.service`. User lingering must be on (`loginctl enable-linger`).
 - **macOS:** the LaunchAgent `hivemill.daemon` (`RunAtLoad`, `KeepAlive`), from `launchd/hivemill.daemon.plist.in`, and the LaunchAgent `hivemill.health` (`hivemill health --alert` every 5 minutes, `StartInterval` 300, log `<home>/logs/hivemill.health.log`), from `launchd/hivemill.health.plist.in`: `hivemill launchd health --out ~/Library/LaunchAgents/hivemill.health.plist`, then `launchctl bootstrap` it the same way. `hivemill launchd daemon [--home DIR] [--out FILE]` renders it with `FACTORY_HOME`, a PATH that has `~/.local/bin` (claude, hc, hivemill), `/opt/homebrew/bin` (gh) and the system dirs, and the log at `<home>/logs/hivemill.daemon.log`. Install it with `hivemill launchd daemon --out ~/Library/LaunchAgents/hivemill.daemon.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/hivemill.daemon.plist`.
+- **Dashboard.** `hivemill obs` runs next to the daemon by default: the user unit `hivemill-obs.service` (`After=hivemill.service`, `Restart=always`) on Linux, the LaunchAgent `hivemill.obs` (`RunAtLoad`, `KeepAlive`, log `<home>/logs/hivemill.obs.log`) on macOS, rendered by `hivemill launchd obs`. `hivemill-install` installs and starts it. `hivemill init` does too, when this user already has a daemon unit or LaunchAgent for the same home; it takes the daemon's `FACTORY_HOME` and `PATH`, never overwrites an existing obs unit, and leaves an existing one as it is unless `--obs-listen` asks for a restart (`--no-service` touches no service). It listens on loopback; `hivemill init --obs-listen ADDR` (or `hivemill-install --obs-listen ADDR`, or its question on a terminal) stores a LAN address in `obs_listen`, prints the warning and restarts obs.
 - **Sessions** are hc terminals started with `--no-parent` and pinned to the local hc core, which keeps running after logout. Nothing in a session depends on the client that started it, whether an ssh session or the Herdr app.
 
 ### Reconcile and resume
@@ -199,7 +200,7 @@ Every side effect checks before it acts, so a pass that crashed half way can saf
 
 ### Health and alerts
 
-`hivemill health` exits 0 when the last good pass is less than `health_max_age_s` (300) old, and 1 otherwise. It also prints the starvation and owner-queue checks, and `--alert` raises them ([hivemill-planner.md](hivemill-planner.md#alerts-hivemill-health---alert)). The timer `systemd/hivemill-health.timer` (with `hivemill-health.service`) on Linux, or the LaunchAgent `hivemill.health` on macOS, runs `hivemill health --alert` every 5 minutes. When the check fails, it opens one row in the factory's owner alert feed (`factory alerts`; sent to the phone only when `owner_alert_send=1`) and raises one owner alert: a line in `<home>/logs/alerts.log`, then `alert_cmd` when it is set, else a macOS notification (`osascript`, the text passed as arguments) on macOS and nothing more elsewhere. Both happen at most once per `alert_every_s` (3600). Every other owner alert that opens a feed row (`hivemill-idle`, `hivemill-asks`, `hivemill-planner`, `hivemill-digest`, `hivemill-standby`) goes out the same way. To keep the old message to the planner session on a factory checkout: `hivemill config alert_cmd 'factory msg --kind alert claude-boss "$1" "$2"'`.
+`hivemill health` exits 0 when the last good pass is less than `health_max_age_s` (300) old and `hivemill obs` answers a TCP connect on `obs_listen`:`obs_port` (a wildcard address is dialled on loopback), and 1 otherwise. When obs does not answer, it prints `problem: hivemill obs does not answer on ...`, and `--alert` opens the feed row `hivemill-obs-down` and raises the owner alert, at most once per `alert_every_s`; the first check that gets an answer closes the row. It also prints the starvation and owner-queue checks, and `--alert` raises them ([hivemill-planner.md](hivemill-planner.md#alerts-hivemill-health---alert)). The timer `systemd/hivemill-health.timer` (with `hivemill-health.service`) on Linux, or the LaunchAgent `hivemill.health` on macOS, runs `hivemill health --alert` every 5 minutes. When the heartbeat check fails, it opens one row in the factory's owner alert feed (`factory alerts`; sent to the phone only when `owner_alert_send=1`) and raises one owner alert: a line in `<home>/logs/alerts.log`, then `alert_cmd` when it is set, else a macOS notification (`osascript`, the text passed as arguments) on macOS and nothing more elsewhere. Both happen at most once per `alert_every_s` (3600). Every other owner alert that opens a feed row (`hivemill-idle`, `hivemill-asks`, `hivemill-planner`, `hivemill-digest`, `hivemill-standby`) goes out the same way. To keep the old message to the planner session on a factory checkout: `hivemill config alert_cmd 'factory msg --kind alert claude-boss "$1" "$2"'`.
 
 ### Backup
 
@@ -222,7 +223,8 @@ To upgrade:
 3. `git pull` in the factory home.
 4. `cd go && go build -o ~/.local/bin/hivemill ./cmd/hivemill`.
 5. `systemctl --user restart hivemill.service`.
-6. `hivemill resume`.
+6. `hivemill init` (it adds the dashboard service where it is missing), then restart the dashboard: `systemctl --user restart hivemill-obs.service`, or on macOS `launchctl kickstart -k gui/$(id -u)/hivemill.obs`.
+7. `hivemill resume`.
 
 ### Deployment profiles
 
