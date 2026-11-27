@@ -2,12 +2,29 @@ package hm
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func pageBody(t *testing.T, r *Runner, target string) string {
+	t.Helper()
+	h, err := r.ObsHandler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("GET", target, nil)
+	req.Host = "127.0.0.1:7461"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("GET %s: %d", target, w.Code)
+	}
+	return w.Body.String()
+}
 
 func boardOf(t *testing.T, r *Runner, target string) *Board {
 	t.Helper()
