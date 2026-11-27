@@ -110,7 +110,11 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if r.publicTextRepo(repo) {
+		public, err := r.publicTextRepo(repo)
+		if err != nil {
+			return "", fmt.Errorf("%w: pr create refused (public text): %v", ErrRefused, err)
+		}
+		if public {
 			if why := r.prTextHits(ghTitle, body, branch); why != "" {
 				return "", fmt.Errorf("%w: pr create refused (public text): %s", ErrRefused, why)
 			}
@@ -132,15 +136,29 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 	return out, nil
 }
 
-// publicTextRepo: the repo is in public_text_repos.
-func (r *Runner) publicTextRepo(repo string) bool {
-	want, _ := guard.CIRepoSlug(repo)
-	for _, x := range strings.Split(r.Store.FactoryCfg("public_text_repos"), ",") {
-		if s, ok := guard.CIRepoSlug(x); ok && s == want {
-			return true
-		}
+// publicTextRepo: the repo is in public_text_repos. A list that cannot be read or holds a bad entry (stored by
+// another writer than `hivemill config`) is an error, never "not listed".
+func (r *Runner) publicTextRepo(repo string) (bool, error) {
+	list, err := r.Store.FactoryCfgErr("public_text_repos")
+	if err != nil {
+		return false, fmt.Errorf("cannot read public_text_repos: %w", err)
 	}
-	return false
+	want, ok := repoEntry(repo) // as strict as a list entry: a longer path must not read as another repo
+	if !ok {
+		return false, fmt.Errorf("repo %q is not OWNER/NAME, so public_text_repos cannot be checked", repo)
+	}
+	listed := false
+	for _, x := range strings.Split(list, ",") {
+		if strings.TrimSpace(x) == "" {
+			continue
+		}
+		s, ok := repoEntry(x)
+		if !ok {
+			return false, fmt.Errorf("public_text_repos: %q is not OWNER/NAME (the owner fixes it with `hivemill config public_text_repos OWNER/NAME,...`)", strings.TrimSpace(x))
+		}
+		listed = listed || s == want
+	}
+	return listed, nil
 }
 
 // prTextHits runs the public-text guard on the title, body and branch; "" = clean. A guard that cannot decide (no
