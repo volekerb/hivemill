@@ -65,6 +65,8 @@ type Run struct {
 	LongPct        int    `json:",omitempty"`
 	LongResumed    string `json:",omitempty"`
 	LongSendFailed string `json:",omitempty"` // the first time that message could not be sent
+	HookStarted    string `json:",omitempty"` // when the gate hook that has not returned yet began (idleWatch)
+	RescuedHead    string `json:",omitempty"` // the PR head last taken to evaluation without a gate pass
 }
 
 // Session is one Claude session of a run (task, judge).
@@ -131,6 +133,9 @@ CREATE TABLE IF NOT EXISTS hm_asks (id INTEGER PRIMARY KEY AUTOINCREMENT, ref TE
   goal TEXT NOT NULL DEFAULT '', task TEXT NOT NULL DEFAULT '', question TEXT NOT NULL, asked_by TEXT NOT NULL, asked TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open', answer TEXT NOT NULL DEFAULT '', answered_by TEXT NOT NULL DEFAULT '', answered TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS hm_asks_status ON hm_asks(status);
+CREATE TABLE IF NOT EXISTS planner_work (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, ref TEXT NOT NULL,
+  opened TEXT NOT NULL, delivered TEXT, attempts INTEGER NOT NULL DEFAULT 0, closed TEXT, close_reason TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS planner_work_open ON planner_work(kind, ref) WHERE closed IS NULL;
 CREATE TABLE IF NOT EXISTS hm_refile (task TEXT PRIMARY KEY, refile_of TEXT NOT NULL);
 `
 
@@ -544,6 +549,57 @@ func (s *SQLite) AlertFeed(kind, ref, link string) error {
 	_, err := s.db.Exec(`INSERT OR IGNORE INTO owner_alert_feed(org,kind,ref,since,link,first_seen) VALUES('claude',?,?,?,?,?)`,
 		kind, ref, s.now(), link, s.now())
 	return err
+}
+
+// PlannerWork is one row of the planner's work queue: something the planner was woken for and has not closed yet.
+type PlannerWork struct {
+	ID                int64
+	Kind, Ref         string
+	Opened, Delivered string
+	Attempts          int
+}
+
+// EnqueuePlannerWork opens a work row for (kind, ref) unless one is already open, so a producer may repeat itself.
+func (s *SQLite) EnqueuePlannerWork(kind, ref string) error {
+	_, err := s.db.Exec(`INSERT OR IGNORE INTO planner_work(kind,ref,opened) VALUES(?,?,?)`, kind, ref, s.now())
+	return err
+}
+
+// OpenPlannerWork lists the open rows, oldest first.
+func (s *SQLite) OpenPlannerWork() ([]PlannerWork, error) {
+	rows, err := s.db.Query(`SELECT id,kind,ref,opened,COALESCE(delivered,''),attempts FROM planner_work WHERE closed IS NULL ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PlannerWork
+	for rows.Next() {
+		var w PlannerWork
+		if err := rows.Scan(&w.ID, &w.Kind, &w.Ref, &w.Opened, &w.Delivered, &w.Attempts); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+// ClosePlannerWork closes the open rows ids with a reason. It changes nothing and fails when any id is unknown or already closed.
+func (s *SQLite) ClosePlannerWork(ids []int64, reason string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, id := range ids {
+		res, err := tx.Exec(`UPDATE planner_work SET closed=?, close_reason=? WHERE id=? AND closed IS NULL`, s.now(), reason, id)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return fmt.Errorf("planner work %d is unknown or already closed", id)
+		}
+	}
+	return tx.Commit()
 }
 
 // TaskByTitle is the id of a task of `goal` with exactly this title ("" when none).

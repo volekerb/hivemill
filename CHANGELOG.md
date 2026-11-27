@@ -9,6 +9,12 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Runs with a finished PR land by themselves.** A run that would fail as stalled, timed out or with the gate finding no PR goes to CI and the judge when its branch has an open PR; a running Stop gate hook no longer counts as an idle session (a hook past its timeout fails as `gate hook timed out`); and answering a held run's question with `approved` or `merge it` counts as the judge's MERGE for the held head (T-2188).
+
+- **`hivemill proofs touched --ios-dir` no longer passes on a mistyped directory.** An iOS directory that is missing under the root, or differs in letter case from the real one, is now a usage error (exit 2) that names it, not `SKIP xcodebuild: no iOS change` (T-2074).
+
 ### Added
 
 - **Stable runner channel per project and per-project drain.** `project.<id>.channel` is `edge` or `stable`; a stable project's pass runs through the stable binary, which `hivemill release promote` updates only after 24 hours clean on edge. `hivemill drain --project` and `resume --project` stop and restart starts for one project. The stable binary dir is a guard protected tree (T-2085).
