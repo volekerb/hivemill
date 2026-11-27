@@ -1271,6 +1271,18 @@ sys.exit(0)
 '''
 
 
+class AllowLoosenT2093Tests(unittest.TestCase):
+    """T-2093: ci/allow_loosen_t2093.json allows only the removal of deny rules Claude Code reports as no-ops."""
+
+    def test_entries_are_no_op_deny_removals(self):
+        with open(os.path.join(ROOT, "ci", "allow_loosen_t2093.json")) as f:
+            entries = json.load(f)
+        self.assertTrue(entries)
+        self.assertEqual(len(entries), len(set(entries)))
+        no_op = re.compile(r"[\w-]+ deny removed: (?:Advisor|MultiEdit|(?:Write|MultiEdit|NotebookEdit)\(.+\))")
+        self.assertEqual([e for e in entries if not no_op.fullmatch(e)], [])
+
+
 class BaseCiExtractTests(GuardDiffCase):
     """T-0875: the base hook is extracted with the base ref's ci/ files, so it can load public-text-guard."""
 
