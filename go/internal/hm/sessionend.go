@@ -70,8 +70,12 @@ func (r *Runner) closeSessions(run *Run) {
 		}
 		r.Close(name)
 	}
+	judgeOn := "" // the judge stays on the local core
+	if run.cloned() {
+		judgeOn = run.Machine // except for a clone-mode run: its worktree is only there
+	}
 	for _, j := range run.Judges {
-		end(j, "judge", "") // the judge stays on the local core
+		end(j, "judge", judgeOn)
 	}
 	end(run.Agent, "task", run.Machine)
 }
@@ -84,6 +88,7 @@ func (r *Runner) endSessions(run *Run) float64 {
 	for i, s := range sess {
 		ids[i] = s.SID
 	}
+	r.syncTranscripts(run, ids)
 	use := SessionUsages(r.Env.UserHome, ids)
 	total := 0.0
 	for _, s := range sess {
