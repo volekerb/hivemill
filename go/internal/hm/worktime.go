@@ -43,7 +43,7 @@ func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 		if now.Sub(resumed) < workGrace {
 			return false
 		}
-		r.fail(run, reason)
+		r.failUnlessRescued(run, reason)
 		return true
 	}
 	// Not resume(): the round goes on, so its findings and review evidence stay valid.
@@ -65,7 +65,7 @@ func (r *Runner) workingLimit(run *Run, now time.Time) bool {
 		if now.Sub(first) < workGrace {
 			return false
 		}
-		r.fail(run, reason)
+		r.failUnlessRescued(run, reason)
 		return true
 	}
 	run.LongResumed = now.Format(time.RFC3339)
