@@ -13,7 +13,19 @@ v0.1.0 summarises the changes merged during private development.
 
 - **The Herdr app dashboard reads each factory's obs API.** One headline for the runs that wait for you, the factories as one table, a Resources table per machine, and a Spend view, and no number shown as live after its source stopped answering. The spawn gate, lanes and the old server's address are gone. `install.py --herdr-app` takes `--factory [LABEL=]URL` in place of `--factory-url`, `--factory-machine`, `--factory-web-url` and `--orgs`, and drops the old settings keys with a note. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md) and [docs/design/multi-factory.md](docs/design/multi-factory.md).
 
+### Fixed
+
+- **Runs with a finished PR land by themselves.** A run that would fail as stalled, timed out or with the gate finding no PR goes to CI and the judge when its branch has an open PR; a running Stop gate hook no longer counts as an idle session (a hook past its timeout fails as `gate hook timed out`); and answering a held run's question with `approved` or `merge it` counts as the judge's MERGE for the held head (T-2188).
+
+- **`hivemill proofs touched --ios-dir` no longer passes on a mistyped directory.** An iOS directory that is missing under the root, or differs in letter case from the real one, is now a usage error (exit 2) that names it, not `SKIP xcodebuild: no iOS change` (T-2074).
+
 ### Added
+
+- **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).
+
+- **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
+
+- **Warm standby.** `docs/standby.md` is the failover runbook; `hivemill standby check --from HOST` restores the primary's newest snapshot into a temporary home (the daemon runs it monthly when `standby_from` is set), and a `daemon.lock` stops a second writer on another machine unless `hivemill daemon --take-over` is given (T-2086).
 
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
 
@@ -41,6 +53,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Fixed
 
+- **A lost local CI job on this machine no longer leaves its `gate_cmd` running.** With the wrapper dead but not yet reaped, the restart skipped the group kill; it now waits for the reap (T-2183).
+
 - **Gate proofs over 60 s no longer fail on a worker machine.** `hc exec` ended them at its own default of 60 s. A remote proof now has `--timeout 600`, one cut at that limit runs again on the local core, and the timeout note names the limit that applied (T-2040).
 
 - **`hivemill obs` shows the machine a run was placed on.** A run on a session machine showed as the coordinator. Every `session_machines` entry and pulled source is now listed, even with no run (T-1987).
@@ -67,7 +81,11 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Changed
 
+- **The tests workflow classifies the tier with the Go `ci-tier`.** The three classify steps and the docs-check step build `go/cmd/ci-tier` from the base commit's archive instead of running `ci/ci_tier.py`, so a PR still cannot loosen its own tier; a base without the Go tool still gets the full suite (T-1933).
+
 - **The hivemill runner waits for CI itself after the gate.** It reads a gated run's PR every `ci_poll_s` (60), starts the judge once the checks are green with the required ones present (without a required list: still green one poll later), and alerts the owner once after `ci_timeout_s` (2700) while the run stays (T-2000).
+
+- **The tests workflow uses the Go `ci-shard` and `ci-test-count-gate`.** `tests.yml` builds `go/cmd/ci-shard` and `go/cmd/ci-test-count-gate` once per job and runs them for shard `run` and `verify` and the test-count `count` (with `--python-only`, so the gate compares the same numbers) and `check`, instead of `ci/shard.py` and `ci/test_count_gate.py`, which stay for now. Until `ci-shard` ports the `SHARD_DEEP`/`SHARD_BASE` scoping and parallel module runs, every shard runs all its modules one at a time (T-1927).
 
 - **The release workflow uses the Go `ci-changelog`.** `release.yml` builds `go/cmd/ci-changelog` once and runs it for `--check-version`, `--release-notes` and `--prerelease` instead of `ci/changelog.py`, which stays for now (T-1948).
 

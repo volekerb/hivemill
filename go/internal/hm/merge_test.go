@@ -56,8 +56,21 @@ func TestCIVerdict(t *testing.T) {
 	if v, _ := CIVerdict([]map[string]any{run("IN_PROGRESS", "", "")}); v != "pending" {
 		t.Errorf("in progress = %s", v)
 	}
-	if v, _ := CIVerdict([]map[string]any{run("COMPLETED", "CANCELLED", "1")}); v != "red" {
-		t.Errorf("cancelled = %s, want red (never green)", v)
+	if v, _ := CIVerdict([]map[string]any{run("COMPLETED", "CANCELLED", "1")}); v != "pending" {
+		t.Errorf("cancelled = %s, want pending (never green, never red)", v)
+	}
+	goCancelled := run("COMPLETED", "CANCELLED", "1")
+	goCancelled["name"] = "go"
+	if v, _ := CIVerdict([]map[string]any{run("COMPLETED", "SUCCESS", "1"), goCancelled}); v != "pending" {
+		t.Errorf("one cancelled among green = %s, want pending", v)
+	}
+	c := run("COMPLETED", "CANCELLED", "2")
+	c["detailsUrl"] = "https://github.com/o/r/actions/runs/42/job/7"
+	if ids := ciCancelledRuns([]map[string]any{run("COMPLETED", "FAILURE", "1"), c}); len(ids) != 1 || ids[0] != "42" {
+		t.Errorf("cancelled runs = %v, want [42]", ids)
+	}
+	if ids := ciCancelledRuns([]map[string]any{c, run("COMPLETED", "SUCCESS", "3")}); len(ids) != 0 {
+		t.Errorf("a newer attempt supersedes the cancelled one: %v", ids)
 	}
 }
 
@@ -82,5 +95,22 @@ func TestNoreplyBeforeAndAfterMerge(t *testing.T) {
 		if n != c.want {
 			t.Errorf("%q: %d alerts, want %d", c.out, n, c.want)
 		}
+	}
+}
+
+// gh can exit non-zero after the merge went through (on the branch delete): GitHub's state decides.
+func TestMergeNowConfirmsMerged(t *testing.T) {
+	f := newT3(t, t3Clean)
+	gh := f.r.Tools.GH
+	f.r.Tools.GH = func(dir string, args ...string) (int, string, string) {
+		rc, out, errs := gh(dir, args...)
+		if len(args) > 1 && args[0] == "pr" && args[1] == "merge" {
+			return 1, "", "zz: cannot delete the branch"
+		}
+		return rc, out, errs
+	}
+	f.r.Merge(f.run)
+	if f.run.State != Merged || f.run.MergeHold != "" || len(f.merges) != 1 {
+		t.Fatalf("state %s (%s), merges %v", f.run.State, f.run.MergeHold, f.merges)
 	}
 }

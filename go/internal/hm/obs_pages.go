@@ -31,6 +31,10 @@ type FlowTask struct {
 	AgeSec  int64            `json:"age_sec,omitempty"` // seconds in the current stage
 	Seconds map[string]int64 `json:"seconds"`           // stage -> seconds (the current stage counts up to now)
 	Total   int64            `json:"total_sec"`
+	// from the last run.long_working of the working spell the run is still in (worktime.go)
+	LongPct    int   `json:"long_pct,omitempty"`    // 50 or 100: the part of the limit it passed
+	WorkingSec int64 `json:"working_sec,omitempty"` // seconds in working, up to now
+	LimitSec   int64 `json:"limit_sec,omitempty"`   // run_max_working_min
 }
 
 // flowOf walks the task's events once. dispatched: the agent builds; gate: it fixes what the gate blocked; ci: gate
@@ -48,6 +52,9 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 			f.Seconds[stage] += int64(ts.Sub(at).Seconds())
 		}
 		stage, at = to, ts
+		if e.Event != "gate.blocked" { // a blocked gate leaves the run in working; every other move ends that spell
+			f.LongPct, f.WorkingSec, f.LimitSec = 0, 0, 0
+		}
 	}
 	for _, e := range evs {
 		switch e.Event {
@@ -69,13 +76,18 @@ func flowOf(t *ObsTask, now time.Time) FlowTask {
 			}
 		case "run.held":
 			move(e, "held")
+		case "run.long_working":
+			f.LongPct, f.LimitSec = num(e.Data["pct"]), int64(num(e.Data["limit"]))*60
+			f.WorkingSec = int64(num(e.Data["minutes"]))*60 + max(0, int64(now.Sub(evTime(e)).Seconds()))
 		default:
 			if terminalEvents[e.Event] {
 				move(e, "")
 			}
 		}
 	}
-	if stage != "" && t.Terminal == "" {
+	if stage == "" || t.Terminal != "" {
+		f.LongPct, f.WorkingSec, f.LimitSec = 0, 0, 0
+	} else {
 		f.Stage, f.Since = stage, at.UTC().Format(time.RFC3339)
 		if now.After(at) {
 			f.AgeSec = int64(now.Sub(at).Seconds())
@@ -100,6 +112,7 @@ type FlowPage struct {
 	Stages      []string   `json:"stages"`
 	Tasks       []FlowTask `json:"tasks"`
 	Stuck       []FlowTask `json:"stuck"`
+	Long        []FlowTask `json:"long_working"` // runs past half of run_max_working_min, whatever the range
 	StuckAfter  string     `json:"stuck_after"`
 	MergedByDay []DayCount `json:"merged_per_day"`
 	Merged      int        `json:"merged"`
@@ -108,6 +121,20 @@ type FlowPage struct {
 	Banners     []string   `json:"banners"`
 	// Chart is the merged-per-day SVG.
 	Chart template.HTML `json:"-"`
+	// Peak is the day with the most merges (the latest of equal days), for the chart's text summary.
+	Peak DayCount `json:"-"`
+	// Wider is the next longer time range in days, for the empty states; 0 when there is none.
+	Wider int `json:"-"`
+}
+
+// widerRange is the next range after days: the header's ranges, then the longest one the page accepts.
+func widerRange(days int) int {
+	for _, d := range []int{7, 30, 90, 3650} {
+		if d > days {
+			return d
+		}
+	}
+	return 0
 }
 
 // matches reports whether the project filter (empty = all) keeps the project.
@@ -132,7 +159,7 @@ func dayList(now time.Time, days int) []string {
 
 // BuildFlow is the Flow page over the last days days and one project (empty = all).
 func (o *Obs) BuildFlow(days int, project string) *FlowPage {
-	p := &FlowPage{Days: days, Stages: FlowStages, StuckAfter: StuckAfter.String()}
+	p := &FlowPage{Days: days, Stages: FlowStages, StuckAfter: StuckAfter.String(), Wider: widerRange(days)}
 	wN := windowStart(o.Now, days)
 	perDay := map[string]int{}
 	keys := make([]string, 0, len(o.Tasks))
@@ -155,6 +182,9 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 		if f.Stage != "" && f.Stage != "held" && time.Duration(f.AgeSec)*time.Second > StuckAfter {
 			p.Stuck = append(p.Stuck, f) // stuck now, whatever the range
 		}
+		if f.LongPct > 0 {
+			p.Long = append(p.Long, f)
+		}
 		if parseTS(t.Last).After(wN) {
 			p.Tasks = append(p.Tasks, f)
 			if t.PR != "" {
@@ -167,9 +197,13 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 	}
 	sort.SliceStable(p.Tasks, func(i, j int) bool { return p.Tasks[i].Total > p.Tasks[j].Total })
 	sort.SliceStable(p.Stuck, func(i, j int) bool { return p.Stuck[i].AgeSec > p.Stuck[j].AgeSec })
+	sort.SliceStable(p.Long, func(i, j int) bool { return p.Long[i].WorkingSec > p.Long[j].WorkingSec })
 	var bars []chartBar
 	for _, d := range dayList(o.Now, days) {
 		p.MergedByDay = append(p.MergedByDay, DayCount{d, perDay[d]})
+		if perDay[d] >= p.Peak.N {
+			p.Peak = DayCount{d, perDay[d]}
+		}
 		bars = append(bars, chartBar{Label: d, Vals: []float64{float64(perDay[d])}})
 	}
 	p.Chart = barChart(bars, []string{"merged"}, "merged PRs", func(v float64) string { return fmt.Sprintf("%.0f", v) })

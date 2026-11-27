@@ -2,6 +2,7 @@ package install
 
 import (
 	"math/big"
+	"net"
 	"regexp"
 	"strings"
 )
@@ -25,7 +26,9 @@ type Args struct {
 	Port               int    // 0 when not given
 	NoSystemd, Linger  bool
 	// WithServe: macOS only, also install the hivemill.serve launchd job (Linux always installs the serve unit).
-	WithServe          bool
+	WithServe bool
+	// ObsListen is the address `hivemill obs` binds, "" when not given (loopback).
+	ObsListen          string
 	UninstallBootUnits bool
 	NoScout, Resume    bool
 
@@ -36,7 +39,7 @@ type Args struct {
 }
 
 const usageLine = "usage: hivemill-install (--check | --dry-run | --yes) [--ref REF] [--repo-url URL] [--project-id ID --project-repo PATH]\n" +
-	"       [--project-name NAME] [--project-gh OWNER/NAME] [--max-agents N] [--port N] [--no-systemd|--no-boot-units] [--with-serve] [--uninstall-boot-units] [--linger]\n" +
+	"       [--project-name NAME] [--project-gh OWNER/NAME] [--max-agents N] [--port N] [--obs-listen ADDR] [--no-systemd|--no-boot-units] [--with-serve] [--uninstall-boot-units] [--linger]\n" +
 	"       [--no-scout] [--resume] [--herdr-app [--factory [LABEL=]URL]... [--no-switch] [--no-sidebar]]"
 
 // helpText is printed for --help.
@@ -58,6 +61,8 @@ options:
   --project-gh OWNER/NAME  GitHub name of that project
   --max-agents N       agent cap (positive integer)
   --port N             port of the web UI (1-65535, default 8765)
+  --obs-listen ADDR    IP address the dashboard (hivemill obs) listens on, default loopback; a LAN address
+                       makes the read-only page readable by anyone on that network
   --no-systemd         skip the boot units (systemd user units; launchd agents on macOS)
   --no-boot-units      same as --no-systemd, the neutral name
   --with-serve         macOS: also install the hivemill.serve launchd job (Linux always installs the serve unit)
@@ -129,6 +134,13 @@ func ParseArgs(argv []string) (*Args, error) {
 				return errBadValue
 			}
 			a.MaxAgents = n.String()
+			return nil
+		},
+		"--obs-listen": func(v string) error {
+			if v != "localhost" && net.ParseIP(v) == nil {
+				return errBadValue
+			}
+			a.ObsListen = v
 			return nil
 		},
 		"--port": func(v string) error {

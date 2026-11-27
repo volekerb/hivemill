@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -22,7 +23,7 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
-	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, counts against max_waiting
+	Held      = "held" // the owner decides (a hard limit, judge HOLD, a tier the runner does not merge); not a failure, counts against max_waiting
 )
 
 // Active reports whether a run is unfinished and each pass advances it; busy and waiting say which cap it counts against.
@@ -47,10 +48,15 @@ type Runner struct {
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
 	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
-	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	SSH func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	// ObsDial dials the dashboard's address for ObsDown (nil = a TCP connect).
+	ObsDial    func(addr string) error
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
+	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
+	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
+	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 
@@ -431,6 +437,7 @@ func (r *Runner) prepareClone(wt string) error {
 
 func (r *Runner) fail(run *Run, reason string) {
 	run.State, run.Outcome, run.FailReason, run.Ended = Failed, "failed", reason, nowISO()
+	run.HookStarted = ""
 	_ = r.Store.TaskStatus(run.Task, "blocked", "owner")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "run-fail", truncate(reason, 900))
 	if !run.Eval {
@@ -464,6 +471,11 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	}
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
+	run.LongPct, run.LongResumed, run.LongSendFailed = 0, "", ""
+	run.HookStarted = ""
+	if run.Head != "" { // sent back for more work: this head must not go to evaluation unchanged (rescueOpenPR)
+		run.RescuedHead = run.Head
+	}
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	send := r.Prompt
 	list, listed := Terminals(r.Tools)
@@ -506,6 +518,10 @@ func (r *Runner) Pass(startNew bool) error {
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
 	if err != nil {
+		return err
+	}
+	r.sweepLocalCI() // results first: they free job slots, and the runs below read them
+	if runs, err = r.Store.Runs(); err != nil {
 		return err
 	}
 	for _, x := range runs {
@@ -576,7 +592,7 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		return "", err
 	}
 	defer func() {
-		if run.State != Gated {
+		if run.State != Gated && (run.State != Merging || !r.ciNone(run.Project)) {
 			r.endCIWait(run) // the run left the CI wait, however it did
 		}
 		_ = r.Store.PutRun(run)
@@ -589,7 +605,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	}
 	switch run.State {
 	case Working:
-		r.idleWatch(run, list)
+		if !listed || !r.workingLimit(run, time.Now()) { // sessions that cannot be listed are never failed on time
+			r.idleWatch(run, list)
+		}
 	case Gated:
 		r.gated(run)
 	case Judging:
@@ -783,8 +801,20 @@ func (r *Runner) budgetEvent(why string) {
 	_ = r.Log.Emit(kind, nil, Event{Data: map[string]any{"why": why}})
 }
 
+// failUnlessRescued fails a stalled or timed out run, unless an open PR takes it to evaluation (rescueOpenPR). The
+// task session of a rescued run is closed, so that it does not change the worktree under the judge; a later round
+// relaunches it.
+func (r *Runner) failUnlessRescued(run *Run, reason string) {
+	if !r.rescueOpenPR(run, reason) {
+		r.fail(run, reason)
+		return
+	}
+	r.Close(run.Agent)
+}
+
 // idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a
-// background review was running); after a second idle spell the run is FAIL "stalled".
+// background review was running); after a second idle spell the run is FAIL "stalled". A running gate hook is not
+// idleness: a session whose hook passed its timeout without a result fails as "gate hook timed out" instead.
 func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	idle := false
 	for _, t := range list {
@@ -792,8 +822,21 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 			idle = t.Status == "idle" || t.Status == "done"
 		}
 	}
+	if !idle { // a session that works on has left its hook behind; its next stop records a new start
+		run.HookStarted = ""
+	}
+	started, err := time.Parse(time.RFC3339, run.HookStarted)
+	if err == nil && time.Since(started) < gateHookTimeout {
+		run.IdleSince = ""
+		return
+	}
 	if !idle || r.workflowBusy(run, time.Now().Add(-15*time.Minute)) {
 		run.IdleSince = ""
+		return
+	}
+	if err == nil { // the hook passed its timeout without a result
+		run.HookStarted, run.IdleSince = "", ""
+		r.failUnlessRescued(run, fmt.Sprintf("gate hook timed out: no result after %d seconds", int(gateHookTimeout/time.Second)))
 		return
 	}
 	if run.IdleSince == "" {
@@ -806,7 +849,7 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	}
 	run.IdleSince = ""
 	if run.IdleNudges >= 1 {
-		r.fail(run, "stalled: the task session stayed idle without a passing gate after a nudge")
+		r.failUnlessRescued(run, "stalled: the task session stayed idle without a passing gate after a nudge")
 		return
 	}
 	run.IdleNudges++
