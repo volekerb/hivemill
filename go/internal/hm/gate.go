@@ -428,7 +428,7 @@ func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Reru
 	for _, x := range r.rerunProofs(at, &base, onBase, logs, limits) {
 		head := failed[x.ID]
 		if x.OK != nil && !*x.OK && x.Log != "" && x.rc == head.rc && same(x.out) == same(head.out) {
-			out[x.ID] = fmt.Sprintf("it fails the same way on the base commit %.9s", mb)
+			out[x.ID] = "it fails the same way on the base commit" // no sha: a repeated block must read the same
 		}
 	}
 	return out
@@ -588,6 +588,7 @@ func (r *Runner) guardText(args []string, text string) (int, string) {
 // Gate runs every check in the task clone and returns the record (Problems empty = pass).
 func (r *Runner) Gate(run *Run) *GateRecord {
 	defer r.holdGate(run)()
+	started := time.Now()
 	at := r.at(run) // the worktree, its commands and its .hivemill files may be on a clone-mode machine
 	lost := false
 	at.lost = &lost
@@ -730,7 +731,11 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	}
 	if len(ev) == 0 {
 		rec.Reruns = r.rerunProofs(at, run, crit, logdir)
-		defects := r.specDefects(at, run, crit, rec.Reruns, mb, logdir)
+		onto := mb
+		if time.Since(started) > gateHookTimeout-baseRunBudget-2*time.Minute {
+			onto = "" // too late for a base pass: the Stop hook must still get the block
+		}
+		defects := r.specDefects(at, run, crit, rec.Reruns, onto, logdir)
 		var first []string // spec defects lead, so a cut failure reason still names them
 		for _, x := range rec.Reruns {
 			if x.OK == nil || *x.OK {
