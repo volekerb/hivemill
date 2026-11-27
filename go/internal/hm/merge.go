@@ -424,8 +424,9 @@ func heldForOwner(x *Run) bool {
 
 var approvalRe = regexp.MustCompile(`(?i)^\s*(approved|merge it)\b`)
 
-// approveHeld turns the owner's approval of a hold into a MERGE verdict: the held question of this run and round was
-// answered by the owner with "approved..." or "merge it...", and the PR is still at the judged head. A newer head needs its own judge.
+// approveHeld turns an approval of a hold into a MERGE verdict: the held question of this run and round was answered by
+// the owner, or the director (the owner delegated held PRs), with "approved..." or "merge it...", and the PR is still at
+// the judged head. A newer head needs its own judge.
 // Every other limit of the merge decision still applies.
 func (r *Runner) approveHeld(run *Run, head string) {
 	if run.State != Held || head != run.JudgeHead {
@@ -447,10 +448,10 @@ func (r *Runner) approveHeld(run *Run, head string) {
 	for _, a := range asks {
 		// the ref repeats when a task is dispatched again: an answer to an earlier run's question is not for this one
 		at, err := time.Parse(time.RFC3339, a.Answered)
-		if a.Ref != heldRef(run) || a.AnsweredBy != "owner" || !approvalRe.MatchString(a.Answer) || err != nil || at.Before(since) {
+		if a.Ref != heldRef(run) || (a.AnsweredBy != "owner" && a.AnsweredBy != "director") ||!approvalRe.MatchString(a.Answer) || err != nil || at.Before(since) {
 			continue
 		}
-		why := fmt.Sprintf("the owner approved the hold (question #%d, by %s)", a.ID, a.AnsweredBy)
+		why := fmt.Sprintf("the hold was approved (question #%d, by %s)", a.ID, a.AnsweredBy)
 		if err := r.Store.Verdict(run.Task, run.PRURL, head, "pass", why, a.AnsweredBy); err != nil {
 			r.printf("%s: %v\n", run.Task, err)
 			return

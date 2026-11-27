@@ -301,6 +301,25 @@ func TestApprovedHoldMergeOnlyFromTheOwner(t *testing.T) {
 	}
 }
 
+// The director's answer approves a held merge, never a release.
+func TestApproveHeldAcceptsDirectorAnswer(t *testing.T) {
+	r, s, run := held(t, landHead, "not yet")
+	if _, err := s.db.Exec(`UPDATE hm_asks SET answer='approved, release build 7', answered_by='director'`); err != nil {
+		t.Fatal(err)
+	}
+	r.checkHeld(run)
+	if run.State != Merging {
+		t.Errorf("run %s", run.State)
+	}
+	asks, err := s.Asks("answered")
+	if err != nil || len(asks) != 1 {
+		t.Fatalf("asks %v %v", asks, err)
+	}
+	if ReleaseAllowed(asks, "7") {
+		t.Error("a director answer allowed a release")
+	}
+}
+
 func TestApprovedHoldMergeNewHeadNeedsAJudge(t *testing.T) {
 	head := strings.Repeat("b", 40)
 	r, s, run := held(t, head, "approved")
