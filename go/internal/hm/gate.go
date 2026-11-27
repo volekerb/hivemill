@@ -364,6 +364,11 @@ func (r *Runner) findPR(run *Run, t *Task) string {
 	if t.PRURL != "" {
 		return t.PRURL
 	}
+	return r.openPR(run)
+}
+
+// openPR is the open PR of the run's branch ("": none, or gh failed).
+func (r *Runner) openPR(run *Run) string {
 	rc, out, _ := r.Tools.GH("", "pr", "list", "-R", run.Repo, "--head", run.Branch, "--state", "open", "--json", "url", "-q", ".[0].url")
 	if rc != 0 {
 		return ""
@@ -590,13 +595,20 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	} else if none && strings.TrimSpace(cmd) == "" {
 		add("affected", false, "ci_gate none and the project has no gate_cmd: never merged untested")
 	} else if none {
-		// gate_cmd is the only CI here, so it runs for every tier, on a clean checkout of HEAD
-		ok, note, err := r.waitLocalCI(run, rec.Head, cmd, limit, logdir)
-		if err != nil {
-			note = err.Error()
+		// gate_cmd is the only CI here, so it runs for every tier, on a clean checkout of HEAD. The gate only queues it:
+		// waiting here held the session's Stop hook until its 30-minute timeout whenever jobs were queued (2026-11-27,
+		// most sessions idle with no gate decision). A result already in is used; otherwise the merge step waits for it,
+		// never merges without a green result on this head, and a red one resumes the session (redCI).
+		note, err := r.requestCIJob(run, rec.Head, cmd, limit, logdir, false)
+		switch {
+		case err == nil:
+			add("affected", run.LocalCI != nil && run.LocalCI.Head == rec.Head && run.LocalCI.RC == 0, note)
+		case errors.Is(err, errLocalCIRunning):
+			rec.Checks["affected"] = fmt.Sprintf("local CI queued or running for %.12s: the merge step waits for its result", rec.Head)
+		default:
 			lost = lost || errors.Is(err, errLocalCIMachine)
+			add("affected", false, err.Error())
 		}
-		add("affected", ok, note)
 	} else if rec.Tier == "T0" {
 		rec.Checks["affected"] = "n/a: docs only (T0)"
 	} else if cmd != "" {
@@ -802,6 +814,65 @@ func readTail(path string, n int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(f, n))
 }
 
+// gateHookTimeout is the timeout of the gate hook in assets/task.json.in: Claude Code ends the hook after it.
+const gateHookTimeout = 1800 * time.Second
+
+// noPRProblem starts the gate problem of a run whose PR the gate did not find.
+const noPRProblem = "pr: no open PR for "
+
+// onlyNoPR: the gate missed the PR and nothing else. A gate with any other failure is not rescued.
+func onlyNoPR(problems []string) bool {
+	return len(problems) == 1 && strings.HasPrefix(problems[0], noPRProblem)
+}
+
+// rescueOpenPR moves a run that is about to fail (why) to evaluation when its branch has an open PR: the gated state,
+// so CI, the judge and the merge decide about the PR. It returns false, and the caller fails the run, for an eval run,
+// with no open non-draft PR, when the worktree is not at the PR head (the judge reads the diff there), for a head the
+// judge already rejected, with uncommitted tracked changes, and for a head that was rescued before or that the session
+// was resumed to change (resumeAs).
+func (r *Runner) rescueOpenPR(run *Run, why string) bool {
+	if run.Eval {
+		return false
+	}
+	url := r.openPR(run)
+	if url == "" {
+		return false
+	}
+	pr, err := PRView(r.Tools, url)
+	if err != nil || pr.State != "OPEN" || pr.IsDraft || pr.HeadRefOid == run.RescuedHead {
+		return false
+	}
+	if v, _, err := r.Store.LaneVerdict(run.Task, pr.HeadRefOid); err != nil || v == "fail" {
+		return false
+	}
+	if rc, head, _ := r.at(run).git(run.Worktree, "rev-parse", "HEAD"); rc != 0 || head != pr.HeadRefOid {
+		return false
+	}
+	// a pushed first commit with more work still uncommitted is not a finished PR
+	if rc, dirty, _ := r.at(run).git(run.Worktree, "status", "--porcelain", "--untracked-files=no"); rc != 0 || dirty != "" {
+		return false
+	}
+	tier := run.Tier
+	if !run.cloned() || r.syncMirror(run, pr.HeadRefOid) == nil {
+		tier = or(r.tierOf(run.Project, run.coordWT(), run.Base, pr.HeadRefOid), tier)
+	}
+	run.State, run.PRURL, run.Head, run.RescuedHead, run.Gated = Gated, url, pr.HeadRefOid, pr.HeadRefOid, nowISO()
+	// the judge packet prints Checks (cut at 200 characters), so it must say there that nothing was verified
+	checks := map[string]string{
+		"gate":     "FAIL no pass on this head: no proof, test or review was verified; judge the PR on its diff",
+		"gate-why": "the runner took the open PR to evaluation instead of failing the run: " + why,
+	}
+	run.Tier, run.Proven, run.Manual = tier, 0, 0
+	run.LastGate = &GateRecord{PRURL: url, Head: pr.HeadRefOid, Tier: tier, Checks: checks,
+		Problems: []string{"gate: " + checks["gate"]}}
+	run.IdleSince, run.HookStarted = "", ""
+	_ = r.Store.TaskPR(run.Task, url, tier)
+	_ = r.Store.TaskStatus(run.Task, "in_review", "")
+	_ = r.Store.Event(r.actor(), "task", run.Task, "run-rescue", truncate(url+": "+why, 900))
+	_ = r.Log.Emit("run.rescued", run, Event{Data: map[string]any{"pr": url, "head": pr.HeadRefOid, "why": truncate(why, 900)}})
+	return true
+}
+
 // GateHook is the Stop hook of a task session. It allows the stop when the gate passes and blocks with the problems
 // otherwise, at most gate_max_blocks times per round; then it allows the stop and marks the task FAIL for the owner.
 func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
@@ -819,7 +890,13 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 		return err
 	}
 	r.noteSession(run, h.SessionID, r.Env.Actor)
-	defer func() { _ = r.Store.PutRun(run) }()
+	// Saved before the checks, so a hook that is killed leaves its start behind: idleWatch reads it.
+	run.HookStarted, run.IdleSince = nowISO(), ""
+	_ = r.Store.PutRun(run)
+	defer func() {
+		run.HookStarted = ""
+		_ = r.Store.PutRun(run)
+	}()
 	// No PR yet: the session is mid-work (often waiting for a background /code-review that wakes it again). Let it
 	// stop without a block; the runner's idle watch nudges a session that stays idle with no PR.
 	if t, err := r.Store.Task(run.Task); err == nil && t.PRURL == "" && r.findPR(run, t) == "" {
@@ -899,7 +976,10 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 	_ = r.Log.Emit("gate.blocked", run, Event{Session: h.SessionID, Role: "task", Data: map[string]any{"blocks": run.GateBlocks,
 		"problems": rec.Problems}})
 	if run.GateBlocks >= limit {
-		r.fail(run, fmt.Sprintf("gate blocked %d times in round %d: %s", run.GateBlocks, run.Round, truncate(strings.Join(rec.Problems, "; "), 600)))
+		why := fmt.Sprintf("gate blocked %d times in round %d: %s", run.GateBlocks, run.Round, truncate(strings.Join(rec.Problems, "; "), 600))
+		if !onlyNoPR(rec.Problems) || !r.rescueOpenPR(run, why) {
+			r.fail(run, why)
+		}
 		return nil
 	}
 	return json.NewEncoder(out).Encode(map[string]string{"decision": "block",
