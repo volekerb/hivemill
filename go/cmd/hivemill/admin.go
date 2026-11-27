@@ -367,7 +367,7 @@ func cmdGoal(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 
 const taskUsage = "usage: hivemill task lint|show|cancel T-1234 | task lint --all | task list [--goal G] [--status S] | task list --startable|--blocked | " +
 	"task add --goal G --title TEXT (--spec TEXT|--spec-file F) (--acceptance TEXT|--acceptance-file F) [--priority N] [--depends T-1,T-2] [--refile-of T-1234] [--draft] | " +
-	"task update T-1234 [--title] [--spec|--spec-file] [--acceptance|--acceptance-file] [--status S] [--priority N] [--depends T-1,T-2]"
+	"task retry T-1234 [--note TEXT] | task update T-1234 [--title] [--spec|--spec-file] [--acceptance|--acceptance-file] [--status S] [--priority N] [--depends T-1,T-2]"
 
 // lintReport prints the parsed criteria and the spec gate result; it returns the problems.
 func lintReport(w io.Writer, id, acceptance string) []string {
@@ -539,6 +539,13 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			if old.Status == "done" {
 				return fail(stderr, fmt.Errorf("%w: --refile-of %s is done; a re-file replaces a cancelled or failed task", hm.ErrRefused, of))
 			}
+			if r.MayHavePR(old) {
+				if pr := r.TaskPR(old); pr != "" {
+					return fail(stderr, fmt.Errorf("%w: %s has an open PR (%s): iterate on it, never file it again. Fix the spec with "+
+						"`hivemill task update %s --spec-file F`, then `hivemill task retry %s --note TEXT`. Only a real split "+
+						"cancels %s first (that closes its PR)", hm.ErrRefused, of, pr, of, of, of))
+				}
+			}
 			if waitsOn(s, deps, of) {
 				return fail(stderr, fmt.Errorf("%w: --depends leads to %s, which this task files again: it could never start", hm.ErrRefused, of))
 			}
@@ -703,7 +710,8 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			fmt.Fprintln(stderr, taskUsage)
 			return 2
 		}
-		if _, err := s.Task(id); err != nil {
+		ct, err := s.Task(id)
+		if err != nil {
 			return fail(stderr, err)
 		}
 		if run, _ := s.Run(id); run != nil && hm.Active(run.State) {
@@ -713,7 +721,26 @@ func cmdTask(r *hm.Runner, args []string, stdin io.Reader, stdout, stderr io.Wri
 			return fail(stderr, err)
 		}
 		fmt.Fprintf(stdout, "%s cancelled\n", id)
+		if r.MayHavePR(ct) { // a cancelled task's PR would stay open forever: nothing merges it
+			if pr, err := r.CloseTaskPR(ct); err != nil {
+				fmt.Fprintln(stderr, "hivemill: close the PR of", id+":", err)
+			} else if pr != "" {
+				fmt.Fprintf(stdout, "%s closed (branch kept)\n", pr)
+			}
+		}
 		repoint(r, stderr)
+	case "retry":
+		fs := newFlags("task retry", stderr)
+		note := fs.String("note", "", "what the next attempt must fix; goes into its kickoff")
+		if len(args) < 2 || !taskRe.MatchString(strings.ToUpper(args[1])) || fs.Parse(args[2:]) != nil || fs.NArg() > 0 {
+			fmt.Fprintln(stderr, taskUsage)
+			return 2
+		}
+		out, err := r.Retry(strings.ToUpper(args[1]), *note)
+		if err != nil {
+			return fail(stderr, err)
+		}
+		fmt.Fprint(stdout, out)
 	default:
 		fmt.Fprintln(stderr, taskUsage)
 		return 2

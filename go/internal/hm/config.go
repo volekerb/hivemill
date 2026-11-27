@@ -41,6 +41,7 @@ var Defaults = map[string]string{
 	"mem_floor_mb":             "1024", // MemAvailable below this holds new runs
 	"usage_max_age_s":          "600",  // a usage reading older than this is unknown: dispatch is held (fail closed)
 	"usage_require_5h":         "on",   // on: an empty 5-hour field is unknown and holds dispatch
+	"retry_max":                "2",    // `hivemill task retry` attempts per task after its first run; then the owner decides
 	"task_budget_usd":          "5",    // a run whose sessions cost more (API prices) is stopped and marked FAIL "budget"; off = none
 	"project_daily_budget_usd": "off",  // per project, sessions started today; reached = no new run in that project
 	"weekly_budget_usd":        "off",  // all runs, sessions started in the last 7 days; reached = no new run
@@ -94,6 +95,8 @@ type Env struct {
 	Home     string // factory home (FACTORY_HOME, default ~/factory)
 	UserHome string
 	Actor    string // FACTORY_AGENT of the caller, "" for the owner
+	// AgentSession is true inside a Claude Code session (CLAUDECODE is set).
+	AgentSession bool
 }
 
 // LoadEnv reads the environment.
@@ -103,7 +106,7 @@ func LoadEnv() Env {
 	if home == "" {
 		home = filepath.Join(uh, "factory")
 	}
-	return Env{Home: home, UserHome: uh, Actor: os.Getenv("FACTORY_AGENT")}
+	return Env{Home: home, UserHome: uh, Actor: os.Getenv("FACTORY_AGENT"), AgentSession: os.Getenv("CLAUDECODE") != ""}
 }
 
 // DBPath is the factory DB (db/factory.db, else the legacy file).
