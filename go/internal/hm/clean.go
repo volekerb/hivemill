@@ -1703,7 +1703,8 @@ func (r *Runner) askMachine(ctx context.Context, machine string, spec MachineSpe
 	go func() {
 		if clone {
 			home := path.Dir(spec.Home)
-			rc, out, errs := r.rsh(machine, "", 20*time.Minute, "exec "+shlex.Quote(remoteBin(home))+" local clean "+shlex.Quote(string(b)))
+			// hc refuses a timeout over 600 s (2026-11-27: every remote clean failed with invalid_params)
+			rc, out, errs := r.rsh(machine, "", 10*time.Minute, "exec "+shlex.Quote(remoteBin(home))+" local clean "+shlex.Quote(string(b)))
 			if rc != 0 {
 				out += errs
 			}
