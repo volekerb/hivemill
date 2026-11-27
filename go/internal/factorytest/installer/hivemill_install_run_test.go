@@ -32,7 +32,7 @@ func hiUnits(t *testing.T, dir string) {
 	if err := os.MkdirAll(sd, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, u := range []string{"hivemill.service", "hivemill-digest.service", "hivemill-digest.timer",
+	for _, u := range []string{"hivemill.service", "hivemill-obs.service", "hivemill-digest.service", "hivemill-digest.timer",
 		"hivemill-health.service", "hivemill-health.timer"} {
 		if err := os.WriteFile(filepath.Join(sd, u), []byte("# "+u+"\n"), 0o644); err != nil {
 			t.Fatal(err)
@@ -74,7 +74,7 @@ func TestHivemillInstallSystemdRunResultLineAndOrder(t *testing.T) {
 	want := []string{
 		"git clone -- " + hiRepo + " " + fh + ".installing",
 		"systemctl --user daemon-reload",
-		"systemctl --user enable --now hivemill.service hivemill-digest.timer hivemill-health.timer",
+		"systemctl --user enable --now hivemill.service hivemill-obs.service hivemill-digest.timer hivemill-health.timer",
 	}
 	prev := -1
 	for _, w := range want {
