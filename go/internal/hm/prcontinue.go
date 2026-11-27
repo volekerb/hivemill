@@ -21,7 +21,7 @@ const (
 	prSweptKey  = "pr_swept:"      // + task: the Dispatched of the run whose PR is settled
 )
 
-var taskBranch = regexp.MustCompile(`^factory/(t-[0-9]+)$`)
+var factoryBranch = regexp.MustCompile(`^factory/(t-[0-9]+)$`)
 
 // refileOrigins maps each re-filed task to the task it files again: the --refile-of flag, else the title marker.
 func refileOrigins(tasks []refileRow) map[string]string {
@@ -72,7 +72,7 @@ func (r *Runner) continuedTask(run *Run) string { return run.Continues }
 
 // continuesFrom is Run.Continues of a new run of task on branch.
 func (r *Runner) continuesFrom(task, branch string) string {
-	m := taskBranch.FindStringSubmatch(branch)
+	m := factoryBranch.FindStringSubmatch(branch)
 	if m == nil || m[1] == strings.ToLower(task) {
 		return ""
 	}
@@ -145,7 +145,7 @@ func (r *Runner) refiledBranch(t *Task) (string, error) {
 		if branch == "" {
 			continue // it never ran: the one before it
 		}
-		if !taskBranch.MatchString(branch) {
+		if !factoryBranch.MatchString(branch) {
 			break // the worker guard allows a push to factory/t-N only
 		}
 		if ok, err := r.continuable(t, branch, url); err != nil || !ok {
@@ -167,7 +167,7 @@ func (r *Runner) startBranch(t *Task) (string, error) {
 			return branch, err
 		}
 	case t.Branch != own:
-		if !taskBranch.MatchString(t.Branch) {
+		if !factoryBranch.MatchString(t.Branch) {
 			return t.Branch, nil
 		}
 		if r.continuesFrom(t.ID, t.Branch) == "" {
@@ -384,7 +384,7 @@ func (r *Runner) sweepPRs() {
 		} else {
 			continue
 		}
-		if r.closePR(run, why, landedPR) {
+		if called, _, _ := r.closePR(run, why, landedPR); called {
 			if left--; left == 0 {
 				return
 			}
@@ -412,11 +412,12 @@ func (r *Runner) closeSuperseded(landed *Run) {
 }
 
 // closePR closes the open PR of an ended run with why as the comment, and keeps the branch. It reports whether it
-// called gh, which is what the sweep's cap counts.
-func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
+// called gh, which is what the sweep's cap counts, the PR it closed ("": none) and why a gh call failed.
+func (r *Runner) closePR(run *Run, why, landedPR string) (called bool, closed string, err error) {
 	settled := func() { _ = r.Store.SetMeta(prSweptKey+run.Task, run.Dispatched) }
 	failed := func(format string, a ...any) {
-		r.printf("%s: "+format+"\n", append([]any{run.Task}, a...)...)
+		err = fmt.Errorf(format, a...)
+		r.printf("%s: %v\n", run.Task, err)
 		_ = r.Store.SetMeta(prTriedKey+run.Task, nowISO())
 	}
 	// no start of the task while its PR closes; the run may have started again since the caller read it
@@ -425,8 +426,8 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
 		return
 	}
 	defer own.Close()
-	if cur, err := r.Store.Run(run.Task); err != nil || cur == nil || Active(cur.State) || cur.Dispatched != run.Dispatched {
-		return
+	if cur, rerr := r.Store.Run(run.Task); rerr != nil || cur == nil || Active(cur.State) || cur.Dispatched != run.Dispatched {
+		return false, "", rerr
 	} else {
 		run = cur
 	}
@@ -453,16 +454,16 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
 		return
 	}
 	defer l.Close()
-	if user, err := r.branchUser(run.Task, run.Repo, run.Branch, url); err != nil || user != "" {
+	if user, uerr := r.branchUser(run.Task, run.Repo, run.Branch, url); uerr != nil || user != "" {
 		if called {
 			_ = r.Store.SetMeta(prTriedKey+run.Task, nowISO()) // found by branch: do not look again every pass
 		}
-		return // another run works on it: look again later
+		return called, "", uerr // another run works on it: look again later
 	}
 	called = true
-	pr, err := PRView(r.Tools, url)
-	if err != nil {
-		failed("%v", err)
+	pr, perr := PRView(r.Tools, url)
+	if perr != nil {
+		failed("%v", perr)
 		return
 	}
 	if pr.State != "OPEN" || (pr.HeadRefName != "" && pr.HeadRefName != run.Branch) {
@@ -482,6 +483,7 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
 		return
 	}
 	settled()
+	closed = url
 	_ = r.Store.SetMeta(prClosedKey+url, nowISO())
 	if heldForOwner(run) { // else the next pass would read the close as the owner's and block the task again
 		r.closeSessions(run) // as Stop does

@@ -30,3 +30,29 @@ func TestIdleAlertMinutes(t *testing.T) {
 	check(21*time.Minute, false)
 	check(121*time.Minute, true)
 }
+
+// An answer from a Claude Code session is the director's: it does not approve a release.
+func TestAskAnswerAgentSessionIsDirector(t *testing.T) {
+	for _, c := range []struct {
+		agentSession bool
+		by           string
+		allowed      bool
+	}{{true, "director", false}, {false, "owner", true}} {
+		r, s := testRunner(t, "")
+		r.Env.AgentSession = c.agentSession
+		id, err := r.AskAdd(Ask{Project: "www", Question: "zz-test release?"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.AskClose(id, true, "release build 7"); err != nil {
+			t.Fatal(err)
+		}
+		a, err := s.Ask(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.AnsweredBy != c.by || ReleaseAllowed([]Ask{*a}, "7") != c.allowed {
+			t.Fatalf("agent session %v: want answered by %q, release allowed %v, got %+v", c.agentSession, c.by, c.allowed, a)
+		}
+	}
+}

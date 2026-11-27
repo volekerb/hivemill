@@ -407,7 +407,7 @@ func TestPRCloseSkipsARestartedRun(t *testing.T) {
 	again := *old
 	again.State, again.Dispatched = Working, nowISO()
 	putRuns(t, s, &again)
-	if r.closePR(old, "why", "") || len(f.calls) != 0 {
+	if called, _, _ := r.closePR(old, "why", ""); called || len(f.calls) != 0 {
 		t.Errorf("calls %v", f.calls)
 	}
 }
@@ -425,7 +425,8 @@ func TestPRSweepCapCountsGHCallsOnly(t *testing.T) {
 		views++
 		return gh(in, args...)
 	}
-	if !r.closePR(run, "why", "") || r.closePR(run, "why", run.PRURL) {
+	first, _, _ := r.closePR(run, "why", "")
+	if again, _, _ := r.closePR(run, "why", run.PRURL); !first || again {
 		t.Error("called: want true for a gh read, false for the landed PR itself")
 	}
 	if err := s.SetMeta(prSweptKey+"T-0001", ""); err != nil {
@@ -447,5 +448,32 @@ func TestEvalRefusesASharedBranch(t *testing.T) {
 	putRuns(t, s, other)
 	if err := r.EvalStart("T-0001", EvalFull); err == nil || !strings.Contains(err.Error(), "shared") {
 		t.Errorf("err %v, calls %v", err, f.calls)
+	}
+}
+
+// `task cancel` closes the PR as the runner's own close, so a re-file reopens it, and leaves a shared branch alone.
+func TestCancelCloseIsTheRunnersOwn(t *testing.T) {
+	r, s := testRunner(t, "")
+	pr := openPRof(1, "factory/t-0001")
+	f := newFakePRs(r, pr)
+	putRuns(t, s, endedRun("T-0001", Failed, pr.URL, 0))
+	cancelTask(t, s, "T-0001")
+	task, err := s.Task("T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := endedRun("T-0002", Working, "", 0)
+	other.Branch = "factory/t-0001"
+	putRuns(t, s, other)
+	if closed, err := r.CloseTaskPR(task); closed != "" || err != nil || len(f.calls) != 0 {
+		t.Fatalf("shared branch: %q %v %v", closed, err, f.calls)
+	}
+	other.State = Cancelled
+	putRuns(t, s, other)
+	if closed, err := r.CloseTaskPR(task); closed != pr.URL || err != nil {
+		t.Fatalf("close: %q %v", closed, err)
+	}
+	if !r.closedByUs(pr.URL, f.prs[pr.URL]) {
+		t.Error("the close is not recorded as the runner's own")
 	}
 }

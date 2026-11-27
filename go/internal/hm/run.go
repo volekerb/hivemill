@@ -204,9 +204,11 @@ func (r *Runner) Start(id string) error {
 		return fmt.Errorf("%w: %s: project %s has ci_gate none and no gate_cmd, so nothing would test it; set a gate_cmd or ci_gate pr",
 			ErrRefused, id, t.Project)
 	}
-	if old, _ := r.Store.Run(id); old != nil && Active(old.State) {
+	old, _ := r.Store.Run(id)
+	if old != nil && Active(old.State) {
 		return fmt.Errorf("%w: %s already has an active run (%s)", ErrRefused, id, old.State)
 	}
+	retry := r.retryPending(id, old)
 	if why := r.runCapBlock(); why != "" {
 		return fmt.Errorf("%w: %s", ErrRefused, why)
 	}
@@ -308,11 +310,19 @@ func (r *Runner) Start(id string) error {
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
-	kickoff := Kickoff(run, t)
-	if old := r.continuedTask(run); old != "" {
-		kickoff += continuedNote(run, old)
+	kick := Kickoff(run, t)
+	if of := r.continuedTask(run); of != "" {
+		kick += continuedNote(run, of)
 	}
-	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, kickoff)); err != nil {
+	if retry {
+		m := r.retryMark(id)
+		pr := run.PRURL // adopted above; else the open one of the branch: a recorded one may be closed
+		if pr == "" {
+			pr = r.openPR(run)
+		}
+		kick = retryBrief(m.N+1, old, branch, pr, m.Note) + kick
+	}
+	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, kick)); err != nil {
 		return err
 	}
 	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,

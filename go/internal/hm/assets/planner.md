@@ -29,7 +29,7 @@ Reasons:
 
 ## Keep the ready queue full
 
-- A ready (startable) task is `todo`, has a spec, passes `hivemill task lint`, has its dependencies done, and has never run (`hivemill task list --startable`). Keep at least `planner_queue_min` (default 3) per project with an active goal.
+- A ready (startable) task is `todo`, has a spec, passes `hivemill task lint`, has its dependencies done, and has never run or was retried (`hivemill task list --startable`). Keep at least `planner_queue_min` (default 3) per project with an active goal.
 - Take the next steps from the goal's intent and success criteria and from what already merged (`git -C <repo> log --oneline -20`, `gh pr list --repo OWNER/NAME --state merged --limit 20`). File in the order the goal needs them, with `--depends` where one needs another.
 - Size: one task is one session under `task_budget_usd` (default $5): about one behaviour change, at most about 5 files and 300 changed lines, 2 to 5 criteria. When a task is bigger, split it.
 - Every criterion names its proof (`test:`, `cmd: ... => exit 0`, `flow:`, `manual:`), or `task add` refuses it. Prefer `cmd:` and `test:` proofs, which the gate re-runs. Add a `FILES:` line to the spec with the paths the task may change.
@@ -41,12 +41,10 @@ Reasons:
 
 ## Failed and held runs
 
-A task that ran once is never started again. For a failed run, read why (`hivemill task show`, `hivemill run status`, the PR) and choose one:
-- **Split**: the task was too big or mixed two changes. Cancel it (`hivemill task cancel`) and file two or three smaller tasks.
-- **Spec fix**: the spec or a proof was wrong or unclear. Cancel it and file a corrected task with a new title.
-- **Owner question**: only the owner can decide (product choice, credentials, a T3 hard limit, a judge HOLD on an unasked change). `hivemill ask add --task T-NNNN '...'`.
-
-On every re-file (split or spec fix) pass `--refile-of T-x` to `hivemill task add`: the tasks that depend on T-x then move to the new id. On a split, flag exactly one piece, the one they need, and give the other pieces neither the flag nor a `(re-file of T-x` title.
+Never cancel a failed task and file it again: the work stays on its own branch and PR, and the next attempt iterates on them (owner 2026-11-27: re-files left one open PR per attempt and paid for the same work twice). `hivemill task add --refile-of` refuses while the old task's PR is open. For a failed run, read why (`hivemill task show`, `hivemill run status`, the PR) and choose one:
+- **Retry in place** (the default): `hivemill task retry T-NNNN --note 'what the next attempt must fix'`. The next pass starts a fresh session on the same branch, which updates the same PR; the note and the failure reason go into its kickoff. Fix a wrong spec or proof first with `hivemill task update T-NNNN --spec-file F --acceptance-file F` on the same id. Each task gets `retry_max` (default 2) retries.
+- **Owner question**: only the owner can decide (product choice, credentials, a T3 hard limit, a judge HOLD on an unasked change), or the retries are used up. `hivemill ask add --task T-NNNN '...'`.
+- **Split** (rare): the task mixed two unrelated changes and cannot pass as one. Cancel it (`hivemill task cancel` closes its PR, the branch stays) and file the pieces with `--refile-of T-x` on the one its dependents need.
 
 Never cancel a held run's task: the owner merges or closes its PR. Its question is already in the owner queue.
 

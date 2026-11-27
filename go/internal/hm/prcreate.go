@@ -142,6 +142,12 @@ func (r *Runner) PR(action, title, body, cwd string) (string, error) {
 		return "", fmt.Errorf("%w: hivemill pr create --title TITLE --body - | pr ready", ErrUsage)
 	}
 	rc, out, errs := r.Tools.GH(input, argv...)
+	if rc != 0 && action == "create" && strings.Contains(errs, "already exists") {
+		// a retry in place continues the task's open PR: the push already updated it
+		if url := r.TaskPR(&Task{ID: tid, Branch: branch, GHRepo: repo}); url != "" {
+			return url + " is already open for " + branch + ": the push updated it\n", nil
+		}
+	}
 	if rc != 0 {
 		return out, fmt.Errorf("gh pr %s exited %d: %s", action, rc, strings.TrimSpace(errs))
 	}
