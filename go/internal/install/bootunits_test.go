@@ -123,8 +123,8 @@ func TestDarwinBootUnitsInstall(t *testing.T) {
 			n++
 		}
 	}
-	if n != 3 {
-		t.Errorf("bootstrap calls = %d, want 3: %v", n, launchctlCalls(f))
+	if n != 4 {
+		t.Errorf("bootstrap calls = %d, want 4: %v", n, launchctlCalls(f))
 	}
 	daemon, _ := os.ReadFile(filepath.Join(dir, "hivemill.daemon.plist"))
 	if !strings.Contains(string(daemon), "/opt/homebrew/bin") || !strings.Contains(string(daemon), f.HomeDir+"/.local/bin") {
