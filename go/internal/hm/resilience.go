@@ -2,6 +2,7 @@ package hm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -54,6 +55,9 @@ func (r *Runner) reconcile(run *Run, list []Terminal, listed bool) bool {
 			fixed = append(fixed, "resume of "+name+" failed: "+firstLine(err.Error()))
 		} else {
 			run.Resumes++
+			if name == run.Agent { // the time the session was gone is not its fault: a new message and a new grace
+				run.LongResumed, run.LongSendFailed = "", ""
+			}
 			fixed = append(fixed, "session "+name+" resumed")
 		}
 	}
@@ -161,6 +165,63 @@ func (r *Runner) HealthAlert(now time.Time, age time.Duration) (bool, error) {
 	return true, r.Store.SetMeta("alerted", strconv.FormatInt(now.Unix(), 10))
 }
 
+// ObsDown says why the dashboard does not answer on obs_listen:obs_port ("" = it answers). A wildcard obs_listen is
+// dialled on loopback.
+func (r *Runner) ObsDown() string {
+	host := strings.TrimSpace(r.Store.Cfg("obs_listen"))
+	switch host {
+	case "", "0.0.0.0":
+		host = "127.0.0.1"
+	case "::":
+		host = "::1"
+	}
+	addr := ObsAddr(host, cfgInt(r.Store, "obs_port"))
+	dial := r.ObsDial
+	if dial == nil {
+		dial = func(a string) error {
+			c, err := net.DialTimeout("tcp", a, 2*time.Second)
+			if err == nil {
+				_ = c.Close()
+			}
+			return err
+		}
+	}
+	if err := dial(addr); err != nil {
+		return fmt.Sprintf("hivemill obs does not answer on %s: %v", addr, err)
+	}
+	return ""
+}
+
+// ObsAlert follows ObsDown: while the dashboard is down it keeps the owner alert feed row open and raises the owner
+// alert at most once per alert_every_s (also across a recovery: a flapping obs alerts no more often); it closes the
+// row when why is "".
+func (r *Runner) ObsAlert(now time.Time, why string) (bool, error) {
+	s, err := r.sq()
+	if err != nil {
+		return false, err
+	}
+	if why == "" {
+		return false, s.CloseAlertKind("hivemill-obs-down")
+	}
+	link, check := "journalctl --user -u hivemill-obs.service", "Check `systemctl --user status hivemill-obs.service`."
+	if GOOS == "darwin" {
+		log := filepath.Join(r.Env.Home, "logs", "hivemill.obs.log")
+		link, check = log, "Check `launchctl print gui/$(id -u)/hivemill.obs` and "+log+"."
+	}
+	if err := r.Store.AlertFeed("hivemill-obs-down", "hivemill", link); err != nil {
+		return false, err
+	}
+	if last, err := strconv.ParseInt(r.Store.Meta("obs_alerted"), 10, 64); err == nil &&
+		now.Sub(time.Unix(last, 0)) < time.Duration(cfgInt(r.Store, "alert_every_s"))*time.Second {
+		return false, nil
+	}
+	if _, err := r.Alert("hivemill obs is down", why+". "+check); err != nil {
+		fmt.Fprintf(os.Stderr, "hivemill: alert: %v\n", err)
+	}
+	_ = r.Log.Emit("health.alert", nil, Event{Data: map[string]any{"why": why}})
+	return true, r.Store.SetMeta("obs_alerted", strconv.FormatInt(now.Unix(), 10))
+}
+
 // sdNotify sends one state line to systemd (Type=notify); a no-op outside systemd.
 func sdNotify(state string) {
 	sock := os.Getenv("NOTIFY_SOCKET")
@@ -179,13 +240,23 @@ func sdNotify(state string) {
 }
 
 // Daemon runs the pass loop in-process until ctx ends (SIGTERM): one pass every pass_interval_s, a heartbeat and a
-// watchdog ping after each pass. Only one daemon runs per factory home (its lock).
+// watchdog ping after each pass. Only one daemon runs per factory home: its flock on this machine and its daemon lock
+// (daemonlock.go) across machines.
 func (r *Runner) Daemon(ctx context.Context) error {
 	l := r.lock("daemon", false)
 	if l == nil {
 		return fmt.Errorf("%w: another hivemill daemon holds the lock", ErrRefused)
 	}
 	defer l.Close()
+	host, release, err := r.holdDaemonLock(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	bin, err := os.Executable()
+	if err != nil {
+		bin = "hivemill"
+	}
 	r.inDaemon = true
 	if err := r.WriteGuardExport(time.Now()); err != nil { // at start, even when another process holds the pass lock
 		r.printf("guard export: %v\n", err)
@@ -193,10 +264,20 @@ func (r *Runner) Daemon(ctx context.Context) error {
 	go r.keepGuardExport(ctx) // a pass can take longer than the export's 15-minute age limit
 	sdNotify("READY=1")
 	for {
+		if err := r.refreshDaemonLock(host, time.Now()); errors.Is(err, ErrRefused) { // another host took over
+			sdNotify("STOPPING=1")
+			return err
+		} else if err != nil { // a full disk or a brief I/O error does not stop the runner
+			r.printf("daemon lock: %v\n", err)
+		}
 		if err := r.Pass(true); err != nil {
 			r.printf("pass: %v\n", err)
 		} else {
 			_ = r.Heartbeat(time.Now())
+		}
+		// taken over during the pass: no planner, backup or standby check; the top of the loop ends this daemon
+		if errors.Is(r.refreshDaemonLock(host, time.Now()), ErrRefused) {
+			continue
 		}
 		r.PlannerPass(time.Now()) // held runs to the owner queue; keep the planner alive and wake it on events
 		r.OtelTail(time.Now())    // otel_endpoint set: finished tasks go out as traces (never fails the pass)
@@ -205,6 +286,7 @@ func (r *Runner) Daemon(ctx context.Context) error {
 				r.printf("backup: %v\n", err)
 			}
 		}
+		r.StandbyPass(bin, time.Now())
 		sdNotify("WATCHDOG=1")
 		select {
 		case <-ctx.Done():

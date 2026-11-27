@@ -2,6 +2,7 @@ package hm
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,7 +23,8 @@ type Verdict struct {
 	Head             string           `json:"head,omitempty"`
 	TS               string           `json:"ts,omitempty"`
 	Invalid          bool             `json:"invalid,omitempty"`
-	// JudgeVerdict is what the judge wrote when the runner overruled it (a MERGE with an unmapped change).
+	// JudgeVerdict is what the judge wrote when the runner overruled it: a MERGE turned into a REJECT (an unmarked unasked
+	// change) or a HOLD (a marked one that may touch a risk-tier path).
 	JudgeVerdict string `json:"judge_verdict,omitempty"`
 }
 
@@ -30,10 +32,14 @@ type Verdict struct {
 type Change struct {
 	Change    string  `json:"change"`
 	Criterion *string `json:"criterion"`
+	// UnaskedOK with a Why: no criterion asks for the change and the judge found it plausibly fine (unasked.go).
+	UnaskedOK bool   `json:"unasked_ok,omitempty"`
+	Why       string `json:"why,omitempty"`
+	File      string `json:"file,omitempty"` // the changed file of an unasked_ok change
 }
 
-// Verdicts the judge may give. HOLD parks the PR for the owner: the change may be fine, but nothing in the task asked
-// for it.
+// Verdicts the judge may give. HOLD parks the PR for the owner: nothing in the task asked for a change, and it cannot
+// be judged safe or unsafe.
 const (
 	VerdictMerge  = "MERGE"
 	VerdictReject = "REJECT"
@@ -41,7 +47,8 @@ const (
 )
 
 const verdictShape = `{"verdict": "MERGE"|"REJECT"|"HOLD", "reasons": [...], "criteria_assessed": [{"id": 1, "proven": true, "note": "..."}], ` +
-	`"changes": [{"change": "<quote from the diff>", "criterion": "<quote of the criterion's requirement>" or null}]}`
+	`"changes": [{"change": "<quote from the diff>", "criterion": "<quote of the criterion's requirement>" or null, ` +
+	`"unasked_ok": true, "why": "<one line>", "file": "<changed file>" (the last three only for a plausibly fine unasked change)}]}`
 
 const diffMax = 60000
 
@@ -93,7 +100,7 @@ func ChangeProblems(v *Verdict, t *Task) (unmapped, misquoted []string) {
 	}
 	spec, acc := normQuote(t.Spec), normQuote(t.Acceptance)
 	for _, c := range v.Changes {
-		if c.Criterion == nil || strings.TrimSpace(*c.Criterion) == "" {
+		if unmappedChange(c) {
 			unmapped = append(unmapped, truncate(c.Change, 200))
 			continue
 		}
@@ -124,15 +131,6 @@ func normQuote(s string) string {
 	return strings.TrimRight(s, " .…")
 }
 
-// overruleMerge turns a MERGE whose change list has an unmapped change into a REJECT: an unasked change never merges
-// on the judge's word alone.
-func overruleMerge(v *Verdict, unmapped []string) {
-	v.JudgeVerdict, v.Verdict = v.Verdict, VerdictReject
-	reasons := []string{"the judge said MERGE, but these changes map to no task criterion; remove them, or the owner " +
-		"adds a criterion that asks for them: " + strings.Join(unmapped, " | ")}
-	v.Reasons = append(reasons, v.Reasons...)
-}
-
 // Packet assembles the judge's input deterministically from the DB, the gate record and git.
 func (r *Runner) Packet(run *Run) (string, error) {
 	t, err := r.Store.Task(run.Task)
@@ -143,8 +141,12 @@ func (r *Runner) Packet(run *Run) (string, error) {
 	if g == nil {
 		g = &GateRecord{}
 	}
-	_, stat, _ := r.Tools.Git(run.Worktree, "diff", "--stat", "origin/"+run.Base+"...HEAD")
-	_, diff, _ := r.Tools.Git(run.Worktree, "diff", "origin/"+run.Base+"...HEAD")
+	git := r.at(run).git
+	_, stat, _ := git(run.Worktree, "diff", "--stat", "origin/"+run.Base+"...HEAD")
+	rc, diff, errs := git(run.Worktree, "diff", "origin/"+run.Base+"...HEAD")
+	if rc != 0 && run.cloned() { // never a packet without the diff because ssh failed
+		return "", fmt.Errorf("git diff on %s: exit %d: %s", run.Machine, rc, firstLine(errs))
+	}
 	if len(diff) > diffMax {
 		diff = diff[:diffMax] + fmt.Sprintf("\n... diff cut at %d characters; read the rest in your cwd if needed\n", diffMax)
 	}
@@ -199,7 +201,10 @@ func (r *Runner) Packet(run *Run) (string, error) {
 	for _, k := range sortedKeys(g.Checks) {
 		fmt.Fprintf(&b, "- %s: %s\n", k, truncate(g.Checks[k], 200))
 	}
-	_, names, _ := r.Tools.Git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	rc, names, errs := git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	if rc != 0 && run.cloned() {
+		return "", fmt.Errorf("git diff on %s: exit %d: %s", run.Machine, rc, firstLine(errs))
+	}
 	b.WriteString("\n## Scope check (mechanical)\n")
 	b.WriteString(ScopeSection(DeclaredScope(t), strings.Fields(names)))
 	fmt.Fprintf(&b, "\n## Diff stat\n```\n%s\n```\n\n## Diff\n```diff\n%s\n```\n", strings.TrimSpace(stat), diff)
@@ -225,7 +230,7 @@ func ScopeSection(s Scope, files []string) string {
 		return b.String()
 	}
 	fmt.Fprintf(&b, "- FLAGGED: %d of %d changed files are outside the declared scope. Each change in them must map to a "+
-		"criterion, or the verdict is REJECT (or HOLD when the change is plausibly fine):\n", len(out), len(files))
+		"criterion or be marked unasked_ok (plausibly fine), or the verdict is REJECT or HOLD:\n", len(out), len(files))
 	for _, x := range out {
 		fmt.Fprintf(&b, "  - %s\n", x)
 	}
@@ -248,7 +253,8 @@ func (r *Runner) StartJudge(run *Run) error {
 		return err
 	}
 	rel := fmt.Sprintf(".hivemill/judge-packet-r%d.md", n)
-	if err := os.WriteFile(filepath.Join(run.Worktree, rel), []byte(packet), 0o644); err != nil {
+	at := r.at(run)
+	if err := at.write(filepath.Join(run.Worktree, rel), []byte(packet), 0o644); err != nil {
 		return err
 	}
 	// The judge's model follows the files the diff really changes (and the declared scope), not the task's words.
@@ -256,7 +262,10 @@ func (r *Runner) StartJudge(run *Run) error {
 	if err != nil {
 		return err
 	}
-	_, names, _ := r.Tools.Git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	rc, names, errs := at.git(run.Worktree, "diff", "--name-only", "origin/"+run.Base+"...HEAD")
+	if rc != 0 && run.cloned() {
+		return fmt.Errorf("git diff on %s: exit %d: %s", run.Machine, rc, firstLine(errs))
+	}
 	risky, _ := Risk(r.Env.Home, t, strings.Fields(names))
 	model, effort, err := r.ModelFor(risky || run.Tier == "T3")
 	if err != nil {
@@ -267,7 +276,8 @@ func (r *Runner) StartJudge(run *Run) error {
 	kick := fmt.Sprintf("You are `%s`, the factory task-judge. Judge %s (%s). Read the judge packet %s in your cwd, then answer "+
 		"with the verdict JSON block.", name, run.Task, run.PRURL, rel)
 	_, err = r.StartSession(run, Launch{Role: "task-judge", Name: name, Cwd: run.Worktree, Model: model, Effort: effort,
-		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task-judge.md"), Kickoff: kick})
+		PromptFile: filepath.Join(r.Env.Home, "roles", "hivemill", "task-judge.md"), Kickoff: kick,
+		Machine: at.machine}) // the judge stays here, except for a worktree that is only on a clone-mode machine
 	if err == nil {
 		r.recordPrompt(run, "judge", "judge", packet) // the judge reads it from the file the kickoff names
 	}
@@ -284,8 +294,13 @@ func LastAssistantText(h HookInput) string {
 		return ""
 	}
 	defer f.Close()
+	return transcriptText(f)
+}
+
+// transcriptText is the last assistant text of a Claude Code transcript.
+func transcriptText(in io.Reader) string {
 	text := ""
-	sc := bufio.NewScanner(f)
+	sc := bufio.NewScanner(in)
 	sc.Buffer(make([]byte, 1<<20), 64<<20)
 	for sc.Scan() {
 		var d struct {
@@ -330,7 +345,13 @@ func (r *Runner) JudgeHook(in io.Reader, out io.Writer) error {
 	}
 	defer func() { _ = r.Store.PutRun(run) }()
 	r.noteSession(run, h.SessionID, r.Env.Actor)
-	v, perr := ParseVerdict(LastAssistantText(h))
+	said := LastAssistantText(h)
+	if said == "" && run.cloned() { // the transcript is on the judge's machine
+		if b, err := r.at(run).read(h.TranscriptPath); err == nil {
+			said = transcriptText(bytes.NewReader(b))
+		}
+	}
+	v, perr := ParseVerdict(said)
 	if perr == nil && v.Verdict == VerdictMerge {
 		perr = r.mergeChangeCheck(run, v)
 	}
@@ -346,25 +367,26 @@ func (r *Runner) JudgeHook(in io.Reader, out io.Writer) error {
 	return r.RecordVerdict(run, v, h.SessionID, r.Env.Actor)
 }
 
-// mergeChangeCheck holds a MERGE to its change list. A change mapped to no criterion overrules it to REJECT at once.
-// An empty list, or a criterion quote that is not in the task, is a malformed verdict: the stop is refused once so the
+// mergeChangeCheck holds a MERGE to its change list. overruleMerge decides about changes mapped to no criterion at
+// once. An empty list, or a criterion quote that is not in the task, is a malformed verdict: the stop is refused once so the
 // judge can fix it, and a second one counts as REJECT.
 func (r *Runner) mergeChangeCheck(run *Run, v *Verdict) error {
 	if len(v.Changes) == 0 {
 		return errors.New("a MERGE needs a non-empty changes list: list every behaviour change in the diff, each with the criterion it serves")
 	}
-	t, err := r.Store.Task(run.Task)
-	if err != nil {
-		return nil // the runner cannot read the task: the mapping stays unchecked, the merge gate still applies
-	}
-	unmapped, misquoted := ChangeProblems(v, t)
-	if len(unmapped) > 0 {
-		overruleMerge(v, unmapped)
+	overruleMerge(v, r.unaskedRisk(run))
+	if v.Verdict == VerdictReject {
 		return nil
 	}
+	t, err := r.Store.Task(run.Task)
+	if err != nil {
+		return nil // the runner cannot read the task: the quotes stay unchecked, the merge gate still applies
+	}
+	// a HOLD is checked too: the owner who merges it reads the same mapping
+	_, misquoted := ChangeProblems(v, t)
 	if len(misquoted) > 0 {
 		return errors.New("each criterion must quote the task's own words for what was asked, never a proof command: " +
-			strings.Join(misquoted, "; ") + ". Quote the requirement word for word, or set criterion to null and give REJECT or HOLD")
+			strings.Join(misquoted, "; ") + ". Quote the requirement word for word, or set criterion to null and mark it unasked_ok, or give REJECT or HOLD")
 	}
 	return nil
 }
