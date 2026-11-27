@@ -11,6 +11,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Fixed
 
+- **Runs with a finished PR land by themselves.** A run that would fail as stalled, timed out or with the gate finding no PR goes to CI and the judge when its branch has an open PR; a running Stop gate hook no longer counts as an idle session (a hook past its timeout fails as `gate hook timed out`); and answering a held run's question with `approved` or `merge it` counts as the judge's MERGE for the held head (T-2188).
+
 - **`hivemill proofs touched --ios-dir` no longer passes on a mistyped directory.** An iOS directory that is missing under the root, or differs in letter case from the real one, is now a usage error (exit 2) that names it, not `SKIP xcodebuild: no iOS change` (T-2074).
 
 ### Added
