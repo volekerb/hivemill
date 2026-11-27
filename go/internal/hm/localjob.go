@@ -298,8 +298,18 @@ func (r *Runner) killCIOrphans(j *ciJob) error {
 		}
 		return nil
 	}
-	if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
-		_ = syscall.Kill(-pid, syscall.SIGKILL)
+	// the wrapper's lock is free before its pid is: it has yet to exit and be reaped, so wait for that while the group
+	// lasts. A process that is exiting or a zombie has no command line; one that names no result file is someone else's.
+	cmdline, result := fmt.Sprintf("/proc/%d/cmdline", pid), filepath.Join(j.Dir, "result")
+	for end := time.Now().Add(5 * time.Second); syscall.Kill(-pid, 0) == nil; time.Sleep(10 * time.Millisecond) {
+		err := syscall.Kill(pid, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
+		}
+		b, _ := os.ReadFile(cmdline)
+		if err != nil || time.Now().After(end) || (len(b) > 0 && !strings.Contains(string(b), result)) {
+			break
+		}
 	}
 	return nil
 }
