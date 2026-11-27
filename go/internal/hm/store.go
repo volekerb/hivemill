@@ -65,6 +65,8 @@ type Run struct {
 	LongPct        int    `json:",omitempty"`
 	LongResumed    string `json:",omitempty"`
 	LongSendFailed string `json:",omitempty"` // the first time that message could not be sent
+	HookStarted    string `json:",omitempty"` // when the gate hook that has not returned yet began (idleWatch)
+	RescuedHead    string `json:",omitempty"` // the PR head last taken to evaluation without a gate pass
 }
 
 // Session is one Claude session of a run (task, judge).
