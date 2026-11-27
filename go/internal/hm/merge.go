@@ -33,7 +33,8 @@ type MergeInput struct {
 	IdentityOK     bool     `json:"identity_ok"`
 	PublicTextOK   bool     `json:"public_text_ok"`
 	PublicTextNote string   `json:"public_text_note,omitempty"`
-	T3Auto         bool     `json:"t3_auto,omitempty"` // t3_auto_merge is on and the task has no manual: criterion
+	T3Auto         bool     `json:"t3_auto,omitempty"`  // t3_auto_merge is on and the task has no manual: criterion
+	Approved       bool     `json:"approved,omitempty"` // the owner approved exactly this head (held.go)
 }
 
 // MergeDecision is what to do now.
@@ -49,6 +50,7 @@ const MaxMechTier = "T2"
 // Decide reproduces the safety checks of the old mechanical merger: open, not draft, not frozen, a judge MERGE on this
 // exact head, no conflict, fresh against main, green and complete checks, tier at most T2, main not red (unless this is
 // the fix task), main's own push run finished green, noreply identity and clean public text. T3Auto lets T3 through.
+// Approved (the owner approved this head) stands for the judge's MERGE and the tier rule; every other check stays.
 func Decide(in MergeInput) MergeDecision {
 	switch {
 	case in.PRState == "MERGED":
@@ -59,9 +61,9 @@ func Decide(in MergeInput) MergeDecision {
 		return MergeDecision{"block", "the PR is a draft"}
 	case in.Frozen:
 		return MergeDecision{"block", "the repo is frozen (frozen_repos)"}
-	case in.LaneVerdict == "fail":
+	case in.LaneVerdict == "fail" && !in.Approved:
 		return MergeDecision{"block", "the judge rejected this head"}
-	case in.LaneVerdict != "pass":
+	case in.LaneVerdict != "pass" && !in.Approved:
 		return MergeDecision{"rejudge", fmt.Sprintf("no judge MERGE on head %.8s (the head moved after the verdict)", in.Head)}
 	case in.Mergeable == "CONFLICTING" || (in.Behind && !in.MergeClean):
 		return MergeDecision{"resume", "the branch conflicts with the base branch"}
@@ -75,9 +77,9 @@ func Decide(in MergeInput) MergeDecision {
 		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case len(in.MissingChecks) > 0:
 		return MergeDecision{"hold", "required checks missing: " + strings.Join(in.MissingChecks, ", ")}
-	case in.Tier == "":
+	case in.Tier == "" && !in.Approved:
 		return MergeDecision{"block", "the risk tier cannot be decided; the owner merges"}
-	case tierAbove(in.Tier, MaxMechTier) && !(in.Tier == "T3" && in.T3Auto):
+	case tierAbove(in.Tier, MaxMechTier) && !(in.Tier == "T3" && in.T3Auto) && !in.Approved:
 		return MergeDecision{"block", "tier " + in.Tier + " is above " + MaxMechTier + "; the owner merges"}
 	case in.RedMain && !in.FixTask:
 		return MergeDecision{"hold", "main is red; merges wait for a green push run"}
@@ -103,6 +105,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 		return in, nil, err
 	}
 	in.PRState, in.Draft, in.Mergeable, in.Head = pr.State, pr.IsDraft, pr.Mergeable, pr.HeadRefOid
+	in.Approved = run.Approved != "" && run.Approved == pr.HeadRefOid
 	if pr.State != "OPEN" {
 		return in, pr, nil
 	}
@@ -301,7 +304,11 @@ func (r *Runner) Merge(run *Run) {
 			return
 		}
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
-		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
+		keep := ""
+		if run.Approved != "" {
+			keep = " The owner approved this PR: keep the approved changes."
+		}
+		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+"."+keep)
 	case "refresh":
 		if h := r.refreshHolder(run); h != "" {
 			run.MergeHold = "hold: waiting for " + h + " to merge (one refresh at a time per repo)"
@@ -319,6 +326,9 @@ func (r *Runner) Merge(run *Run) {
 // false when no T3 decision is due; wait names why one cannot be taken yet. Below T3 only limit f is checked, since the
 // gate's own files are not sensitive paths of the tier rules.
 func (r *Runner) t3Guard(run *Run, in MergeInput, d MergeDecision) (guarded bool, limits []Limit, wait string) {
+	if in.Approved { // the owner decided on this head: the limits only say when to ask
+		return false, nil, ""
+	}
 	if d.Action == "merge" && !tierAbove(in.Tier, MaxMechTier) {
 		diff, err := r.readDiff(run.Worktree, run.Base, in.Head)
 		if err != nil {
@@ -421,14 +431,15 @@ func heldForOwner(x *Run) bool {
 	return x.State == Held || (x.State == Failed && strings.HasPrefix(x.FailReason, "merge blocked: ") && OwnerMerges(x.FailReason))
 }
 
-// checkHeld finishes a held run whose PR the owner merged, and fails one whose PR was closed.
-func (r *Runner) checkHeld(run *Run) {
+// checkHeld finishes a held run whose PR the owner merged, and fails one whose PR was closed. It returns the PR it
+// read, nil when there is none.
+func (r *Runner) checkHeld(run *Run) *PR {
 	if run.PRURL == "" {
-		return
+		return nil
 	}
 	pr, err := PRView(r.Tools, run.PRURL)
 	if err != nil {
-		return
+		return nil
 	}
 	switch pr.State {
 	case "MERGED":
@@ -438,6 +449,7 @@ func (r *Runner) checkHeld(run *Run) {
 	case "CLOSED":
 		r.fail(run, "the owner closed the held PR")
 	}
+	return pr
 }
 
 // refresh merges origin/<base> into the branch (a merge commit, never a force-push), pushes it and carries the judge's
@@ -457,6 +469,9 @@ func (r *Runner) refresh(run *Run) {
 	}
 	_, run.Head, _ = r.Tools.Git(wt, "rev-parse", "HEAD")
 	run.JudgeHead = run.Head
+	if run.Approved != "" && run.Approved == old {
+		run.Approved = run.Head // a clean merge of the base only: the approved change is the same
+	}
 	run.Refreshes++
 	if run.cloned() { // a resumed session must start from the refreshed head, and the worktree's removal looks for it
 		at := r.at(run)

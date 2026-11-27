@@ -11,6 +11,7 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **Held runs act on the answer.** An answer to a held run's question that starts with `approved` moves it back to `merging` (refresh, CI and merge as usual, with no second owner decision on that head); any other answer resumes the task session with the answer as a new round. A held PR that conflicts with its base is resumed to resolve it. Event `ask.applied` records the new state.
 - **Task sessions keep temp files on disk.** `TMPDIR` is `~/.cache/hivemill/tmp/<session>`, removed when the session is closed; `CLAUDE_CODE_TMPDIR` stays `/tmp` so the worker guard still finds the scratchpad; `GOTMPDIR` and `GOCACHE` are under `~/.cache/hivemill/go`, so parallel go builds no longer fill a small `/tmp`. Sessions placed on another machine keep that machine's defaults (T-2083).
 
 - **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).

@@ -20,7 +20,7 @@ hivemill planner stop           # turn it off and close the terminal
 ## Wakes
 
 The daemon runs `PlannerPass` after every pass:
-1. Each held run gets one owner question (ref `held:<task>:<round>`). It is withdrawn once the run is no longer held.
+1. Each held run gets one owner question (ref `held:<task>:<round>`). It is withdrawn once the run is no longer held. An answer moves the run on ([option-b-runner.md](option-b-runner.md), Merge).
 2. With the planner on and its terminal gone, the planner is resumed with `claude --resume <last session id>` (the SessionStart hook keeps the id current), at most `resume_max` times in 24 h. After that: one owner alert `hivemill-planner` and no more tries until `planner start`.
 3. Otherwise `DecideWake` decides. It is a pure function, and its state is kept in `hm_config` meta.
    - **Event reasons** come from `events.jsonl` after a byte cursor: `task.failed`, `run.held`, `budget.reached`, `goal.checked`, `ask.answered`.

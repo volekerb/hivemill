@@ -58,6 +58,7 @@ type Run struct {
 	// T3 auto-merge (merge.go)
 	Guarded    string `json:",omitempty"` // head and limits of the last merge.guarded event
 	Unattended bool   `json:",omitempty"` // the runner merges this T3 run without the owner
+	Approved   string `json:",omitempty"` // the head the owner approved in answer to the held question (held.go)
 	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
 	Mirror, RemoteHome string `json:",omitempty"`
 	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
@@ -904,6 +905,19 @@ func (s *SQLite) CloseAsk(id int64, status, answer, by string) error {
 		return fmt.Errorf("%w: question #%d is not open", ErrRefused, id)
 	}
 	return nil
+}
+
+// RetireAskRef renames the ref of the closed questions of one held round, so their answer acts no more and a new
+// question can take the ref.
+func (s *SQLite) RetireAskRef(ref string) error {
+	_, err := s.db.Exec(`UPDATE hm_asks SET ref='used:'||id||':'||ref WHERE ref=? AND status!='open'`, ref)
+	return err
+}
+
+// RetireHeldAsks does that for every held round of a task.
+func (s *SQLite) RetireHeldAsks(task string) error {
+	_, err := s.db.Exec(`UPDATE hm_asks SET ref='used:'||id||':'||ref WHERE ref LIKE 'held:'||?||':%' AND status!='open'`, task)
+	return err
 }
 
 // SessionsBetween lists every hm_sessions row started in [from, to) (planner sessions included).

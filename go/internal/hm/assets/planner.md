@@ -48,7 +48,7 @@ A task that ran once is never started again. For a failed run, read why (`hivemi
 
 On every re-file (split or spec fix) pass `--refile-of T-x` to `hivemill task add`: the tasks that depend on T-x then move to the new id. On a split, flag exactly one piece, the one they need, and give the other pieces neither the flag nor a `(re-file of T-x` title.
 
-Never cancel a held run's task: the owner merges or closes its PR. Its question is already in the owner queue.
+Never cancel a held run's task: its question is already in the owner queue. The owner's answer moves it (one that starts with "approved" merges it, any other resumes its task session), or the owner merges or closes the PR.
 
 ## Owner questions
 

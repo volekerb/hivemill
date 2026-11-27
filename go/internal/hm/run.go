@@ -291,6 +291,12 @@ func (r *Runner) Start(id string) error {
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
+	// an answer to a held question of an earlier run of this task must not act on this one
+	if s, err := r.sq(); err == nil {
+		if err := s.RetireHeldAsks(id); err != nil {
+			return err
+		}
+	}
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
@@ -458,6 +464,10 @@ func (r *Runner) resume(run *Run, text string) { r.resumeAs(run, "resume", text)
 
 // resumeAs is resume with the kind a prompt to the warm session is recorded under (a relaunch records its own).
 func (r *Runner) resumeAs(run *Run, kind, text string) {
+	if err := r.remakeWorktree(run); err != nil {
+		r.fail(run, err.Error())
+		return
+	}
 	// The last round's findings describe an older head: keep them as findings-rN.json, so the new round's mid-work stops
 	// are deferred until the session writes fresh findings.
 	if run.Worktree != "" {
@@ -523,7 +533,7 @@ func (r *Runner) Pass(startNew bool) error {
 		if heldForOwner(&x) && !x.Eval {
 			if l := r.lock(x.Task, false); l != nil {
 				if run, _ := r.Store.Run(x.Task); run != nil && heldForOwner(run) {
-					r.checkHeld(run)
+					r.actHeld(run, r.checkHeld(run), ok)
 					_ = r.Store.PutRun(run)
 				}
 				l.Close()
