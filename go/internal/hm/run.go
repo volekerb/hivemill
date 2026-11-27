@@ -588,6 +588,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.WriteGuardExport(time.Now()); err != nil { // a standalone home: the guard fails closed on a stale export
 		r.printf("hivemill: %v\n", err)
 	}
+	r.pushGuardExports(time.Now())  // and so does the guard on a clone-mode machine (pushGuardExport)
 	defer r.removeRemoteWorktrees() // after the runs advanced: an ended one gives its worktree back
 	list, ok := Terminals(r.Tools)
 	runs, err := r.Store.Runs()
@@ -680,6 +681,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		}
 		_ = r.Store.PutRun(run)
 	}()
+	if Active(run.State) {
+		r.syncActiveTranscripts(run) // before overBudget here and the day and week caps read costs later in the pass
+	}
 	if Active(run.State) && run.State != Merging && r.overBudget(run) {
 		return run.State, nil
 	}
@@ -789,9 +793,7 @@ func (r *Runner) gated(run *Run) {
 				r.ciRed(run, rows)
 			}
 		case "green":
-			if err := r.StartJudge(run); err != nil {
-				r.fail(run, "the judge did not start: "+err.Error())
-			}
+			r.startJudge(run)
 		default:
 			// in a pass, running Actions checks over budget are re-run (trackFlow); the rest alert the owner, and so does
 			// a wait of twice the budget, which a series of short jobs can reach without one job running over it

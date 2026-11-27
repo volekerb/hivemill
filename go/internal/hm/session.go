@@ -28,7 +28,27 @@ func uuid4() string {
 // RenderSettings substitutes the @FACTORY_* tokens of roles/hivemill/<role>.json.in and writes the result under the
 // state dir. A leftover token or invalid JSON refuses the launch.
 func RenderSettings(e Env, role string) (string, error) {
-	src := filepath.Join(e.Home, "roles", "hivemill", role+".json.in")
+	text, err := renderRole(e.Home, e, role)
+	if err != nil {
+		return "", err
+	}
+	if text, err = standaloneGuard(text, e.Home); err != nil { // a home without the guard shim: `hivemill guard`
+		return "", err
+	}
+	if !json.Valid([]byte(text)) {
+		return "", fmt.Errorf("the %s settings render to invalid JSON", role)
+	}
+	dir := filepath.Join(e.StateDir(), "settings")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	dst := filepath.Join(dir, role+".json")
+	return dst, writeFile(dst, text, 0o644)
+}
+
+// renderRole substitutes the tokens of srcHome's template with the paths of e (the machine the session runs on).
+func renderRole(srcHome string, e Env, role string) (string, error) {
+	src := filepath.Join(srcHome, "roles", "hivemill", role+".json.in")
 	b, err := readRoleFile(src) // the home's copy, else the built-in one (standalone install)
 	if err != nil {
 		return "", fmt.Errorf("cannot read %s: %w", src, err)
@@ -42,18 +62,7 @@ func RenderSettings(e Env, role string) (string, error) {
 	if strings.Contains(text, "@FACTORY_") {
 		return "", fmt.Errorf("%s has an unknown @FACTORY_ token", src)
 	}
-	if text, err = standaloneGuard(text, e.Home); err != nil { // a home without the guard shim: `hivemill guard`
-		return "", err
-	}
-	if !json.Valid([]byte(text)) {
-		return "", fmt.Errorf("%s renders to invalid JSON", src)
-	}
-	dir := filepath.Join(e.StateDir(), "settings")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
-	}
-	dst := filepath.Join(dir, role+".json")
-	return dst, writeFile(dst, text, 0o644)
+	return text, nil
 }
 
 // TrustClone pre-registers workspace trust for a clone under <home>/worktrees in ~/.claude.json, so no trust dialog
@@ -114,25 +123,36 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	if run != nil {
 		task, goal = run.Task, run.Goal
 	}
-	settings, err := RenderSettings(r.Env, l.Role)
+	// h is the factory home and user home of the session's machine, files the way to write there.
+	h, files, remote := r.Env, place{r: r}, run.cloned() && l.Machine != ""
+	var settings string
+	var err error
+	if remote {
+		h, files = Env{Home: remoteBase(run.RemoteHome), UserHome: run.RemoteHome}, r.at(run)
+		settings, err = r.remoteSettings(l.Machine, run.RemoteHome, l.Role)
+	} else {
+		settings, err = RenderSettings(r.Env, l.Role)
+	}
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(r.Env.StateDir(), "spawn")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
+	dir := filepath.Join(h.StateDir(), "spawn")
+	if !remote {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return "", err
+		}
 	}
 	sysprompt := filepath.Join(dir, l.Name+".prompt.md")
 	pb, err := readRoleFile(l.PromptFile)
 	if err != nil {
 		return "", err
 	}
-	if err := writeFile(sysprompt, string(pb), 0o600); err != nil {
+	if err := files.write(sysprompt, pb, 0o600); err != nil {
 		return "", err
 	}
 	sid := uuid4()
 	args := []string{"--model", l.Model, "--effort", l.Effort, "--permission-mode", "auto", "--settings", settings,
-		"--append-system-prompt-file", sysprompt, "--add-dir", r.Env.Home, "-n", l.Name,
+		"--append-system-prompt-file", sysprompt, "--add-dir", h.Home, "-n", l.Name,
 		"--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`}
 	if l.Resume != "" {
 		sid = l.Resume // --resume keeps the session id; the SessionStart hook records any new one
@@ -141,11 +161,18 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 		args = append(args, "--session-id", sid)
 	}
 	env := sessionEnv(r.Env.UserHome, l.Name)
-	env["FACTORY_ROLE"], env["FACTORY_HOME"] = l.Role, r.Env.Home
+	env["FACTORY_ROLE"], env["FACTORY_HOME"] = l.Role, h.Home
 	if err := prepareSessionDirs(env, l.Machine); err != nil { // before the l.Env overrides: they still apply
 		return "", err
 	}
+	if remote {
+		env["HOME"] = h.UserHome
+		env["PATH"] = strings.ReplaceAll(strings.TrimSuffix(remotePATH, ":$PATH")+":/usr/bin:/bin:/usr/sbin:/sbin", "$HOME", h.UserHome)
+	}
 	for k, v := range l.Env {
+		if remote && strings.HasSuffix(k, "_FILE") {
+			v = r.mapHome(v, run.RemoteHome)
+		}
 		env[k] = v
 	}
 	keys := make([]string, 0, len(env))
@@ -164,7 +191,7 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 	for i, a := range argv {
 		quoted[i] = shlex.Quote(a)
 	}
-	if err := writeFile(script, "#!/bin/sh\nexec "+strings.Join(quoted, " ")+"\n", 0o700); err != nil {
+	if err := files.write(script, []byte("#!/bin/sh\nexec "+strings.Join(quoted, " ")+"\n"), 0o700); err != nil {
 		return "", err
 	}
 	spawnArgs, _ := json.Marshal(map[string]string{"role": l.Role, "lane": "option-b", "host_backend": "hc", "model": l.Model,
@@ -176,13 +203,21 @@ func (r *Runner) StartSession(run *Run, l Launch) (string, error) {
 		_ = r.Store.AgentEnded(l.Name) // no terminal was started
 		return "", err
 	}
+	if remote { // the guard there reads this copy, before the session's first tool call
+		if err := r.pushGuardExport(l.Machine, run.RemoteHome, time.Now()); err != nil {
+			_ = r.Store.AgentEnded(l.Name)
+			return "", err
+		}
+	}
 	// Pin the terminal to this machine: an hc wrapper may place worker-named terminals elsewhere, where the hook
 	// binary and the factory DB are not local.
 	runArgs := []string{"run", "--bg", "--no-parent", "--name", l.Name, "--cwd", l.Cwd}
 	if l.Machine != "" {
 		runArgs = append(runArgs, "--on", l.Machine) // a placed session: its hivemill forwards to this coordinator
-		if err := r.trustOn(l.Machine, l.Cwd); err != nil {
-			fmt.Fprintf(os.Stderr, "hivemill: trust %s on %s: %v (the trust dialog may show)\n", l.Cwd, l.Machine, err)
+		if !remote {                                 // a clone-mode worktree was trusted when it was made
+			if err := r.trustOn(l.Machine, l.Cwd); err != nil {
+				fmt.Fprintf(os.Stderr, "hivemill: trust %s on %s: %v (the trust dialog may show)\n", l.Cwd, l.Machine, err)
+			}
 		}
 	} else if core := r.coreName(); core != "" {
 		runArgs = append(runArgs, "--on", core)
