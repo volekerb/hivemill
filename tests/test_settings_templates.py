@@ -390,5 +390,29 @@ class GuardDiffSettingsTests(unittest.TestCase):
             self.assertNotIn("SETTINGS-LOOSENED", p.stdout)
 
 
+class DenyRulesEffectiveTests(unittest.TestCase):
+    """T-2093: the Python side of go/internal/hm/settings_deny_test.go, on the raw templates."""
+    EMBEDDED = ("go/internal/hm/assets/planner.json.in", "go/internal/hm/assets/task-judge.json.in",
+                "go/internal/hm/assets/task.json.in")
+    PINNED = "go/internal/hm/testdata/settings_deny_paths.txt"
+
+    def test_embedded_hivemill_templates_are_copies_of_roles_hivemill(self):
+        for rel in self.EMBEDDED:
+            with self.subTest(rel):
+                self.assertEqual((REPO / rel).read_bytes(), (REPO / "roles" / "hivemill" / Path(rel).name).read_bytes())
+
+    def test_each_pinned_path_has_an_edit_deny_in_its_own_template(self):
+        lines = [x for x in (REPO / self.PINNED).read_text().splitlines() if x.strip() and not x.startswith("#")]
+        self.assertTrue(lines)
+        for line in lines:
+            name, _, paths = line.partition(": ")
+            with self.subTest(name):
+                rules = set(json.loads((REPO / name).read_text())["permissions"]["deny"])
+                self.assertTrue(paths.split())
+                self.assertEqual([p for p in paths.split() if "Edit(%s)" % p not in rules], [])
+                self.assertEqual(sorted(r for r in rules if r in ("MultiEdit", "Advisor")
+                                        or r.startswith(("Write(", "MultiEdit(", "NotebookEdit("))), [])
+
+
 if __name__ == "__main__":
     unittest.main()

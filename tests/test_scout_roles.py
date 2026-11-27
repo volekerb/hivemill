@@ -12,7 +12,8 @@ from test_worker_guard import HOOK, run_hook
 HOME_DIR = pwd.getpwuid(os.getuid()).pw_dir
 LIVE_HOME = os.path.join(HOME_DIR, "factory")  # what the hook and bin/factory derive (T-0212)
 
-# the qa.json deny baseline both new roles must keep
+# the qa.json deny baseline both new roles must keep; go/internal/factorytest/scout/roles_port_test.go (rpBaseline) keeps
+# the same list
 BASELINE = [
     "Bash(gh pr merge:*)", "Bash(sqlite3:*)", "Bash(herdr server stop:*)", "Bash(herdr agent start:*)",
     "Bash(git push origin main:*)", "Bash(git push --force:*)", "Bash(git push -f:*)",
