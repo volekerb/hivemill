@@ -195,6 +195,7 @@ class InstallDryRunWritesNothing(unittest.TestCase):
         return sorted(out)
 
     def test_listing_unchanged(self):
+        # Go twins: go/internal/factorytest/guard2/scratch_init_test.go and go/internal/guard/g2b_test.go
         home, fh = os.path.join(_tmp[0], "scratch", "h"), os.path.join(_tmp[0], "scratch", "f")
         before = self.listing(home, fh)
         env = {"PATH": os.environ["PATH"], "HOME": home, "FACTORY_HOME": fh, "USER": "tester"}
