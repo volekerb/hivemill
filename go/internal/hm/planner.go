@@ -290,7 +290,7 @@ func (r *Runner) enqueuePlannerWork(events, levels []string, syncLevels bool) {
 }
 
 var plannerLevelKinds = map[string]bool{"queue_low": true, "not_dispatched": true, "goal_done": true, "unstartable": true,
-	"none_startable": true}
+	"none_startable": true, "dead_dep": true}
 
 // PlannerDone closes planner work rows with close_reason done. An unknown or closed id fails and closes none.
 func (r *Runner) PlannerDone(ids []int64, note string) error {

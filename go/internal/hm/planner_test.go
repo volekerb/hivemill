@@ -611,12 +611,14 @@ func TestPlannerDoneUnknownID(t *testing.T) {
 func TestPlannerWorkStartableLevelsClear(t *testing.T) {
 	r, s, _ := plannerRunner(t, "runner")
 	r.enqueuePlannerWork(nil, []string{"unstartable:T-1", "none_startable:todo=1,blocked_by_deps=0,blocked_by_lint=1"}, true)
-	r.enqueuePlannerWork(nil, []string{"unstartable:T-1", "none_startable:todo=2,blocked_by_deps=1,blocked_by_lint=1"}, true)
+	r.enqueuePlannerWork(nil, []string{"unstartable:T-1", "none_startable:todo=2,blocked_by_deps=1,blocked_by_lint=1",
+		"dead_dep:T-2=T-3(cancelled)"}, true)
 	work, err := s.OpenPlannerWork()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(work) != 2 || work[0].Kind != "unstartable" || work[0].Ref != "T-1" || work[1].Kind != "none_startable" || work[1].Ref != "" {
+	if len(work) != 3 || work[0].Kind != "unstartable" || work[0].Ref != "T-1" || work[1].Kind != "none_startable" || work[1].Ref != "" ||
+		work[2].Kind != "dead_dep" || work[2].Ref != "T-2" {
 		t.Fatalf("want one row per level after changed counts, got %+v", work)
 	}
 	r.enqueuePlannerWork(nil, nil, true)
@@ -624,7 +626,7 @@ func TestPlannerWorkStartableLevelsClear(t *testing.T) {
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM planner_work WHERE close_reason='cleared'`).Scan(&cleared); err != nil {
 		t.Fatal(err)
 	}
-	if work, _ = s.OpenPlannerWork(); len(work) != 0 || cleared != 2 {
-		t.Fatalf("want both rows closed as cleared, got %d cleared, open %+v", cleared, work)
+	if work, _ = s.OpenPlannerWork(); len(work) != 0 || cleared != 3 {
+		t.Fatalf("want all rows closed as cleared, got %d cleared, open %+v", cleared, work)
 	}
 }
