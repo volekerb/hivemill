@@ -48,12 +48,7 @@ var (
 func dockerGuardBin(t *testing.T) string {
 	t.Helper()
 	dockerBinOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "docker-prune-bin-")
-		if err != nil {
-			dockerBinErr = err
-			return
-		}
-		dockerBinPath = filepath.Join(dir, "worker-guard")
+		dockerBinPath = filepath.Join(testBinDir, "worker-guard")
 		cmd := exec.Command("go", "build", "-o", dockerBinPath, "./cmd/worker-guard")
 		cmd.Dir = filepath.Join(dockerRepoRoot, "go")
 		if out, err := cmd.CombinedOutput(); err != nil {
