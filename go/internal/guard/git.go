@@ -3,6 +3,7 @@ package guard
 import (
 	"errors"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -1282,6 +1283,8 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 	if ferr != nil {
 		return ferr
 	}
+	ownTask := task
+	task = pushTask(ownTask) // the branch of a re-filed task; the worktree below stays this task's own
 	ref := "HEAD:factory/" + task
 	pushOK := len(args) == 2 && args[1] == ref && (args[0] == "origin" || (fac != "" && normalizePushURL(args[0]) == normalizePushURL(fac)))
 	if !pushOK {
@@ -1295,12 +1298,12 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 	}
 	// T-0743: the own worktree is the one recorded for this task in the factory DB (the guard export), not whatever
 	// dir the pane sits in; the hook cwd and any -C target must be inside / equal to it. Unresolvable -> refuse.
-	own, found, err := taskWorktree(task)
+	own, found, err := taskWorktree(ownTask)
 	if err != nil {
 		return err
 	}
 	if !found {
-		return blockf("git push: cannot resolve the worktree recorded for " + task + " in the factory DB; ask your lead")
+		return blockf("git push: cannot resolve the worktree recorded for " + ownTask + " in the factory DB; ask your lead")
 	}
 	cwd := pyRealpath(a.Cwd)
 	if cwd != own && !strings.HasPrefix(cwd, own+"/") {
@@ -1318,6 +1321,21 @@ func (a *Analyzer) gitPushPin(rest []string) error {
 		}
 	}
 	return nil
+}
+
+// PushTaskVar is set by the runner on the session of a re-filed task (`task add --refile-of`): that task continues the
+// old task's branch, so its one allowed push goes to factory/<that task>. Like FACTORY_AGENT it is read from the hook's
+// own environment, which a command cannot change, and workers may not assign it.
+const PushTaskVar = "FACTORY_PUSH_TASK"
+
+var rePushTask = regexp.MustCompile(`^t-[0-9]+$`)
+
+// pushTask is the task whose branch the pane of task `own` pushes.
+func pushTask(own string) string {
+	if v := os.Getenv(PushTaskVar); rePushTask.MatchString(v) {
+		return v
+	}
+	return own
 }
 
 // coderTask is re.fullmatch(r"(?:claude-|cursor-)?coder-(t-\d+)(?:-a\d+)?", agent): the task id part.

@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"factory/go/internal/guard"
 )
 
 // Run states.
@@ -230,10 +232,7 @@ func (r *Runner) Start(id string) error {
 	if err != nil {
 		return err
 	}
-	branch := t.Branch
-	if branch == "" {
-		branch = "factory/" + strings.ToLower(id)
-	}
+	branch := r.startBranch(t)
 	// held until the run is saved: the removal of an ended run's remote worktree takes it too
 	l := r.lock(id, false)
 	if l == nil {
@@ -293,6 +292,7 @@ func (r *Runner) Start(id string) error {
 		State: Working, Round: 1, Risky: risky, RiskWhy: why, Model: model, Effort: effort, Dispatched: nowISO(), RoundStart: nowISO(),
 		Criteria: len(Criteria(t.Acceptance)), CINone: ciNone, Machine: pl.Machine, WorkflowAgents: workflowAgents(r.Store, t),
 		Mirror: mirror, RemoteHome: remoteHome}
+	r.adoptPR(run, t) // before the save: a pass must not see the run without the PR it continues
 	if err := r.Store.PutRun(run); err != nil {
 		return err
 	}
@@ -301,7 +301,11 @@ func (r *Runner) Start(id string) error {
 		"machine": machineLabel(pl.Machine), "skipped": pl.Skipped, "workflow": run.WorkflowAgents > 0}})
 	_ = r.Store.TaskStatus(id, "in_progress", "")
 	_ = r.Store.Event(r.actor(), "task", id, "run-dispatch", map[string]any{"agent": name, "model": model, "risky": risky})
-	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, Kickoff(run, t))); err != nil {
+	kickoff := Kickoff(run, t)
+	if old := r.continuedTask(run); old != "" {
+		kickoff += continuedNote(run, old)
+	}
+	if err := r.launchTask(run, r.goalPrompt(Harness, run, t, kickoff)); err != nil {
 		return err
 	}
 	r.printf("RUN %s: %s (%s, effort %s%s) in %s on %s\n", id, name, model, effort, map[bool]string{true: ", risk: " + why}[risky], run.Worktree,
@@ -309,9 +313,13 @@ func (r *Runner) Start(id string) error {
 	return nil
 }
 
-// taskEnv is the environment of a task session, started or relaunched: the noreply identity and the scrub terms.
-func (r *Runner) taskEnv() map[string]string {
+// taskEnv is the environment of a task session, started or relaunched: the noreply identity, the scrub terms and,
+// for a run that continues the branch of an older task, that task for the guard's push pin.
+func (r *Runner) taskEnv(run *Run) map[string]string {
 	env := map[string]string{}
+	if old := r.continuedTask(run); old != "" {
+		env[guard.PushTaskVar] = old
+	}
 	if email := r.Store.FactoryCfg("noreply_email"); email != "" {
 		env["GIT_AUTHOR_EMAIL"], env["GIT_COMMITTER_EMAIL"] = email, email
 		env["GIT_AUTHOR_NAME"], env["GIT_COMMITTER_NAME"] = nameOf(email), nameOf(email)
@@ -325,7 +333,7 @@ func (r *Runner) taskEnv() map[string]string {
 // launchTask starts the task session of a run in its clone, with the noreply identity and the scrub terms.
 func (r *Runner) launchTask(run *Run, kickoff string) error {
 	name, wt, model, effort := run.Agent, run.Worktree, run.Model, run.Effort
-	env := r.taskEnv()
+	env := r.taskEnv(run)
 	if list, ok := Terminals(r.Tools); ok && alive(list, true, name) {
 		r.Close(name) // a session left open by an earlier FAIL; its transcript stays resumable by session id
 	}
@@ -548,6 +556,7 @@ func (r *Runner) Pass(startNew bool) error {
 		r.printf("revert check: %v\n", err)
 	}
 	r.repointRefiles() // a cancel by another tool, or a new dependency on an old id
+	r.sweepPRs()
 	if err := r.reportUnstartable(); err != nil {
 		r.printf("unstartable tasks: %v\n", err)
 	}

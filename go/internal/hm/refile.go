@@ -2,7 +2,6 @@ package hm
 
 import (
 	"encoding/json"
-	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -66,33 +65,19 @@ func (r *Runner) RepointRefiles() error {
 		// a run held for the owner may still merge
 		failed[x.Task] = x.State == Failed && !heldForOwner(&x)
 	}
-	dead, project, deps := map[string]bool{}, map[string]string{}, map[string][]string{}
+	dead, deps := map[string]bool{}, map[string][]string{}
 	for _, t := range tasks {
 		// a failed run leaves its task blocked; a task set back to todo or done after it is not failed any more
 		dead[t.id] = t.status == "cancelled" || (failed[t.id] && t.status == "blocked")
-		project[t.id] = t.project
 		var list []string
 		if json.Unmarshal([]byte(t.depends), &list) == nil {
 			deps[t.id] = list
 		}
 	}
-	flagged := map[string]bool{}
+	origin, refiles := refileOrigins(tasks), map[string][]string{}
 	for _, t := range tasks {
-		flagged[t.of] = true
-	}
-	refiles, origin := map[string][]string{}, map[string]string{}
-	for _, t := range tasks {
-		of := t.of
-		// The flag beats titles, also when its task is dead: on a split, only the flagged piece takes the dependents.
-		if m := refileTitle.FindStringSubmatch(t.title); of == "" && m != nil {
-			if id := fmt.Sprintf("T-%04d", taskNum(strings.ToUpper(m[1]))); !flagged[id] {
-				of = id
-			}
-		}
-		// only a later id of the same project re-files an earlier one, so the chains cannot loop
-		if of != "" && project[of] == t.project && taskNum(t.id) > taskNum(of) {
+		if of := origin[t.id]; of != "" {
 			refiles[of] = append(refiles[of], t.id)
-			origin[t.id] = of
 		}
 	}
 	// needs reports whether the task `from` waits on `on`, directly or through other tasks

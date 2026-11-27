@@ -100,7 +100,7 @@ func (r *Runner) resumeSession(run *Run, name, text string) error {
 		role, prompt, machine = "task-judge", "task-judge.md", "" // the judge stays on the local core
 		kick = "The factory restarted your session after it was lost. Finish your verdict with the JSON block."
 	} else {
-		env = r.taskEnv()
+		env = r.taskEnv(run)
 	}
 	if text != "" {
 		kick = text

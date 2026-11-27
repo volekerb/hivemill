@@ -21,6 +21,7 @@ type gitFix struct {
 func newGitFix(t *testing.T) *gitFix {
 	t.Helper()
 	clearTermsEnv(t)
+	unsetEnv(t, PushTaskVar) // a re-filed task's session has it set
 	tmp, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -746,6 +747,42 @@ func TestPushPinAttemptSuffix(t *testing.T) {
 				t.Errorf("%q: %q, want pin message naming HEAD:factory/t-0817", cmd, msg)
 			}
 		}
+	}
+}
+
+// T-2213: the session of a re-filed task pushes the branch the runner names, and only that one, from its own worktree.
+func TestPushPinRefiledTask(t *testing.T) {
+	f := newGitFix(t)
+	home := dbHome(t)
+	wt := filepath.Join(f.home, "worktrees", "G-027-T-0900")
+	if err := os.MkdirAll(filepath.Join(f.home, ".git", "worktrees", "G-027-T-0900"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(wt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, wt, ".git", "gitdir: "+f.home+"/.git/worktrees/G-027-T-0900\n")
+	writeExport(t, home, exportDoc{Worktrees: map[string]string{"T-0900": wt}})
+	t.Setenv("FACTORY_HOME", home)
+	t.Setenv("FACTORY_AGENT", "claude-coder-t-0900-a7")
+	t.Setenv(PushTaskVar, "t-0817")
+	if err := Check("git push origin HEAD:factory/t-0817", wt, "coder", false); err != nil {
+		t.Errorf("continued branch: %v, want allow", err)
+	}
+	for _, cmd := range []string{
+		"git push origin HEAD:factory/t-0900",
+		"git push origin HEAD:factory/t-0001",
+		"git push --force origin HEAD:factory/t-0817",
+		"FACTORY_PUSH_TASK=t-0001 git push origin HEAD:factory/t-0001",
+		"export FACTORY_PUSH_TASK=t-0001",
+	} {
+		if err := Check(cmd, wt, "coder", false); err == nil || IsDelegate(err) {
+			t.Errorf("%q: %v, want block", cmd, err)
+		}
+	}
+	t.Setenv(PushTaskVar, "main") // not a task id: the own branch only
+	if err := Check("git push origin HEAD:factory/t-0900", wt, "coder", false); err != nil {
+		t.Errorf("own branch with a bad value: %v, want allow", err)
 	}
 }
 
