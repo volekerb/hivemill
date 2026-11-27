@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -452,4 +453,28 @@ func TestLocalCIJobLeftovers(t *testing.T) {
 			t.Errorf("job of the old command: %+v", j)
 		}
 	}
+}
+
+// The wrapper's lock is free before its pid is: a wrapper not yet reaped must not save what it left running.
+func TestLocalCIJobOrphansOfUnreapedWrapper(t *testing.T) {
+	cmd := exec.Command("bash", "-c", "sleep 60 >/dev/null 2>&1 &")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	pid := cmd.Process.Pid
+	t.Cleanup(func() { _ = syscall.Kill(-pid, syscall.SIGKILL) })
+	waitFor(t, "the wrapper to exit", func() bool { return zombie(pid) })
+	reaped := make(chan error, 1)
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		reaped <- cmd.Wait()
+	}()
+	if err := (&Runner{}).killCIOrphans(&ciJob{PID: pid}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-reaped; err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "its orphans to end", func() bool { return syscall.Kill(-pid, 0) != nil })
 }

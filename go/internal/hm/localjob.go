@@ -298,8 +298,16 @@ func (r *Runner) killCIOrphans(j *ciJob) error {
 		}
 		return nil
 	}
-	if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
-		_ = syscall.Kill(-pid, syscall.SIGKILL)
+	// the wrapper's lock is free before its pid is: it has yet to exit and be reaped, so wait for that while the group
+	// lasts. A pid still taken after that is someone else's.
+	for end := time.Now().Add(5 * time.Second); syscall.Kill(-pid, 0) == nil; time.Sleep(10 * time.Millisecond) {
+		err := syscall.Kill(pid, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
+		}
+		if err != nil || time.Now().After(end) {
+			break
+		}
 	}
 	return nil
 }
