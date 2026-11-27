@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -58,6 +60,8 @@ type Runner struct {
 	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
 	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
+	poll       *prPoll                // the pass's one read of the open PRs; nil outside a pass
+	queueSlow  bool                   // a PR is queued for CI over its budget: no refresh
 	// DiskFree is (total, available) bytes of a path's filesystem; nil = statfs. Tests replace it.
 	DiskFree func(path string) (uint64, uint64, error)
 	// TmpRoots are the temp directories clean looks into; nil = /tmp and /var/tmp. Tests replace them.
@@ -391,12 +395,23 @@ func (r *Runner) Clone(t *Task, branch string) (string, error) {
 		if rc != 0 || url == "" {
 			return "", fmt.Errorf("%s has no origin URL: %s", t.RepoPath, errs)
 		}
+		cow := false
+		if GOOS == "darwin" {
+			if err := r.cowClone(t, wt, url); err != nil {
+				r.printf("%s: copy-on-write clone: %v (full clone instead)\n", t.ID, err)
+			} else {
+				cow = true
+			}
+		}
 		steps := [][]string{
 			{t.RepoPath, "-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", t.RepoPath, wt},
 			{wt, "remote", "set-url", "origin", url},
 			{wt, "fetch", "-q", "origin"},
 		}
 		for _, s := range steps {
+			if cow {
+				break
+			}
 			if rc, _, errs := g(s[0], s[1:]...); rc != 0 {
 				_ = os.RemoveAll(wt)
 				return "", fmt.Errorf("clone %s: git %s: %s", wt, s[1], firstLine(errs))
@@ -418,6 +433,51 @@ func (r *Runner) Clone(t *Task, branch string) (string, error) {
 		fmt.Fprintf(os.Stderr, "hivemill: trust %s: %v (the trust dialog may show)\n", wt, err)
 	}
 	return wt, r.Store.TaskClone(t.ID, wt, branch)
+}
+
+// cloneTree copies a directory tree copy-on-write (APFS clonefile through cp -c): unchanged files share disk blocks.
+var cloneTree = func(src, dst string) error {
+	if out, err := exec.Command("cp", "-c", "-R", src, dst).CombinedOutput(); err != nil {
+		return fmt.Errorf("cp -c: %v: %s", err, firstLine(string(out)))
+	}
+	return nil
+}
+
+// cowClone makes a task clone on macOS as a copy-on-write copy of one base checkout per project and base branch
+// (<state>/base/<project>-<base>, kept at origin/<base>), so a task costs only the files it changes, not the whole
+// tree (2026-11-27: 25 clones of one app repo took 49 GB, about 2 GB of tracked files each). The caller checks out the task
+// branch; on an error the caller makes a full clone.
+func (r *Runner) cowClone(t *Task, wt, url string) error {
+	g := r.Tools.Git
+	base := filepath.Join(r.Env.StateDir(), "base", t.Project+"-"+t.Base)
+	if l := r.lock("base-"+t.Project+"-"+t.Base, true); l != nil {
+		defer l.Close()
+	}
+	if fi, err := os.Stat(filepath.Join(base, ".git")); err != nil || !fi.IsDir() {
+		_ = os.RemoveAll(base)
+		_ = os.MkdirAll(filepath.Dir(base), 0o755)
+		for _, s := range [][]string{
+			{t.RepoPath, "-c", "protocol.file.allow=always", "clone", "-q", "--shared", "--no-checkout", t.RepoPath, base},
+			{base, "remote", "set-url", "origin", url},
+		} {
+			if rc, _, errs := g(s[0], s[1:]...); rc != 0 {
+				_ = os.RemoveAll(base)
+				return fmt.Errorf("base %s: git %s: %s", base, s[1], firstLine(errs))
+			}
+		}
+	}
+	for _, s := range [][]string{{"fetch", "-q", "origin"}, {"checkout", "-q", "-f", "--detach", "origin/" + t.Base}} {
+		if rc, _, errs := g(base, s...); rc != 0 {
+			return fmt.Errorf("base %s: git %s: %s", base, s[0], firstLine(errs))
+		}
+	}
+	if err := cloneTree(base, wt); err != nil {
+		_ = os.RemoveAll(wt)
+		return err
+	}
+	// the copy has new inodes, so every index entry looks changed: refresh it from content, which rewrites no file
+	_, _, _ = g(wt, "update-index", "-q", "--refresh")
+	return nil
 }
 
 func (r *Runner) prepareClone(wt string) error {
@@ -505,7 +565,8 @@ func truncate(s string, n int) string {
 	return s
 }
 
-// Pass advances every active run once (one gh read per run; a red CI also reads the failed logs), checks for a revert, then starts ready tasks.
+// Pass reads every open PR with one query (prpoll.go), advances every active run once, checks for a revert, then starts
+// ready tasks.
 func (r *Runner) Pass(startNew bool) error {
 	// the daemon reuses the Runner: each pass, a skipped one too, reads the machines again
 	r.usageFiles, r.usageRead = nil, false
@@ -524,15 +585,21 @@ func (r *Runner) Pass(startNew bool) error {
 	if err != nil {
 		return err
 	}
-	r.sweepLocalCI() // results first: they free job slots, and the runs below read them
+	defer r.countGH()() // the gh calls of this pass, for the digest
+	r.sweepLocalCI()    // results first: they free job slots, and the runs below read them
 	if runs, err = r.Store.Runs(); err != nil {
 		return err
 	}
+	r.poll = r.pollPRs(runs)
+	defer func() { r.poll, r.queueSlow = nil, false }()
+	r.queueSlow = r.queuedTooLong(runs)
+	fifo(runs)
 	for _, x := range runs {
 		if heldForOwner(&x) && !x.Eval {
 			if l := r.lock(x.Task, false); l != nil {
 				if run, _ := r.Store.Run(x.Task); run != nil && heldForOwner(run) {
 					r.checkHeld(run)
+					r.trackFlow(run)
 					_ = r.Store.PutRun(run)
 				}
 				l.Close()
@@ -596,6 +663,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		return "", err
 	}
 	defer func() {
+		if r.poll != nil {
+			r.trackFlow(run)
+		}
 		if run.State != Gated && (run.State != Merging || !r.ciNone(run.Project)) {
 			r.endCIWait(run) // the run left the CI wait, however it did
 		}
@@ -606,6 +676,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	}
 	if r.reconcile(run, list, listed) {
 		return run.State, nil
+	}
+	if r.poll != nil && (run.State == Gated || run.State == Merging) {
+		r.rerunPending(run)
 	}
 	switch run.State {
 	case Working:
@@ -636,12 +709,15 @@ func (r *Runner) gated(run *Run) {
 	if !r.ciPollDue(run, now) {
 		return
 	}
-	pr, err := PRView(r.Tools, run.PRURL)
+	pr, err := r.prView(run)
 	if err != nil {
 		r.ciPolled(run, now)
 		run.MergeHold = err.Error()
 		r.ciOverdue(run, now) // an unreadable PR is a pending one
 		return
+	}
+	if r.poll != nil && pr.HeadRefOid != run.Head && run.Gated >= r.poll.at {
+		return // pushed and gated after the poll: the next pass reads the new head
 	}
 	run.MergeHold = "" // set again below by what still holds the run
 	switch {
@@ -689,6 +765,10 @@ func (r *Runner) gated(run *Run) {
 		}
 		switch verdict {
 		case "red":
+			if !none && r.flakyRerun(run, pr.HeadRefOid, rows) {
+				run.MergeHold = "re-running failed jobs that passed on " + run.Base + " in the last 24 h"
+				return
+			}
 			if run.Machine != "" && machineDown(r.Tools, run.Machine) {
 				run.MergeHold = "CI is red; waiting for machine " + run.Machine + " to resume the session"
 				r.ciOverdue(run, now)
@@ -704,7 +784,12 @@ func (r *Runner) gated(run *Run) {
 				r.fail(run, "the judge did not start: "+err.Error())
 			}
 		default:
-			r.ciOverdue(run, now)
+			// in a pass, running Actions checks over budget are re-run (trackFlow); the rest alert the owner, and so does
+			// a wait of twice the budget, which a series of short jobs can reach without one job running over it
+			capped := now.Unix()-run.CI.Since >= 2*int64(cfgInt(r.Store, "ci_timeout_s"))
+			if rows, actions := unfinishedActions(pr.Checks); capped || r.poll == nil || run.Eval || none || !actions || !slices.ContainsFunc(rows, onRunner) {
+				r.ciOverdue(run, now)
+			}
 		}
 	}
 }
@@ -757,6 +842,9 @@ func (r *Runner) Stop(task string) error {
 	}
 	r.closeSessions(run)
 	r.endCIWait(run)
+	if run.Flow != nil {
+		r.enterFlow(run, "", "")
+	}
 	run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
 	r.endSessions(run)
 	_ = r.Log.Emit("task.cancelled", run, Event{})
@@ -775,8 +863,12 @@ func (r *Runner) Status() error {
 		if (x.State == Merging || x.State == Gated) && x.MergeHold != "" {
 			hold = " hold: " + truncate(x.MergeHold, 100)
 		}
-		r.printf("%s %-9s round %d blocks %d judge %d ci %d on %s %s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
-			x.CIRounds, machineLabel(x.Machine), x.PRURL, hold)
+		flow := ""
+		if x.Flow != nil && (Active(x.State) || heldForOwner(&x)) {
+			flow = " " + x.Flow.String()
+		}
+		r.printf("%s %-9s round %d blocks %d judge %d ci %d on %s %s%s%s\n", x.Task, x.State, x.Round, x.GateBlocksTotal, len(x.Verdicts),
+			x.CIRounds, machineLabel(x.Machine), x.PRURL, flow, hold)
 	}
 	return nil
 }
