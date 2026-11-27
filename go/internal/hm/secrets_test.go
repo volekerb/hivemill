@@ -153,6 +153,23 @@ func TestGateLogRemovedWhenScrubFails(t *testing.T) {
 	}
 }
 
+// A job that is forgotten without a result (a failed start) leaves no key in its log.
+func TestScrubSecretsForgottenJobLog(t *testing.T) {
+	noASCEnv(t)
+	key := "EXAMPLE-fake-asc-key-content"
+	t.Setenv("ASC_KEY_CONTENT", key)
+	r, _ := testRunner(t, "")
+	j := &ciJob{Task: "T-0001", Head: headA, Dir: t.TempDir()}
+	own := filepath.Join(j.Dir, "gate-cmd.log")
+	if err := os.WriteFile(own, []byte("key "+key+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r.forgetCIJob(j)
+	if b, err := os.ReadFile(own); err != nil || string(b) != "key [asc-key redacted]\n" {
+		t.Errorf("job log: %q %v", b, err)
+	}
+}
+
 // A public repo's pr create still refuses a key block: the scrub does not turn the refusal into a redacted PR.
 func TestScrubSecretsPRBody(t *testing.T) {
 	noASCEnv(t)

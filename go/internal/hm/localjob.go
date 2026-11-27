@@ -372,11 +372,6 @@ func (r *Runner) dropCIJob(j *ciJob) bool {
 		return false
 	}
 	r.removeCICheckout(j)
-	// the job's own copy of the log must not keep the key either
-	own := filepath.Join(j.Dir, "gate-cmd.log")
-	if b, err := os.ReadFile(own); !errors.Is(err, fs.ErrNotExist) {
-		writeScrubbedLog(own, b)
-	}
 	r.forgetCIJob(j)
 	return true
 }
@@ -387,13 +382,33 @@ func writeScrubbedLog(file string, b []byte) (lost string) {
 	if os.WriteFile(file, []byte(ScrubSecrets(string(b))), 0o600) == nil {
 		return ""
 	}
+	return removeUnscrubbed(file)
+}
+
+func removeUnscrubbed(file string) (lost string) {
 	if err := os.Remove(file); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "gate log could not be removed: scrub failed"
 	}
 	return "gate log removed: scrub failed"
 }
 
-func (r *Runner) forgetCIJob(j *ciJob) { _ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json")) }
+func (r *Runner) forgetCIJob(j *ciJob) {
+	r.scrubJobLog(j)
+	_ = os.Remove(filepath.Join(r.ciJobDir(), j.key()+".json"))
+}
+
+// scrubJobLog removes the key from the job's own copy of the log, once nothing writes it any more.
+func (r *Runner) scrubJobLog(j *ciJob) {
+	own, lost := filepath.Join(j.Dir, "gate-cmd.log"), ""
+	if b, err := os.ReadFile(own); err == nil {
+		lost = writeScrubbedLog(own, b)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		lost = removeUnscrubbed(own)
+	}
+	if lost != "" {
+		r.printf("%s: %s\n", j.Task, lost)
+	}
+}
 
 // scheduleCIJobs moves every job on: a job past its time limit ends with exit 124, one that is gone without a result is
 // queued again once, and queued jobs start while their machine has fewer than local_ci_jobs running. It returns why a
@@ -460,6 +475,7 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 			}
 			if j.Restarts > 0 {
 				j.Failed = "the local gate job ended twice without a result"
+				r.scrubJobLog(j) // the record stays until a retry or a new head
 			} else {
 				j.Restarts, j.Rank, j.Started, j.PID = 1, -1, time.Time{}, 0
 				queued = append(queued, j)
