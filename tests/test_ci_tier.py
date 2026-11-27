@@ -18,6 +18,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ci"))
 
 import ci_tier  # noqa: E402
+# The same literal as tests/test_ci_policy.py rule (a); kept here so a tiered run of this module needs no other test module.
+SELF_HOSTED_SAME_REPO = ("${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == "
+                         "github.repository) && fromJSON('[\"self-hosted\",\"hm-ci\"]') || 'ubuntu-latest' }}")
 
 TIER = str(ROOT / "ci" / "ci_tier.py")
 BIN_SRC = "def cmd_other():\n    return 1\n\n\ndef cmd_judge():\n    return 1\n\n\ndef judge_pick():\n    return 1\n\n\ndef gate_x():\n    return 1\n"
@@ -352,7 +355,15 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("DOCS_CHECK_RESULT", gate)
 
     def test_runners_are_free(self):
-        self.assertEqual(set(re.findall(r"runs-on: (\S+)", self.wf)), {"ubuntu-latest"})
+        # same rule as tests/test_ci_policy.py: hosted, or exactly the same-repo self-hosted expression
+        def disallowed(wf):
+            found = [re.sub(r"\s+#.*$", "", v).strip() for v in re.findall(r"runs-on: (.+)", wf)]
+            self.assertTrue(found)
+            return [v for v in found if v not in ("ubuntu-latest", SELF_HOSTED_SAME_REPO)]
+
+        self.assertEqual(disallowed(self.wf), [])
+        for bad in ("self-hosted", SELF_HOSTED_SAME_REPO.replace("!=", "=="), "${{ matrix.os }}"):
+            self.assertEqual(disallowed("runs-on: %s\n" % bad), [bad])
 
     def test_docs_tier_required_jobs_skip_steps_not_the_job(self):
         tests_yml = os.environ.get("TESTS_YML")

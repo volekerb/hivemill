@@ -58,6 +58,7 @@ Each group lists the runner's pages first. The pages under "Legacy pipeline (pau
 - [risk-tiers.md](risk-tiers.md): the T0 to T3 risk classifier and its stored, raise-only tier.
 - [red-main.md](red-main.md): red-main monitor and merge freeze (flag red_main_freeze).
 - [ci-cost.md](ci-cost.md): the $0 CI budget, owner billing and fork-approval steps, the kill switch.
+- [ci-self-hosted.md](ci-self-hosted.md): the self-hosted `hm-ci` runners, their one-time machine setup and which tests skip without a capability.
 - [ISSUES.md](ISSUES.md): labels, the triage rule that turns public issues into factory tasks, and release milestones.
 - [PUBLISHING.md](PUBLISHING.md): the one approved route to a public copy of the repository.
 - [RELEASING.md](RELEASING.md): how a release is made, who does each step, and the feature-flag lifecycle.

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from harness import REPO
+from harness import REPO, time_scale
 from test_skill_authoring import lint_skill
 
 MARKETPLACE = REPO / ".claude-plugin" / "marketplace.json"
@@ -140,7 +140,7 @@ class IosReleaseNodeTests(unittest.TestCase):
         tests = sorted((REPO / "plugins/hivemill/scripts/ios-release/test").glob("*.test.mjs"))
         self.assertTrue(tests, "no *.test.mjs files under plugins/hivemill/scripts/ios-release/test")
         r = subprocess.run([node, "--test", "--test-reporter=tap", *map(str, tests)], cwd=REPO, capture_output=True,
-                           text=True, timeout=300)
+                           text=True, timeout=300 * time_scale())
         out = r.stdout + r.stderr
         self.assertEqual(r.returncode, 0, out[-3000:])
         self.assertIn("# fail 0", out)

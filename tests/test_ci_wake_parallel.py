@@ -1,4 +1,5 @@
 """T-0723 (G-016 P0-3b): tick_ci_wake runs its gh pr view probes in a bounded thread pool; results are applied in order."""
+import itertools
 import json
 import os
 import re
@@ -7,7 +8,7 @@ import time
 import unittest
 from unittest import mock
 
-from harness import FactoryEnv, FactoryTestCase
+from harness import FactoryEnv, FactoryTestCase, time_scale
 
 NOW = "2026-03-01T12:00:00+00:00"
 OK = {"name": "unittest", "status": "COMPLETED", "conclusion": "SUCCESS"}
@@ -40,11 +41,13 @@ def seed(env, sleep=0.0):
     env.set_gh(pr_view_sleep=sleep, prs={u: {**pr, "mergeStateStatus": "CLEAN"} for u, pr in prs.items()})
 
 
-def tick_ci_wake(env, workers, guard=False):
+def tick_ci_wake(env, workers, guard=False, patch=None):
     """Run tick_ci_wake in-process; returns (wall seconds, [pr view urls in call order])."""
     env.run("config", "ci_wake_workers", str(workers))
     with mock.patch.dict(os.environ, {"FACTORY_NOW": NOW}), env.load_factory() as mod:
         con = mod.db()
+        if patch:
+            patch(mod)
         if guard:
             main = threading.get_ident()
 
@@ -93,11 +96,24 @@ class CiWakeParallelTests(FactoryTestCase):
         return env
 
     def test_six_slow_probes_overlap(self):
-        seed(self.env, sleep=0.5)
-        wall, views = tick_ci_wake(self.env, 4)
+        seed(self.env)
+        # the first 4 probes only get past the barrier if all 4 are in flight at once: no wall-clock bound needed
+        barrier, order = threading.Barrier(4), itertools.count()
+
+        def rendezvous(mod):
+            real = mod._ci_wake_probe
+
+            def probe(*a):
+                if next(order) < 4:
+                    barrier.wait(timeout=30 * time_scale())  # serial probes break the barrier and raise
+                return real(*a)
+
+            mod._ci_wake_probe = probe
+
+        _, views = tick_ci_wake(self.env, 4, patch=rendezvous)
         self.assertEqual(len(views), 6)
-        self.assertLess(wall, 1.8, f"6 x 0.5 s probes took {wall:.2f}s; serial would be >= 3 s")
-        print(f"\nci_wake wall, workers=4: {wall:.2f}s", flush=True)
+        self.assertFalse(barrier.broken)
+        self.assertEqual(next(order), 6)  # every probe went through the wrapper
 
     def test_serial_baseline_is_slower(self):
         seed(self.env, sleep=0.5)

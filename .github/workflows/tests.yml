@@ -23,6 +23,8 @@ permissions:
 env:
   # Keep equal to the length of the unittest-shard matrix (tests/test_shard.py checks it).
   SHARDS: 10
+  # Self-hosted hm-ci runners are shared and run at low CPU priority: tests multiply their time limits by this.
+  HM_TEST_TIME_SCALE: 3
   # ci/shard.py scoping (not yet ported to go/cmd/ci-shard, which runs every module): the deep run (workflow_dispatch) runs every
   # module; a PR or push leaves the Python-vs-Go corpus module to it, and runs the guard hook modules only when the diff from SHARD_BASE touches a guard path.
   SHARD_DEEP: ${{ github.event_name == 'workflow_dispatch' }}
@@ -32,7 +34,7 @@ jobs:
   # PRs: ci-tier classifies once. On a docs pull request, unittest-shard and go use a step-level skip and report success; guard jobs stay skipped by their job-level if; docs-check runs (T-1512).
   ci-tier:
     name: ci-tier
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       mode: ${{ steps.tier.outputs.mode }}
@@ -42,9 +44,12 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - uses: actions/setup-go@v7
+        env:
+          GOTOOLCHAIN: local
         with:
           go-version-file: go/go.mod
           cache: false
@@ -52,6 +57,7 @@ jobs:
         id: tier
         working-directory: .
         env:
+          GOTOOLCHAIN: local
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
@@ -82,21 +88,25 @@ jobs:
     name: docs-check
     needs: ci-tier
     if: ${{ github.event_name == 'pull_request' && needs.ci-tier.outputs.mode == 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - uses: actions/setup-go@v7
+        env:
+          GOTOOLCHAIN: local
         with:
           go-version-file: go/go.mod
           cache: false
       - name: Tier tool from the base commit
         env:
+          GOTOOLCHAIN: local
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           # A failed archive or build fails this step: the docs lane has no full-suite fallback.
@@ -109,7 +119,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           "$RUNNER_TEMP/ci-tier" docs-check --root . --base "$BASE_SHA" --head HEAD
-          python -m unittest discover -s tests -p test_docs_index.py
+          python3 -m unittest discover -s tests -p test_docs_index.py
           echo '### docs-only PR: docs fast lane (docs check + docs index passed)' >> "$GITHUB_STEP_SUMMARY"
 
   # Single-job equivalent for local runs: python -m unittest discover -s tests -v
@@ -117,8 +127,9 @@ jobs:
     name: unittest-shard (${{ matrix.shard }})
     needs: ci-tier
     # Docs tier skips unittest-shard and go at step level: the jobs run, every step is skipped, and unittest-shard (1) through (10) and go report success.
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
+    # The hm-ci machine is shared and the runners have low CPU priority: a full shard has run past 30 minutes there.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -129,12 +140,14 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
-        if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+        if: ${{ runner.environment == 'github-hosted' && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') }}
         with:
           python-version: "3.13"
       # setup-go builds ci-tier in the next step and ci-shard in Run shard (the step count and docs gates are pinned by tests/test_ci_tier.py).
       - uses: actions/setup-go@v7
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+        env:
+          GOTOOLCHAIN: local
         with:
           go-version-file: go/go.mod
           cache: false
@@ -143,6 +156,7 @@ jobs:
         if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
         working-directory: .
         env:
+          GOTOOLCHAIN: local
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
@@ -165,11 +179,16 @@ jobs:
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.mode != 'docs' }}
         run: |
           # zsh reads .zshenv: the sandbox PATH-order regression tests must run in CI, not skip.
-          sudo apt-get install -y zsh
+          command -v zsh >/dev/null || sudo apt-get install -y zsh
           (cd go && GOTOOLCHAIN=local go build -o "$RUNNER_TEMP/ci-shard" ./cmd/ci-shard)
           # setup-go put its go on PATH only to build ci-tier and ci-shard: take that one directory off so the shards see the PATH they saw before.
           d=$(dirname "$(command -v go)")
           PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF -e "$d" -e "$d/" | paste -sd: -)
+          # Private TMPDIR, as in guard-diff: shards on the shared hm-ci host must not share fixed-name test fixtures.
+          # 711 as in the local gate: the subuid sandbox tests run as another uid that must traverse it.
+          TMPDIR=$(mktemp -d /tmp/hm-shard.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || echo "cleanup left files in $TMPDIR" >&2' EXIT
           only=()
           if [ "${{ steps.tier.outputs.mode }}" = affected ]; then only=(--only "$RUNNER_TEMP/only.txt"); fi
           "$RUNNER_TEMP/ci-shard" run --shard "${{ matrix.shard }}" --total "$SHARDS" --out "$RUNNER_TEMP/shard-${{ matrix.shard }}.json" "${only[@]}"
@@ -184,8 +203,9 @@ jobs:
     name: go
     needs: ci-tier
     # Docs tier skips unittest-shard and go at step level: the jobs run, every step is skipped, and unittest-shard (1) through (10) and go report success.
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
+    # Slower on the shared hm-ci host (see unittest-shard): 60 minutes, and 50 for go test.
+    timeout-minutes: 60
     env:
       GOTOOLCHAIN: local
     defaults:
@@ -197,7 +217,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
-        if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
+        if: ${{ runner.environment == 'github-hosted' && (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') }}
         with:
           python-version: "3.13"
       # This setup-go builds ci-tier from the base commit in the tier step; no cache, so a go=false run saves no near-empty cache.
@@ -235,6 +255,8 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: gofmt
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
         run: |
@@ -246,7 +268,12 @@ jobs:
           fi
       - run: go vet ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
-      - run: go test ${{ github.event_name == 'workflow_dispatch' && '-race' || '' }} -count=1 -timeout 30m ./...
+      - run: |
+          # Private TMPDIR, as in the shards: go jobs on the shared hm-ci host must not share fixtures under /tmp.
+          TMPDIR=$(mktemp -d /tmp/hm-go.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || echo "cleanup left files in $TMPDIR" >&2' EXIT
+          go test ${{ github.event_name == 'workflow_dispatch' && '-race' || '' }} -count=1 -timeout 50m ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
       - run: go build ./...
         if: ${{ (github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs') && steps.tier.outputs.go == 'true' }}
@@ -258,8 +285,8 @@ jobs:
     name: guard-unittest-shard (${{ matrix.shard }})
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -273,18 +300,25 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Install zsh
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Guard hook unittests (GUARD_IMPL=diff)
         run: |
           start=$(date +%s)
           rc=0
+          # Private TMPDIR: the guard fixtures use fixed names under it, and the hm-ci runners share one uid and /tmp.
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --shard "${{ matrix.shard }}" --shards 3 || rc=$?
           echo "guard-unittest shard ${{ matrix.shard }}: job time $(( $(date +%s) - start ))s rc=$rc"
           exit "$rc"
@@ -294,7 +328,7 @@ jobs:
     name: guard-unittest
     needs: [ci-tier, guard-unittest-shard]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Every guard-unittest shard succeeded
@@ -313,8 +347,9 @@ jobs:
     name: guard-diff
     needs: ci-tier
     if: ${{ github.event_name != 'pull_request' || needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
-    # Two corpus passes (both modes, then evaluator) take about 32 min on a hosted runner; only guard-path PRs run them.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
+    # Two corpus passes (both modes and evaluator) run side by side: one after the other they pass the limit on a busy
+    # hm-ci runner (low CPU priority). Only guard-path PRs run them.
     # Go guard paths (go/internal/guard, go/cmd/worker-guard, go/internal/shlex) do not trigger it: the step runs
     # --impl python and proves nothing about Go (docs/guard-diff.md); Go guard coverage is the go job's tests.
     timeout-minutes: 45
@@ -327,14 +362,17 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Install zsh
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Guard paths changed?
         id: paths
         env:
@@ -373,7 +411,6 @@ jobs:
             echo "corpus: base has no ci/guard_corpus.json, using the PR copy only"
           fi
           # planned loosening: PR-added ci/allow_loosen_*.json, merged into one list and printed for the reviewer
-          allow=()
           files=$(git diff --name-only --diff-filter=AM "$BASE_SHA" HEAD -- 'ci/allow_loosen_*.json')
           if [ -n "$files" ]; then
             echo "PLANNED LOOSENING listed by this PR (reviewer: check it against the spec):"
@@ -385,11 +422,27 @@ jobs:
               out += json.load(open(p, encoding="utf-8"))
           print(json.dumps(out))
           PY
-            allow=(--allow-loosen "$RUNNER_TEMP/allow_loosen.json")
           fi
           rc=0
-          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both "${allow[@]}" | tee "$RUNNER_TEMP/gd-both.txt" || rc=1
-          python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator "${allow[@]}" | tee "$RUNNER_TEMP/gd-eval.txt" || rc=1
+          # guard_diff keeps fixtures at fixed names under TMPDIR: a private one per pass, so parallel passes and
+          # other runners (same user) cannot overwrite each other's. --timeout: hook calls are slow on a busy host.
+          tmp_both=$(mktemp -d /tmp/gd.XXXXXX); tmp_eval=$(mktemp -d /tmp/gd.XXXXXX)
+          trap 'rm -rf "$tmp_both" "$tmp_eval" || true' EXIT
+          allow_both=(); allow_eval=()
+          if [ -n "$files" ]; then
+            # --allow-loosen matches expanded commands: listed /tmp/guard-diff-* fixtures move with each pass's TMPDIR,
+            # and the log maps them back, so a logged command can be copied into an allow-loosen file.
+            sed "s#/tmp/guard-diff-#$tmp_both/guard-diff-#g" "$RUNNER_TEMP/allow_loosen.json" > "$RUNNER_TEMP/allow_both.json"
+            sed "s#/tmp/guard-diff-#$tmp_eval/guard-diff-#g" "$RUNNER_TEMP/allow_loosen.json" > "$RUNNER_TEMP/allow_eval.json"
+            allow_both=(--allow-loosen "$RUNNER_TEMP/allow_both.json")
+            allow_eval=(--allow-loosen "$RUNNER_TEMP/allow_eval.json")
+          fi
+          TMPDIR="$tmp_both" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode both --timeout 30 "${allow_both[@]}" | sed -u "s#$tmp_both/guard-diff-#/tmp/guard-diff-#g" | tee "$RUNNER_TEMP/gd-both.txt" &
+          both=$!
+          TMPDIR="$tmp_eval" python3 "$gd" --base "$BASE_SHA" --repo . "${corpus[@]}" --mode worker --role evaluator --timeout 30 "${allow_eval[@]}" | sed -u "s#$tmp_eval/guard-diff-#/tmp/guard-diff-#g" | tee "$RUNNER_TEMP/gd-eval.txt" &
+          eval_pass=$!
+          wait "$both" || rc=1
+          wait "$eval_pass" || rc=1
           grep -E '^(LOOSENED|SETTINGS-LOOSENED|TIMEOUT)' "$RUNNER_TEMP/gd-both.txt" "$RUNNER_TEMP/gd-eval.txt" || echo "no LOOSENED/TIMEOUT lines"
           echo "guard_diff failing runs: $rc"
           exit $rc
@@ -398,8 +451,8 @@ jobs:
     name: guard-self-compare
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 60
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -409,14 +462,17 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Install zsh
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: evaluator self-compare (real corpus)
         run: |
           set -o pipefail
@@ -425,7 +481,11 @@ jobs:
           if [ "$lines" -le 100 ]; then echo "corpus has $lines lines (<= 100): not the real corpus; restore ci/guard_corpus.json" >&2; exit 1; fi
           git diff --exit-code -- roles/hooks/worker-guard.py || exit 1
           rc=0
-          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator | tee "$RUNNER_TEMP/gd-self.txt" || rc=1
+          # Private TMPDIR and longer hook timeout, as in guard-diff: the hm-ci host is shared.
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || true' EXIT
+          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator --timeout 30 | tee "$RUNNER_TEMP/gd-self.txt" || rc=1
           if ! grep -F ' 0 loosened, 0 tightened' "$RUNNER_TEMP/gd-self.txt"; then
             echo "evaluator self-compare: expected summary ' 0 loosened, 0 tightened' in stdout" >&2
             rc=1
@@ -437,8 +497,8 @@ jobs:
     name: guard-evaluator-home-loosen
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 60
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -448,14 +508,17 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - name: Install zsh
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: evaluator home-check loosening probe (real corpus)
         run: |
           set -o pipefail
@@ -475,7 +538,11 @@ jobs:
           PY
           out="$RUNNER_TEMP/gd-home-loosen.txt"
           rc=0
-          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator >"$out" 2>&1 || rc=$?
+          # Private TMPDIR and longer hook timeout, as in guard-diff: the hm-ci host is shared.
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || true' EXIT
+          python3 ci/guard_diff.py --base HEAD --repo . --corpus ci/guard_corpus.json --mode worker --role evaluator --timeout 30 >"$out" 2>&1 || rc=$?
           cat "$out"
           if [ "$rc" -eq 0 ]; then
             echo "evaluator home-check loosen probe: expected non-zero exit from guard_diff" >&2
@@ -494,8 +561,8 @@ jobs:
     name: guard-equiv-shard (${{ matrix.shard }})
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -554,36 +621,49 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
           fi
       - uses: actions/setup-python@v7
-        if: steps.paths.outputs.run == 'true'
+        if: ${{ runner.environment == 'github-hosted' && (steps.paths.outputs.run == 'true') }}
         with:
           python-version: "3.13"
       - name: Install zsh
         if: steps.paths.outputs.run == 'true'
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         if: steps.paths.outputs.run == 'true'
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Build worker-guard once
         if: steps.paths.outputs.run == 'true'
         run: |
           (cd go && go build -o "$RUNNER_TEMP/worker-guard" ./cmd/worker-guard)
           echo "GUARD_GO_BIN=$RUNNER_TEMP/worker-guard" >> "$GITHUB_ENV"
-          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run
-          mkdir -p "$HOME/.local"
-          ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
+          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run.
+          # Only on a throwaway hosted VM: the hm-ci runners share one HOME, so they keep the host's own ~/.local/go.
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
+            mkdir -p "$HOME/.local"
+            ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
+          fi
+          # A self-hosted runner without it would skip the REAL_GO tests and still pass: fail instead (docs/ci-self-hosted.md).
           ls -l "$HOME/.local/go/bin/go"
+          want=$(awk '$1 == "toolchain" {print $2}' go/go.mod)
+          got=$("$HOME/.local/go/bin/go" env GOVERSION)
+          if [ -n "$want" ] && [ "$got" != "$want" ]; then echo "~/.local/go is $got, go/go.mod wants $want" >&2; exit 1; fi
       - name: guard_diff strict Go gate (corpus, one role shard; shard 1 also runs hq)
         if: steps.paths.outputs.run == 'true'
-        run: python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --role-shard ${{ matrix.shard }} --role-shards 4 --mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict
+        run: |
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || true' EXIT
+          python3 ci/guard_diff.py --impl go --go-bin "$GUARD_GO_BIN" --roles all --role-shard ${{ matrix.shard }} --role-shards 4 --mode ${{ matrix.shard == 1 && 'both' || 'worker' }} --strict --timeout 30
 
   # Fan-in: the required check name stays exactly "guard-equiv". needs.guard-equiv.result is the matrix.
   guard-equiv-fanin:
     name: guard-equiv
     needs: [ci-tier, guard-equiv]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Every guard-equiv shard succeeded
@@ -601,8 +681,8 @@ jobs:
     name: guard-equiv-rest
     needs: ci-tier
     if: ${{ github.event_name == 'workflow_dispatch' && needs.ci-tier.outputs.mode != 'docs' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 60
     env:
       GOTOOLCHAIN: local
       GOFLAGS: -mod=readonly
@@ -657,35 +737,50 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"; echo "no guard path changed: skipped"
           fi
       - uses: actions/setup-python@v7
-        if: steps.paths.outputs.run == 'true'
+        if: ${{ runner.environment == 'github-hosted' && (steps.paths.outputs.run == 'true') }}
         with:
           python-version: "3.13"
       - name: Install zsh
         if: steps.paths.outputs.run == 'true'
-        run: sudo apt-get install -y zsh
+        run: command -v zsh >/dev/null || sudo apt-get install -y zsh
       - uses: actions/setup-go@v7
         if: steps.paths.outputs.run == 'true'
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.mod
+          # The hm-ci runners share one HOME: concurrent cache restores into ~/go/pkg/mod would race.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Build worker-guard once
         if: steps.paths.outputs.run == 'true'
         run: |
           (cd go && go build -o "$RUNNER_TEMP/worker-guard" ./cmd/worker-guard)
           echo "GUARD_GO_BIN=$RUNNER_TEMP/worker-guard" >> "$GITHUB_ENV"
-          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run
-          mkdir -p "$HOME/.local"
-          ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
+          # tests/test_guard_build.py only trusts ~/.local/go/bin/go: point it at the setup-go toolchain so the REAL_GO tests run.
+          # Only on a throwaway hosted VM: the hm-ci runners share one HOME, so they keep the host's own ~/.local/go.
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
+            mkdir -p "$HOME/.local"
+            ln -sfn "$(go env GOROOT)" "$HOME/.local/go"
+          fi
+          # A self-hosted runner without it would skip the REAL_GO tests and still pass: fail instead (docs/ci-self-hosted.md).
           ls -l "$HOME/.local/go/bin/go"
+          want=$(awk '$1 == "toolchain" {print $2}' go/go.mod)
+          got=$("$HOME/.local/go/bin/go" env GOVERSION)
+          if [ -n "$want" ] && [ "$got" != "$want" ]; then echo "~/.local/go is $got, go/go.mod wants $want" >&2; exit 1; fi
       - name: Routed unittest modules under GUARD_IMPL=diff (not in guard-diff)
         if: steps.paths.outputs.run == 'true'
         run: |
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 ci/guard_impl_unittest.py list --routed-rest
           GUARD_IMPL=diff python3 ci/guard_impl_unittest.py run --routed-rest
       - name: REAL_GO build tests (tests/test_guard_build.py)
         if: ${{ !cancelled() && steps.paths.outputs.run == 'true' }}
         run: |
           set -o pipefail
+          TMPDIR=$(mktemp -d /tmp/gd.XXXXXX); export TMPDIR
+          chmod 711 "$TMPDIR"
+          trap 'rm -rf "$TMPDIR" || true' EXIT
           python3 -m unittest discover -s tests -p test_guard_build.py -v 2>&1 | tee "$RUNNER_TEMP/real-go.txt"
           python3 -m unittest tests.test_guard_impl.SeedGuardExportTests.test_go_binary_accepts_the_seeded_export -v 2>&1 | tee -a "$RUNNER_TEMP/real-go.txt"
           echo "REAL_GO skipped: $(grep -c 'skipped' "$RUNNER_TEMP/real-go.txt" || true)"
@@ -695,7 +790,7 @@ jobs:
     name: unittest
     needs: [ci-tier, docs-check, unittest-shard, go, guard-unittest, guard-diff, guard-self-compare, guard-evaluator-home-loosen, guard-equiv-fanin, guard-equiv-rest]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","hm-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Docs lane or every shard and guard job succeeded
@@ -768,9 +863,12 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v7
+        if: ${{ runner.environment == 'github-hosted' }}
         with:
           python-version: "3.13"
       - uses: actions/setup-go@v7
+        env:
+          GOTOOLCHAIN: local
         with:
           go-version-file: go/go.mod
           cache: false

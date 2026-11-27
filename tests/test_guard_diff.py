@@ -266,7 +266,7 @@ class EvaluatorRunTests(GuardDiffCase):
             wf = f.read()
         block = _job_block(wf, "guard-self-compare")
         self.assertRegex(block, r"(?m)^    name: guard-self-compare\n")
-        self.assertIn("timeout-minutes: 30", block)
+        self.assertIn("timeout-minutes: 60", block)
         self.assertIn("git diff --exit-code -- roles/hooks/worker-guard.py || exit 1", block)
         self.assertRegex(block, r'-le 100 \]')
         self.assertIn(
@@ -281,7 +281,7 @@ class EvaluatorRunTests(GuardDiffCase):
             wf = f.read()
         block = _job_block(wf, "guard-evaluator-home-loosen")
         self.assertRegex(block, r"(?m)^    name: guard-evaluator-home-loosen\n")
-        self.assertIn("timeout-minutes: 30", block)
+        self.assertIn("timeout-minutes: 60", block)
         self.assertRegex(block, r'-le 100 \]')
         self.assertIn(
             "old = '        if not ok:\\n            raise Block(\"the evaluator may run factory'",
@@ -610,15 +610,17 @@ class CorpusSanityTests(unittest.TestCase):
         # T-0745: an empty FACTORY_HOME, else the live DB's public_text_repos makes the hook block corpus commit text
         # T-1103: the full corpus no longer fits one 600s guard_diff subprocess (CI cap); slice, never drop lines.
         chunk_size = 3400
-        with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home:
-            env = {**os.environ, "FACTORY_HOME": home}
+        # T-2108: guard_diff keeps fixtures at fixed names under TMPDIR (private here), and hook calls are slow on a busy runner
+        with tempfile.TemporaryDirectory(prefix="zz-test-gdhome-") as home, tempfile.TemporaryDirectory(prefix="gd.") as tmp:
+            env = {**os.environ, "FACTORY_HOME": home, "TMPDIR": tmp}
             for part in self._corpus_slices(self.corpus, chunk_size):
                 with tempfile.NamedTemporaryFile("w", prefix="zz-test-gd-corpus-", suffix=".json", delete=False) as f:
                     json.dump(part, f)
                     path = f.name
                 try:
                     p = subprocess.run([sys.executable, TOOL, "--base", "HEAD", "--repo", ROOT, "--mode", "worker",
-                                        "--corpus", path], capture_output=True, text=True, timeout=600, env=env)
+                                        "--corpus", path, "--timeout", "30"], capture_output=True, text=True,
+                                       timeout=600 * harness.time_scale(), env=env)
                 finally:
                     os.unlink(path)
                 self.assertEqual(p.returncode, 0, p.stdout + p.stderr)

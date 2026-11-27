@@ -310,11 +310,12 @@ class RealNamespaceTests(Fixture):
         self.assertLess(int(r.output.split()[-1]), 10)  # only this namespace's processes are visible
 
     def test_timeout_kills_the_tree(self):
-        r = self.run_in(f"sleep 300 & echo $! > {self.wt}/tmp/child; wait", timeout=2)
+        nap = f"300.{os.getpid()}"  # unique: other jobs of this user on the host run their own `sleep 300`
+        r = self.run_in(f"sleep {nap} & echo $! > {self.wt}/tmp/child; wait", timeout=2)
         self.assertTrue(r.timed_out)
         inner = int((self.wt / "tmp/child").read_text())  # pid inside the namespace: gone with its init
         self.assertEqual(inner, 2)
-        sleepers = subprocess.run(["pgrep", "-f", "^sleep 300$", "-u", str(os.getuid())], capture_output=True, text=True)
+        sleepers = subprocess.run(["pgrep", "-f", "^sleep " + nap.replace(".", r"\.") + "$", "-u", str(os.getuid())], capture_output=True, text=True)
         self.assertEqual(sleepers.stdout.split(), [], "a gate child outlived the timeout")
 
 

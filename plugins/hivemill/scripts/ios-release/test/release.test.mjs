@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 import { makeFakeKey } from "./helpers/fakekey.mjs";
 import { startMock } from "./helpers/mock-asc.mjs";
 
+// A busy CI host sets HM_TEST_TIME_SCALE to stretch the time limits; unset or invalid means 1.
+const SCALE = Number(process.env.HM_TEST_TIME_SCALE);
+const TIME_SCALE = SCALE > 0 && Number.isFinite(SCALE) ? SCALE : 1;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const RELEASE = path.join(HERE, "..", "release.sh");
 export const STUBS = path.join(HERE, "stubs");
@@ -124,7 +127,7 @@ export function run(ctx, args = [], env = {}) {
     const child = spawn("/bin/bash", [RELEASE, ...args], { cwd: ctx.repo, env: e });
     let stdout = "";
     let stderr = "";
-    const timer = setTimeout(() => child.kill("SIGKILL"), 120000);
+    const timer = setTimeout(() => child.kill("SIGKILL"), 120000 * TIME_SCALE);
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
     child.on("error", reject);

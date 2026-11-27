@@ -88,8 +88,9 @@ func TestAcceptanceWalkNoPRAtAllRefused(t *testing.T) {
 	if n := len(e.Calls("gh")); n != 0 {
 		t.Fatalf("no PR to look at: gh must not be called at all, got %d calls", n)
 	}
-	if d := time.Since(started); d > 5*time.Second { // T-0182: it was reported as hanging; it is one local refusal
-		t.Fatalf("refusal took %v, want under 5s", d)
+	limit := time.Duration(float64(5*time.Second) * ft.TimeScale())
+	if d := time.Since(started); d > limit { // T-0182: it was reported as hanging; it is one local refusal
+		t.Fatalf("refusal took %v, want under %v", d, limit)
 	}
 }
 

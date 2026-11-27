@@ -447,11 +447,18 @@ func TestHivemillPluginIosReleaseNodeTests(t *testing.T) {
 	sort.Strings(tests)
 	cmd := exec.Command(node, append([]string{"--test", "--test-reporter=tap"}, tests...)...)
 	cmd.Dir = repo
-	done := time.AfterFunc(300*time.Second, func() { _ = cmd.Process.Kill() })
+	done := time.AfterFunc(time.Duration(ft.TimeScale()*float64(300*time.Second)), func() { _ = cmd.Process.Kill() })
 	b, err := cmd.CombinedOutput()
 	done.Stop()
 	if err != nil {
 		tail := string(b)
+		// The failing subtest is often far above the tail: print each "not ok" line with its details first.
+		lines := strings.Split(tail, "\n")
+		for i, l := range lines {
+			if strings.HasPrefix(strings.TrimSpace(l), "not ok ") {
+				t.Log(strings.Join(lines[i:min(i+30, len(lines))], "\n"))
+			}
+		}
 		if len(tail) > 3000 {
 			tail = tail[len(tail)-3000:]
 		}

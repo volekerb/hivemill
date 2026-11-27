@@ -14,7 +14,15 @@ DEPENDABOT = next((p for p in (ROOT / "ci" / "public-overlay" / ".github" / "dep
                   ROOT / ".github" / "dependabot.yml")
 
 ALLOWED_RUNNERS = {"ubuntu-latest", "ubuntu-24.04", "ubuntu-22.04"}
+# Owner decision 2026-11-26: our own PRs and pushes may run on the self-hosted `hm-ci` runners (a dedicated user without
+# sudo or the owner's credentials). Exactly this expression is allowed, character for character: a fork PR always gets
+# ubuntu-latest, and fork PRs also need approval to run (repo setting fork-pr-contributor-approval). Any other
+# self-hosted form stays blocked.
+SELF_HOSTED_SAME_REPO = ("${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == "
+                         "github.repository) && fromJSON('[\"self-hosted\",\"hm-ci\"]') || 'ubuntu-latest' }}")
 BANNED_TRIGGERS = {"pull_request_target", "workflow_run", "schedule"}
+# SELF_HOSTED_SAME_REPO sends every non-pull_request event to hm-ci; other events (reviews, comments) can come from forks
+SELF_HOSTED_TRIGGERS = {"pull_request", "push", "workflow_dispatch"}
 FORK_EXPR = re.compile(r"\$\{\{(.*)")  # to end of line: a literal } (format('{0}', ..)) must not hide the rest
 FORK_TEXT = re.compile(r"github\.event\.pull_request\.|github\.event\.issue\.|github\.head_ref")
 BRACKET = re.compile(r"""\[\s*['"]([\w-]+)['"]\s*\]""")
@@ -66,26 +74,87 @@ def _block(rows, i):
     return j
 
 
+def _flow_line(s):
+    """One line of a flow value: quoted names unquoted, other quoted text blanked (brackets and # in it are text), comment cut."""
+    out, i = [], 0
+    while i < len(s):
+        c = s[i]
+        starts = i == 0 or s[i - 1] in " \t[{,:"  # a quote opens a scalar only at its start (`it's` is plain text)
+        if c == "#" and starts and (i == 0 or s[i - 1] in " \t"):
+            break  # a comment
+        if c in "'\"" and starts:
+            q = re.compile(r"'(?:[^']|'')*'" if c == "'" else r'"[^"\\]*"').match(s, i)
+            if not q:  # an escape, or a quote open across lines: the caller reports the value as unparsed
+                return "\x00"
+            body = q.group(0)[1:-1]
+            out.append(body if re.fullmatch(r"[A-Za-z_][\w-]*", body) else "_q")
+            i = q.end()
+            continue
+        if c in "*&!?|>%@`" and starts:  # alias, anchor, tag, key or block indicator: not read, so fail closed
+            return "\x00"
+        out.append(c)
+        i += 1
+    return "".join(out).strip()
+
+
+def _flow_top(s):
+    """Top-level names of a scalar, a flow list or a flow mapping: not nested keys or values."""
+    if s[0] not in "[{":
+        return re.findall(r"[A-Za-z_][\w-]*", s)
+    out, depth, value = [], 0, False
+    for tok in re.findall(r"""[\[\]{},:]|["']?[A-Za-z_][\w-]*["']?""", s):
+        if tok in "[{":
+            if depth == 1 and not value:
+                out.append("<unparsed>")  # a list item or key that is itself a list or mapping
+            depth += 1
+        elif tok in "]}":
+            depth -= 1
+        elif depth == 1 and tok == ",":
+            value = False
+        elif depth == 1 and tok == ":":
+            value = True
+        elif depth == 1 and not value and tok not in ",:":
+            out.append(tok.strip("'\""))
+    return out
+
+
 def _triggers(rows):
-    """({trigger: lineno}, {trigger: [child key names]}) from the top-level `on:` key."""
+    """({trigger: lineno}, {trigger: [child key names]}) from the top-level `on:` key.
+
+    A form this cannot read is reported as the trigger '<unparsed>', which fails every workflow.
+    """
     found, kids = {}, {}
     for i, (n, raw, ind) in enumerate(rows):
         m = KEY.match(raw)
         if ind or not m or m.group(2) != "on":
             continue
-        inline = m.group(3).strip()
+        inline = _flow_line(m.group(3))
         if inline:
-            for t in re.findall(r"[A-Za-z_][\w-]*", inline):
+            if inline[0] in "[{":  # a flow list or mapping may go on over the next lines
+                k = i + 1
+                depth = lambda s: s.count("[") + s.count("{") - s.count("]") - s.count("}")
+                while depth(inline) > 0 and k < len(rows):
+                    inline += " " + _flow_line(rows[k][1])
+                    k += 1
+                if depth(inline) != 0:
+                    return {"<unparsed>": n}, kids
+            if "\x00" in inline:
+                return {"<unparsed>": n}, kids
+            for t in _flow_top(inline):
                 found[t] = n
+            if not found:
+                found["<unparsed>"] = n
             return found, kids
         end = _block(rows, i)
         base = rows[i + 1][2] if i + 1 < end else 0
         cur = None
         for k in range(i + 1, end):
             kn, kraw, kind = rows[k]
-            item = re.match(r"^\s*-\s+([A-Za-z_][\w-]*)\s*$", kraw)
+            item = re.match(r"""^\s*-\s+["']?([A-Za-z_][\w-]*)["']?(?:\s+#.*)?\s*$""", kraw)
             km = KEY.match(kraw)
-            if kind == base and item:
+            if kind == base and not item and not km:
+                found["<unparsed>"] = kn
+            elif kind == base and item:
                 found[item.group(1)] = kn
             elif kind == base and km:
                 cur = km.group(2)
@@ -93,7 +162,10 @@ def _triggers(rows):
                 kids[cur] = []
             elif cur and km:
                 kids[cur].append(km.group(2))
-    return found, kids
+        if not found:
+            found["<unparsed>"] = n
+        return found, kids
+    return {"<unparsed>": 1}, kids  # no top-level `on:` this can read, e.g. `on :` or `? on`
 
 
 def _write_ok(found, kids):
@@ -111,6 +183,8 @@ def _check_workflow(path, text):
     rel, out = str(path), []
     rows = list(_lines(text))
     found, kids = _triggers(rows)
+    if "<unparsed>" in found:
+        out.append("%s:%d: the `on:` triggers are in a form this check cannot read; use a block or a one-line list" % (rel, found["<unparsed>"]))
     for t in sorted(BANNED_TRIGGERS & set(found)):
         why = "burns minutes unattended" if t == "schedule" else "runs with a write token / secrets on fork code"
         out.append("%s:%d: trigger '%s' not allowed (%s)" % (rel, found[t], t, why))
@@ -123,9 +197,13 @@ def _check_workflow(path, text):
         key, val = (m.group(2), m.group(3).strip()) if m else (None, "")
         if key == "runs-on":
             v = re.sub(r"\s+#.*$", "", val).strip("'\"")
-            if v not in ALLOWED_RUNNERS:
+            if v not in ALLOWED_RUNNERS and re.sub(r"\s+#.*$", "", val) != SELF_HOSTED_SAME_REPO:
                 out.append("%s:%d: runs-on '%s' is not a free standard runner (%s)"
                            % (rel, n, v, ", ".join(sorted(ALLOWED_RUNNERS))))
+            elif v not in ALLOWED_RUNNERS and set(found) - SELF_HOSTED_TRIGGERS:
+                out.append("%s:%d: runs-on self-hosted allows only the triggers %s (found %s)"
+                           % (rel, n, ", ".join(sorted(SELF_HOSTED_TRIGGERS)),
+                              ", ".join(sorted(set(found) - SELF_HOSTED_TRIGGERS))))
         if key == "permissions":
             if ind == 0:
                 top_perm = n
@@ -252,6 +330,54 @@ class RunnerRule(PolicyBase):  # a
     def test_quoted_key_and_trailing_comment(self):
         self.assertBlocked(GOOD.replace("runs-on: ubuntu-latest", "'runs-on': self-hosted"), "runs-on", 10)
         self.assertClean(GOOD.replace("ubuntu-latest", "ubuntu-latest # standard"))
+
+    def test_same_repo_self_hosted_expression_allowed(self):
+        self.assertClean(GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + SELF_HOSTED_SAME_REPO))
+
+    def test_self_hosted_with_fork_reachable_trigger_blocked(self):
+        wf = GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + SELF_HOSTED_SAME_REPO)
+        for trigger in ("pull_request_review", "pull_request_review_comment", "issue_comment"):
+            bad = wf.replace("on:\n", "on:\n  %s:\n" % trigger, 1)
+            self.assertNotEqual(bad, wf)
+            self.assertBlocked(bad, trigger)
+
+    def test_self_hosted_trigger_spellings_cannot_hide_a_trigger(self):
+        wf = GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + SELF_HOSTED_SAME_REPO)
+        block = "on:\n  pull_request:\n    branches: [main]\n  workflow_dispatch:\n"
+        self.assertIn(block, wf)
+        for on, want in (("on:\n  - push\n  - issue_comment  # chat\n", "issue_comment"),
+                         ("on:\n  - push\n  - 'issue_comment'\n", "issue_comment"),
+                         ("on: [push,\n  issue_comment]\n", "issue_comment"),
+                         ("on:  # events\n  issue_comment:\n", "issue_comment"),
+                         ("on:\n- issue_comment\n", "<unparsed>"),
+                         ("on:\n  - push\n  - *chat\n", "<unparsed>"),
+                         ("on: {push,\n  issue_comment}\n", "issue_comment"),
+                         ("on: {push: {branches: [main]},\n  issue_comment: {}}\n", "issue_comment"),
+                         ("on: [push,\n", "<unparsed>"),
+                         ("on: {'push', \"issue_comment\": null}\n", "issue_comment"),
+                         ("on :\n  issue_comment:\n", "<unparsed>"),
+                         ("? on\n: [issue_comment]\n", "<unparsed>")):
+            self.assertBlocked(wf.replace(block, on), want)
+        self.assertClean(wf.replace(block, "on: {pull_request: {branches: [main]},\n  workflow_dispatch: {}}\n"))
+        self.assertClean(wf.replace(block, "on: [push, pull_request]  # don't add schedule here\n"))
+        self.assertClean(wf.replace(block, "on: {pull_request: {branches: [it's]}}\n"))
+        self.assertBlocked(wf.replace(block, "on: {push: {branches: ['[', 'x #y']}, issue_comment: {}}\n"),
+                           "issue_comment")
+        # a hosted workflow whose triggers cannot be read fails too, so a banned trigger cannot hide there
+        for on in ("on:\n- schedule\n", "on: [push,\n", "on :\n  schedule:\n",
+                   'on: {push: {branches: ["a\\"b"]}, schedule: {}}\n',
+                   "on: {push: {branches: ['a\n  ]}']}, schedule: {}}\n",
+                   "on: [push, *t]\n", "on: {push: {}, *t : {}}\n", "on: [push, !!str schedule]\n",
+                   "on: [push, {schedule: {}}]\n"):
+            self.assertBlocked(GOOD.replace(block, on), "cannot read")
+
+    def test_self_hosted_for_forks_blocked(self):
+        # a fork must never reach the self-hosted runners: every other spelling is blocked
+        for bad in (SELF_HOSTED_SAME_REPO.replace("|| 'ubuntu-latest'", "|| fromJSON('[\"self-hosted\",\"hm-ci\"]')"),
+                    SELF_HOSTED_SAME_REPO.replace("github.event.pull_request.head.repo.full_name == github.repository", "true"),
+                    SELF_HOSTED_SAME_REPO.replace("!=", "=="),
+                    "${{ fromJSON('[\"self-hosted\",\"hm-ci\"]') }}"):
+            self.assertBlocked(GOOD.replace("runs-on: ubuntu-latest", "runs-on: " + bad), "runs-on", 10)
 
     def test_standard_runners_allowed(self):
         for r in sorted(ALLOWED_RUNNERS):

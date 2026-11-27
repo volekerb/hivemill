@@ -34,6 +34,15 @@ STUBS = Path(__file__).resolve().parent / "stubs"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
+def time_scale():
+    """$HM_TEST_TIME_SCALE stretches test time limits on a busy CI host; unset or invalid means 1."""
+    try:
+        v = float(os.environ.get("HM_TEST_TIME_SCALE", ""))
+    except ValueError:
+        return 1.0
+    return v if 0 < v < float("inf") else 1.0
+
+
 def _literal(name):
     """Read a module-level literal from bin/factory without importing it (no side effects)."""
     for node in ast.parse(FACTORY_SRC.read_text()).body:
