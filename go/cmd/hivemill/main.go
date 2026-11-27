@@ -29,7 +29,7 @@
 //	hivemill health [--alert]      exit 0 when the last good pass is recent and obs answers; --alert raises the rate-limited alerts
 //	hivemill drain [--status] | resume   no new dispatch while active runs finish / lift it
 //	hivemill backup | restore <snapshot> [--dry-run]   VACUUM INTO snapshots with retention, checked restore
-//	hivemill clean [--dry-run]     remove finished worktrees, trim go caches on a full disk, gzip old transcripts
+//	hivemill clean [--dry-run]     free disk on every machine: ended worktrees, Go caches, tmp, DerivedData, Maestro, transcripts
 //	hivemill planner start|stop|status|wake [REASON]   the planner session (keeps ready queues full; woken by the daemon)
 //	hivemill planner done ID [ID...] [--note TEXT]     close planner work rows (planner status lists the open ones)
 //	hivemill ask add|list|answer|withdraw              the owner queue
