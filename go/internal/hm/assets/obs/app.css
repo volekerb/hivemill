@@ -68,6 +68,9 @@ td.num, th.num { text-align:right; }
 td.wrap { white-space:normal; word-break:break-word; min-width:240px; }
 tr.total td { font-weight:600; border-top:1px solid var(--fg); }
 .banner { border:1px solid var(--honey); background:var(--panel); padding:8px 12px; color:var(--warn); }
+tr.stale td, tr.stale td a { color:var(--muted); }
+.brand .label { color:var(--fg); font-weight:400; }
+.summary { margin:0 0 8px; }
 .ok { color:var(--ok); } .bad { color:var(--bad); } .warn { color:var(--warn); }
 .muted, footer { color:var(--muted); }
 dl.kv { display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; margin:8px 0; }
