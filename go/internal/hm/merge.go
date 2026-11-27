@@ -448,7 +448,7 @@ func (r *Runner) approveHeld(run *Run, head string) {
 	for _, a := range asks {
 		// the ref repeats when a task is dispatched again: an answer to an earlier run's question is not for this one
 		at, err := time.Parse(time.RFC3339, a.Answered)
-		if a.Ref != heldRef(run) || (a.AnsweredBy != "owner" && a.AnsweredBy != "director") ||!approvalRe.MatchString(a.Answer) || err != nil || at.Before(since) {
+		if a.Ref != heldRef(run) || (a.AnsweredBy != "owner" && a.AnsweredBy != "director") || !approvalRe.MatchString(a.Answer) || err != nil || at.Before(since) {
 			continue
 		}
 		why := fmt.Sprintf("the hold was approved (question #%d, by %s)", a.ID, a.AnsweredBy)

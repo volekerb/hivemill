@@ -137,7 +137,7 @@ hivemill ask add|list|answer|withdraw   # the owner queue
 hivemill digest [--date D] [--send]     # morning digest
 ```
 
-An answer to an owner question given from inside a Claude Code session is recorded as `director`. A `director` answer that starts with `approved` or `merge it` approves a held merge after a judge HOLD, as an `owner` answer does, but never a release: only an `owner` answer (from a plain shell) approves a release.
+An answer to an owner question given from inside a Claude Code session with no `FACTORY_AGENT` is recorded as `director`. A `director` answer that starts with `approved` or `merge it` approves a held merge after a judge HOLD, as an `owner` answer does, but never a release: only an `owner` answer (from a plain shell) approves a release.
 
 Agents other than the director, the boss and the planner may only run `task lint`, `task list`, `task show`, `report` and `health` (the planner: see [hivemill-planner.md](hivemill-planner.md)), and a task session `pr create|ready` for its own task; hooks identify their session by `FACTORY_AGENT`. Each pass makes at most one gh read per active run.
 
