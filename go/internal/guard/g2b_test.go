@@ -2,8 +2,8 @@ package guard
 
 // The guard2 cases of go/internal/factorytest (researcher, retro_mirror, retro, scratch_init, uv_wrapper; T-1921,
 // guard port 2b): every TestG2<name> is the old Test<name> with the same inputs and the same expected answers, but it
-// calls HookMain in-process (g2_helpers_test.go) instead of the built binary. The map is
-// testdata/portmap/guard2b.txt.
+// calls HookMain in-process (g2_helpers_test.go) instead of the built binary; a run under a fixture home
+// (g2Opts.pw) takes g2HookMainIn. The map is testdata/portmap/guard2b.txt.
 
 import (
 	"os"
