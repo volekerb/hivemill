@@ -475,12 +475,12 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 			}
 			if j.Restarts > 0 {
 				j.Failed = "the local gate job ended twice without a result"
-				r.scrubJobLog(j) // the record stays until a retry or a new head
 			} else {
 				j.Restarts, j.Rank, j.Started, j.PID = 1, -1, time.Time{}, 0
 				queued = append(queued, j)
 				r.printf("%s: the local gate job is gone without a result; starting it again\n", j.Task)
 			}
+			r.scrubJobLog(j) // a failed or requeued job may keep its record, and this log, for a long time
 			_ = r.saveCIJob(j)
 		case jobQueued:
 			queued = append(queued, j)
@@ -508,6 +508,7 @@ func (r *Runner) scheduleCIJobs() map[string]error {
 				down[j.Machine], j.StartLost = err, true
 			} else {
 				j.Failed, j.StartFailed = err.Error(), true
+				r.scrubJobLog(j)
 			}
 			_ = r.saveCIJob(j)
 			continue
