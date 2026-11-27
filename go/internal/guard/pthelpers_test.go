@@ -54,6 +54,6 @@ func ptHook(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	SetPyHook(p)
-	t.Cleanup(func() { SetPyHook("") })
+	SetHookPath(p)
+	t.Cleanup(func() { SetHookPath("") })
 }

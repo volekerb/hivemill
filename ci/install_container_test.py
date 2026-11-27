@@ -6,32 +6,34 @@
 head   installs the checked-out tree (file:// clone of the workspace at --sha).
 latest installs the newest release tag of the public repository (--ref latest).
 
+The installer builds hivemill and worker-guard with `go build`, so root's `go` (actions/setup-go puts it on PATH
+before this runs) must be on PATH; its directory goes on the plain user's PATH. The newest release may predate the
+hivemill-only installer: latest mode shallow-clones that tag first and skips (exit 0) when it has no go/cmd/hivemill.
+
 It installs git, python3 and ca-certificates, checks that the installer refuses root, creates a plain user with a
 fake `claude` and a fake `gh`, runs `--check` and `--yes --no-systemd` as that user in a clean environment, and
-checks the result: RESULT PASS, a verified herdr download, boss and director listed, the UI answering 200 on
-loopback only. A second `--yes` must exit 4 and leave the database untouched. No secrets, no Claude or GitHub
-login: the fakes only answer the few commands the installer asks. Standard library only; exit 0 = all checks passed.
+checks the result: RESULT PASS, a verified herdr download, ~/.local/bin/hivemill and ~/.local/bin/worker-guard
+linked, and `hivemill health` answering as the installer's smoke step expects (no database yet after an install).
+A second `--yes` must exit 4 and leave the clone untouched. No secrets, no Claude or GitHub login: the fakes only
+answer the few commands the installer asks. Standard library only; exit 0 = all checks passed.
 """
 import argparse
 import os
 import pwd
 import re
 import shlex
+import shutil
 import stat
 import subprocess
 import sys
-import time
-import urllib.error
-import urllib.request
+import tempfile
 
 USER = "hmtest"
-PORT = 8765
 PUBLIC_URL = "https://github.com/volekerb/hivemill.git"
 INSTALLER = "plugins/hivemill/scripts/install.py"
 APT_PACKAGES = ["git", "python3", "ca-certificates"]
-LISTEN = "0A"  # TCP_LISTEN in /proc/net/tcp
-LOOPBACK_V4 = "0100007F"  # 127.0.0.1 as /proc/net/tcp prints it
-LOOPBACK_V6 = "00000000000000000000000001000000"  # ::1
+BUILT = ("hivemill", "worker-guard")  # what the installer builds from the clone and links into ~/.local/bin
+TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")  # release tags, as install.py's resolve_latest matches them
 
 # Kept as written files: tests/stubs is on the test harness PATH and a `claude` there would change other tests.
 FAKE_CLAUDE = """#!/bin/sh
@@ -83,51 +85,63 @@ def check_root_refusal(runner, cmd):
     need("refusing to run as root" in out, "the root refusal names the reason", out)
 
 
-def check_rerun_refused(runner, cmd, db_mtime):
-    """A second --yes exits 4 and leaves the database file alone. `db_mtime()` -> mtime_ns."""
-    before = db_mtime()
+def check_rerun_refused(runner, cmd, mtime):
+    """A second --yes exits 4 and changes nothing in the clone. `mtime()` -> mtime_ns of a file of the clone."""
+    before = mtime()
     rc, out = runner(cmd)
     need(rc == 4, "second --yes exits 4 (got %s)" % rc, out)
-    need("already installed" in out, "the rerun says already installed", out)
-    need(db_mtime() == before, "database mtime unchanged by the rerun")
+    need("nothing was touched" in out, "the rerun says nothing was touched", out)
+    need(mtime() == before, "clone mtime unchanged by the rerun")
 
 
-def listeners(port, tcp4_text, tcp6_text):
-    """Local addresses (hex, as in /proc/net/tcp) of the sockets listening on `port`."""
-    found = []
-    for text in (tcp4_text, tcp6_text):
-        for ln in text.splitlines()[1:]:
-            f = ln.split()
-            if len(f) > 3 and f[3] == LISTEN:
-                addr, _, p = f[1].rpartition(":")
-                if int(p, 16) == port:
-                    found.append(addr)
-    return found
+def check_health(rc, out):
+    """`hivemill health` right after an install: rc 0, or rc 1 because there is no database yet (the smoke step)."""
+    need(rc == 0 or (rc == 1 and "cannot open database" in out),
+         "hivemill health exits 0, or 1 with no database yet (rc=%s)" % rc, out)
 
 
-def read_file(path):
-    try:
-        with open(path) as f:
-            return f.read()
-    except OSError:
-        return ""
+def newest_tag(ls_remote_output):
+    """The highest ^vX.Y.Z$ tag among `git ls-remote --tags` lines, or None (the sort of install.py's resolve_ref)."""
+    best = None
+    for ln in ls_remote_output.splitlines():
+        parts = ln.split()
+        if len(parts) != 2 or not parts[1].startswith("refs/tags/"):
+            continue
+        name = parts[1][len("refs/tags/"):]
+        if name.endswith("^{}"):
+            name = name[:-3]
+        m = TAG_RE.match(name)
+        if m:
+            key = tuple(int(x) for x in m.groups())
+            if best is None or key > best[0]:
+                best = (key, name)
+    return best[1] if best else None
 
 
-def check_loopback_only(port):
-    # no iproute2 in a bare image and the spec forbids more packages: /proc/net/tcp is what `ss -ltn` prints from
-    found = listeners(port, read_file("/proc/net/tcp"), read_file("/proc/net/tcp6"))
-    need(bool(found), "something listens on port %d (got %r)" % (port, found))
-    need(all(a in (LOOPBACK_V4, LOOPBACK_V6) for a in found), "port %d listens on loopback only (got %r)" % (port, found))
+def latest_predates_hivemill(repo_url):
+    """-> (tag, True when that tag lacks go/cmd/<b>/ for any b in BUILT). Shallow-clones the newest release tag as root."""
+    rc, out = run(["git", "ls-remote", "--tags", repo_url], timeout=120)
+    need(rc == 0, "git ls-remote --tags %s (rc=%s)" % (repo_url, rc), out)
+    tag = newest_tag(out)
+    need(tag is not None, "%s has a vX.Y.Z release tag" % repo_url, out)
+    with tempfile.TemporaryDirectory() as d:
+        dst = os.path.join(d, "release")
+        rc, out = run(["git", "clone", "-q", "--depth", "1", "--branch", tag, repo_url, dst], timeout=300)
+        need(rc == 0, "shallow clone of %s (rc=%s)" % (tag, rc), out)
+        return tag, not all(os.path.isdir(os.path.join(dst, "go", "cmd", b)) for b in BUILT)
 
 
-def http_status(url):
-    try:
-        with urllib.request.urlopen(url, timeout=10) as r:
-            return r.status
-    except urllib.error.HTTPError as e:
-        return e.code
-    except (OSError, ValueError):
-        return 0
+def go_bin_dir():
+    """The directory of root's real `go` binary (setup-go's tool cache), or Fail when there is no go on PATH."""
+    go = shutil.which("go")
+    if not go:
+        raise Fail("no `go` on PATH: the installer builds hivemill with go build; run actions/setup-go before this script")
+    return os.path.dirname(os.path.realpath(go))
+
+
+def user_path(home, go_dir):
+    """The plain user's PATH: its ~/.local/bin, the Go toolchain's bin dir, then the system dirs."""
+    return "%s/.local/bin:%s:/usr/local/bin:/usr/bin:/bin" % (home, go_dir)
 
 
 def write_exec(path, text, uid, gid):
@@ -137,9 +151,9 @@ def write_exec(path, text, uid, gid):
     os.chown(path, uid, gid)
 
 
-def user_cmd(home, argv):
-    """argv as the plain user in a clean environment."""
-    env = ["HOME=" + home, "PATH=%s/.local/bin:/usr/local/bin:/usr/bin:/bin" % home, "LANG=C.UTF-8"]
+def user_cmd(home, go_dir, argv):
+    """argv as the plain user in a clean environment, with the Go toolchain on PATH."""
+    env = ["HOME=" + home, "PATH=" + user_path(home, go_dir), "LANG=C.UTF-8"]
     return ["runuser", "-u", USER, "--", "env", "-i"] + env + argv
 
 
@@ -163,6 +177,12 @@ def main(argv=None):
 
     # b. root refusal
     check_root_refusal(lambda c: run(c), [py, installer, "--yes", "--no-systemd"])  # refused before any step
+    if a.mode == "latest":
+        tag, old = latest_predates_hivemill(a.repo_url)
+        if old:
+            print("SKIP: latest release %s predates the hivemill-only installer (no go/cmd/hivemill or go/cmd/worker-guard)" % tag)
+            return 0
+    go_dir = go_bin_dir()
 
     # c. plain user with the two fakes
     rc, out = run(["useradd", "-m", "-s", "/bin/bash", USER])
@@ -183,13 +203,10 @@ def main(argv=None):
     os.chmod(cred, stat.S_IRUSR | stat.S_IWUSR)
 
     def as_user(argv_):
-        return run(user_cmd(home, argv_))
+        return run(user_cmd(home, go_dir, argv_))
 
-    proj = os.path.join(home, "demo-project")
-    for g in (["git", "init", "-q", proj],
-              ["git", "-C", proj, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "init"]):
-        rc, out = as_user(g)
-        need(rc == 0, "project repo: %s" % " ".join(g[:4]), out)
+    rc, out = as_user(["go", "version"])
+    need(rc == 0, "%s can run the Go toolchain in %s (rc=%s; it must be readable by every user)" % (USER, go_dir, rc), out)
 
     # d. check, then install
     rc, out = as_user([py, installer, "--check", "--no-systemd"])
@@ -197,6 +214,7 @@ def main(argv=None):
          "--check prints the report and exits 3 with only herdr missing (rc=%s)" % rc, out)
     need(re.search(r"^ok claude ", out, re.M) is not None and re.search(r"^ok gh-auth ", out, re.M) is not None,
          "--check sees the fake claude and the fake gh login", out)
+    need(re.search(r"^ok go ", out, re.M) is not None, "--check sees the Go toolchain", out)
     if a.mode == "head":
         sha = a.sha or run(["git", "-C", ws, "-c", "safe.directory=" + ws, "rev-parse", "HEAD"])[1].strip()
         need(re.fullmatch(r"[0-9a-f]{40}", sha) is not None, "head sha is %s" % sha)
@@ -210,8 +228,7 @@ def main(argv=None):
         which = ["--repo-url", "file://" + src, "--ref", sha]
     else:
         which = ["--repo-url", a.repo_url, "--ref", "latest"]
-    cmd = [py, installer, "--yes", "--no-systemd", "--no-scout", "--project-id", "demo", "--project-name", "Demo",
-           "--project-repo", proj] + which
+    cmd = [py, installer, "--yes", "--no-systemd"] + which
     print("$ " + " ".join(shlex.quote(c) for c in cmd), flush=True)
     rc, out = as_user(cmd)
     print(out, flush=True)
@@ -222,16 +239,13 @@ def main(argv=None):
     need(re.search(r"^\[ok\] \d+ tools: .*herdr v[\d.]+ \(size\+sha256 verified\)", out, re.M) is not None,
          "herdr downloaded and verified against the pinned size and sha256", out)
     need(os.access(os.path.join(bindir, "herdr"), os.X_OK), "herdr is installed in ~/.local/bin")
-    rc, out = as_user(["factory", "agents"])
-    need(rc == 0 and re.search(r"\bboss\b", out) is not None and re.search(r"\bdirector\b", out) is not None,
-         "factory agents lists boss and director", out)
-    code = http_status("http://127.0.0.1:%d/" % PORT)
-    need(code == 200, "GET / answers 200 (got %s)" % code)
-    check_loopback_only(PORT)
+    for name in BUILT:
+        need(os.access(os.path.join(bindir, name), os.X_OK), "%s is built and linked in ~/.local/bin" % name)
+    check_health(*as_user(["hivemill", "health"]))
 
     # f. rerun
-    db = os.path.join(home, "factory", "db", "factory.db")
-    check_rerun_refused(lambda c: as_user(c), [py, installer, "--yes", "--no-systemd"] + which, lambda: os.stat(db).st_mtime_ns)
+    built = os.path.join(home, "factory", "bin", "hivemill")
+    check_rerun_refused(lambda c: as_user(c), [py, installer, "--yes", "--no-systemd"] + which, lambda: os.stat(built).st_mtime_ns)
     print("ALL CHECKS PASSED (%s)" % a.mode)
     return 0
 

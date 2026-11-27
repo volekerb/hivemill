@@ -153,9 +153,8 @@ class SettingsDenyTest(unittest.TestCase):
             for k in ("@FACTORY_USER_CONFIG@", "@FACTORY_HOME_DIR@"):
                 text = text.replace(k, "/x")
             deny = json.loads(text)["permissions"]["deny"]
-            for tool in EDIT_TOOLS:
-                # the trailing * covers guard-export.json and guard-export.json.tmp<pid>
-                self.assertIn(f"{tool}(//live/run/guard-export.json*)", deny, f"{n} {tool}")
+            # Edit(path) rules cover every edit tool; the trailing * covers guard-export.json and its .tmp<pid>
+            self.assertIn("Edit(//live/run/guard-export.json*)", deny, n)
 
 
 if __name__ == "__main__":

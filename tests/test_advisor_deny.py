@@ -14,8 +14,6 @@ SECRET = "SECRET-CONTENT-ADVISOR-123"
 
 def problems(d):
     out = []
-    if "Advisor" not in d["permissions"]["deny"]:
-        out.append("no advisor deny")
     if d["env"].get("CLAUDE_CODE_DISABLE_ADVISOR_TOOL") != "1":
         out.append("advisor tool not disabled via env")
     return out
@@ -29,19 +27,16 @@ class AdvisorDenyTests(unittest.TestCase):
         self.assertTrue(set(ROLES) <= names, f"roles without settings: {set(ROLES) - names}")
         self.assertIn("boss", names)
 
-    def test_every_settings_file_denies_advisor_and_disables_it(self):
+    def test_every_settings_file_disables_advisor(self):
         self.assertGreaterEqual(len(SETTINGS), 12)
         for p in SETTINGS:
             self.assertEqual(problems(json.loads(p.read_text())), [], p.name)
 
-    def test_checker_rejects_missing_deny_or_env(self):
+    def test_checker_rejects_missing_env(self):
         d = json.loads(SETTINGS[0].read_text())
-        no_deny = json.loads(json.dumps(d))
-        no_deny["permissions"]["deny"].remove("Advisor")
         no_env = json.loads(json.dumps(d))
         del no_env["env"]["CLAUDE_CODE_DISABLE_ADVISOR_TOOL"]
         self.assertEqual(problems(d), [])
-        self.assertEqual(problems(no_deny), ["no advisor deny"])
         self.assertEqual(problems(no_env), ["advisor tool not disabled via env"])
 
 

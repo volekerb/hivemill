@@ -26,7 +26,7 @@ func call(t *testing.T, stdin []byte, env []string, args ...string) (int, string
 	if !hasEnv(env, "FACTORY_HOME") { // no live home, no DB file: the rules that read the DB take their "no DB" branch
 		env = append([]string{"FACTORY_HOME=" + t.TempDir()}, env...)
 	}
-	if !hasEnv(env, "PATH") { // the delegation runs python3 from the PATH
+	if !hasEnv(env, "PATH") { // the push and public-text rules run git from the PATH
 		env = append([]string{"PATH=" + os.Getenv("PATH")}, env...)
 	}
 	cmd := exec.Command(os.Args[0], args...)

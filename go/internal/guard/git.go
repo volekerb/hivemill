@@ -1230,7 +1230,7 @@ func gitPinAttachedC(o string) bool {
 // HEAD:factory/<own task id>`; the task id comes from FACTORY_AGENT (coder-t-NNNN). No other remote, URL, refspec,
 // force/--all/--mirror/--tags/--delete or option; no -c / --git-dir overrides; an unknown own task id refuses. The
 // own worktree is the one recorded for the task in the factory DB: with no DB file it cannot be resolved (refuse);
-// with one, the Python hook reads it.
+// with one, the guard export's task_worktrees row names it (no row: refuse).
 func (a *Analyzer) gitPushPin(rest []string) error {
 	if a.Role != "coder" {
 		return nil
