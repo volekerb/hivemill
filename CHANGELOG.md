@@ -23,6 +23,8 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A PR flow controller keeps runner PRs moving.** Each pass reads all open runner PRs with one batched GraphQL query, gives every flow state a time budget with a fixed action when it runs out, merges a train of PRs that share no file, and emits `pr.stale` for a PR that stops changing. New config keys: `ci_queue_max_min`, `merge_train`, `stale_pr_min`. See [docs/pr-flow.md](https://github.com/volekerb/hivemill/blob/main/docs/pr-flow.md) (T-2079).
+
 - **Board and Traces tabs in the Herdr app dashboard.** Board shows one factory's tasks as cards in six columns, grouped by the reason they wait; Traces shows a task's run as phases with time, cost and the start of each prompt. Both need a factory on a build with `/api/obs/v1/board`; an older one is named as such. See [docs/herdr-app-dashboard.md](docs/herdr-app-dashboard.md).
 
 - **A task board and full traces in the obs API.** `GET /api/obs/v1/board` puts every task of a factory in its column (queued, working, in CI, to merge, held, done today) under the reason it waits there, with its title. `GET /api/obs/v1/task?k=<key>` is the trace with the task's title, stage, PR and the text of each prompt the runner sent (64 KB per prompt at most). Both are read-only, like the rest of the page. See [docs/hivemill-observability.md](docs/hivemill-observability.md).
