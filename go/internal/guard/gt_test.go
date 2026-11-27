@@ -177,33 +177,41 @@ func gtCorpusCheck(t *testing.T, entries []gtCorpusEntry, wantBlock bool, defaul
 
 func TestGTGuardDiffCorpusMustBlock(t *testing.T) {
 	t.Setenv("FACTORY_HOME", t.TempDir())
+	fxUseHome(t, fxHome(t, fxSymlinkFactory))
 	block, _ := gtLoadCorpus(t)
+	gtCorpusMustBlock(t, block)
+}
+
+func TestGTGuardDiffCorpusMustAllow(t *testing.T) {
+	t.Setenv("FACTORY_HOME", t.TempDir())
+	fxUseHome(t, fxHome(t, fxSymlinkFactory))
+	_, allow := gtLoadCorpus(t)
+	gtCorpusMustAllow(t, allow)
+}
+
+// The corpus verdicts are the same whichever shape the home's factory CLI has (T-2153).
+func TestGuardCorpusIndependentOfHome(t *testing.T) {
+	t.Setenv("FACTORY_HOME", t.TempDir())
+	block, allow := gtLoadCorpus(t)
+	for _, factory := range []string{fxSymlinkFactory, fxForwardingFactory} {
+		t.Run(factory, func(t *testing.T) {
+			fxUseHome(t, fxHome(t, factory))
+			gtCorpusMustBlock(t, block)
+			gtCorpusMustAllow(t, allow)
+		})
+	}
+}
+
+func gtCorpusMustBlock(t *testing.T, block []gtCorpusEntry) {
+	t.Helper()
 	if n := gtCorpusCheck(t, block, true, []string{"worker"}); n < 1000 {
 		t.Fatalf("only %d must_block entries checked; the corpus or the filter is broken", n)
 	}
 }
 
-func TestGTGuardDiffCorpusMustAllow(t *testing.T) {
-	t.Setenv("FACTORY_HOME", t.TempDir())
-	_, all := gtLoadCorpus(t)
-	var allow, lb []gtCorpusEntry
-	for _, e := range all {
-		if e.Cmd == g2LbRun {
-			lb = append(lb, e)
-		} else {
-			allow = append(allow, e)
-		}
-	}
-	if len(lb) == 0 {
-		t.Fatalf("the corpus has no %q must_allow entry", g2LbRun)
-	}
-	n := gtCorpusCheck(t, allow, false, []string{"worker", "hq"})
-	// g2LbRun makes the guard read ~/.local/bin/factory: run it against a temp passwd home holding a Python factory,
-	// so the answer does not depend on the machine's ~/.local/bin (as lbRunIn does, T-2041)
-	pw := g2TempPw(t, map[string]string{"factory": g2LbPyFactory})
-	t.Setenv("HOME", pw)
-	g2InstallHost(t, pw)
-	if n += gtCorpusCheck(t, lb, false, []string{"worker", "hq"}); n < 500 {
+func gtCorpusMustAllow(t *testing.T, allow []gtCorpusEntry) {
+	t.Helper()
+	if n := gtCorpusCheck(t, allow, false, []string{"worker", "hq"}); n < 500 {
 		t.Fatalf("only %d must_allow entries checked; the corpus or the filter is broken", n)
 	}
 }

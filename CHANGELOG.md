@@ -9,6 +9,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`hivemill proofs touched --ios-dir` no longer passes on a mistyped directory.** An iOS directory that is missing under the root, or differs in letter case from the real one, is now a usage error (exit 2) that names it, not `SKIP xcodebuild: no iOS change` (T-2074).
+
 ### Added
 
 - **The Go guard no longer runs python3.** It lists tar/zip archive members itself and treats a DB value with no export row as absent; `--py-hook` is accepted and only locates the checkout (T-2112). Where it cannot follow Python it refuses: xz, a gzip FEXTRA field, a second bzip2 stream, and any non-zero data after the first gzip member, which `gzip -d` would also extract (T-2132).

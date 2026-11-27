@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -190,20 +189,6 @@ func g2Mkdirs(t testing.TB, paths ...string) {
 func g2RealTemp(t testing.TB) string {
 	t.Helper()
 	p, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return p
-}
-
-// g2Pw is the account home the guard resolves (the hook reads only the text of a command: nothing here writes it).
-func g2Pw(t *testing.T) string {
-	t.Helper()
-	u, err := user.Current()
-	if err != nil {
-		t.Fatal(err)
-	}
-	p, err := filepath.EvalSymlinks(u.HomeDir)
 	if err != nil {
 		t.Fatal(err)
 	}
