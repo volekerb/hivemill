@@ -556,9 +556,15 @@ func TestDigest(t *testing.T) {
 	write(day.Add(25*time.Hour), "task.failed", "T-0091", nil) // the day after
 	_ = s.PutRun(&Run{Task: "T-0003", Goal: "G-001", Project: "www", State: Held, MergeHold: "tier T3: the owner merges"})
 	_, _ = r.AskAdd(Ask{Project: "www", Question: "zz-test question"})
+	for at, n := range map[time.Time]string{day.Add(9 * time.Hour): "30", day.Add(10 * time.Hour): "50", day.Add(-time.Hour): "900"} {
+		_ = s.SetMeta(ghKey(at), n)
+	}
 	d, err := r.BuildDigest(day.Add(15 * time.Hour))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if want := "80 calls; 40 per hour on average over 2 active hours, 50 in the busiest hour"; !strings.Contains(d.Markdown(time.Now()), want) {
+		t.Errorf("digest gh API use: want %q in\n%s", want, d.Markdown(time.Now()))
 	}
 	if d.Date != "2026-11-24" || len(d.Merges) != 1 || d.Merges[0].Task != "T-0001" || len(d.Failed) != 1 || d.Failed[0].Task != "T-0002" ||
 		len(d.Held) != 1 || len(d.Asks) != 1 || d.Dispatched != 1 || len(d.Goals) != 1 {
