@@ -55,6 +55,7 @@ hivemill obs --json [--days N] [--machine M] [--harness H]   # the portfolio as 
 hivemill obs sources             # the logs it reads
 ```
 
+- **Runs by default.** The installer and `hivemill init` set obs up as a service next to the daemon, and `hivemill health` reports when it does not answer: see [supervision](option-b-runner.md#supervision).
 - **Binding and requests.** The page binds to 127.0.0.1 by default and answers only GET and HEAD. A request whose `Host` is not a loopback name gets 403, which blocks DNS rebinding.
 - **Other machines.** `--listen HOST`, or the config key `obs_listen`, picks the bind address: an IP address or `localhost`. A host name is a usage error (exit 2). An IPv4 address, `0.0.0.0` included, is served over IPv4 only. When the address is not loopback, one `WARNING` line goes to stderr: the page is read-only but readable by anyone on that network. It has no authentication, so use it only on a network you trust. A `Host` that is an IP address is then answered too; a DNS name still gets 403.
 - **Self-contained.** It is plain HTML from `html/template` with one embedded stylesheet (`app.css`). There is no script, and nothing is loaded from another origin; the CSP header starts with `default-src 'none'` and allows stylesheets only from its own origin, so inline styles are blocked. The only outbound links are the PRs' own `https://github.com/...` URLs.
