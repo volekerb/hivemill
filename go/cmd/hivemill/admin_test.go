@@ -256,3 +256,56 @@ func TestGuardExportCommand(t *testing.T) {
 		t.Errorf("extra argument: exit %d %q", code, errs)
 	}
 }
+
+// The real round trip: back up one home, then check it from another; the two reads run as subprocesses.
+func TestStandbyCheckCLI(t *testing.T) {
+	c, home := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "zz-test goal")
+	c.ok("backup")
+	c, _ = standalone(t)
+	t.Setenv(runMainEnv, "1")
+	out := c.ok("standby", "check", "--from", filepath.Join(home, "state", "hivemill", "backups"))
+	if !strings.HasPrefix(out, "OK: factory-") || !strings.Contains(out, "snapshot age ") {
+		t.Errorf("standby check: %q", out)
+	}
+	if code, _, errs := c.run("", "standby", "check", "--from", t.TempDir()); code == 0 || !strings.Contains(errs, "no factory-") {
+		t.Errorf("empty dir: exit %d %q", code, errs)
+	}
+	for _, args := range [][]string{{"standby", "check"}, {"daemon", "--bogus"}} {
+		if code, _, _ := c.run("", args...); code != 2 {
+			t.Errorf("%v: exit %d, want 2", args, code)
+		}
+	}
+}
+
+func TestTaskAddRefileOf(t *testing.T) {
+	c, _ := standalone(t)
+	c.ok("project", "add", "www", "--repo", "zz-test/www", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "www", "--title", "zz-test goal")
+	add := []string{"task", "add", "--goal", "G-001", "--title", "t", "--spec", "s", "--acceptance", "1. a - cmd:true => exit 0"}
+	c.ok(add...)
+	c.ok(append(add, "--depends", "T-0001")...)
+	for _, bad := range []string{"nope", "T-0099"} {
+		if code, _, errs := c.run("", append(add, "--refile-of", bad)...); code == 0 || !strings.Contains(errs, "--refile-of") {
+			t.Errorf("--refile-of %s: exit %d %q", bad, code, errs)
+		}
+	}
+	if code, _, errs := c.run("", append(add, "--refile-of", "T-0001", "--depends", "T-0001")...); code != 3 {
+		t.Errorf("depends on the re-filed task: exit %d %q", code, errs)
+	}
+	if code, _, errs := c.run("", append(add, "--refile-of", "T-0001", "--depends", "T-0002")...); code != 3 {
+		t.Errorf("depends through another task: exit %d %q", code, errs)
+	}
+	c.ok("project", "add", "api", "--repo", "zz-test/api", "--path", t.TempDir())
+	c.ok("goal", "new", "--project", "api", "--title", "zz-test other")
+	if code, _, errs := c.run("", "task", "add", "--goal", "G-002", "--title", "t", "--spec", "s", "--acceptance",
+		"1. a - cmd:true => exit 0", "--refile-of", "T-0001"); code != 3 {
+		t.Errorf("another project: exit %d %q", code, errs)
+	}
+	c.ok(append(add, "--refile-of", "t-0001")...) // T-0003
+	c.ok("task", "cancel", "T-0001")
+	if out := c.ok("task", "show", "T-0002"); !strings.Contains(out, `depends ["T-0003"]`) {
+		t.Errorf("after cancel: %q", out)
+	}
+}

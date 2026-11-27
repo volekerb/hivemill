@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ type MergeInput struct {
 	LaneVerdict    string   `json:"lane_verdict"` // newest task-judge verdict on Head: pass | fail | ""
 	CI             string   `json:"ci"`           // green | red | pending
 	MissingChecks  []string `json:"missing_checks"`
+	Required       []string `json:"required_checks,omitempty"`
 	Tier           string   `json:"tier"` // T0..T3, "" = cannot classify
 	Behind         bool     `json:"behind"`
 	MergeClean     bool     `json:"merge_clean"`
@@ -31,6 +33,7 @@ type MergeInput struct {
 	IdentityOK     bool     `json:"identity_ok"`
 	PublicTextOK   bool     `json:"public_text_ok"`
 	PublicTextNote string   `json:"public_text_note,omitempty"`
+	T3Auto         bool     `json:"t3_auto,omitempty"` // t3_auto_merge is on and the task has no manual: criterion
 }
 
 // MergeDecision is what to do now.
@@ -39,12 +42,13 @@ type MergeDecision struct {
 	Why    string `json:"why"`
 }
 
-// MaxMechTier is the highest risk tier the runner merges without the owner.
+// MaxMechTier is the highest risk tier the runner merges on Decide alone. T3 above it merges without the owner only
+// with MergeInput.T3Auto, and then only past Check's hard limits (merguard.go).
 const MaxMechTier = "T2"
 
 // Decide reproduces the safety checks of the old mechanical merger: open, not draft, not frozen, a judge MERGE on this
 // exact head, no conflict, fresh against main, green and complete checks, tier at most T2, main not red (unless this is
-// the fix task), main's own push run finished green, noreply identity and clean public text.
+// the fix task), main's own push run finished green, noreply identity and clean public text. T3Auto lets T3 through.
 func Decide(in MergeInput) MergeDecision {
 	switch {
 	case in.PRState == "MERGED":
@@ -61,17 +65,19 @@ func Decide(in MergeInput) MergeDecision {
 		return MergeDecision{"rejudge", fmt.Sprintf("no judge MERGE on head %.8s (the head moved after the verdict)", in.Head)}
 	case in.Mergeable == "CONFLICTING" || (in.Behind && !in.MergeClean):
 		return MergeDecision{"resume", "the branch conflicts with the base branch"}
-	case in.Behind && !in.BehindOK:
-		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case in.CI == "red":
 		return MergeDecision{"resume", ciRed}
 	case in.CI != "green":
+		// before a refresh: a refresh restarts CI and cancels the run in flight, so a PR behind a fast-moving main never
+		// finished CI (2026-11-26). Refresh once the current head is green, then CI runs once on the combined tree.
 		return MergeDecision{"hold", ciPending}
+	case in.Behind && !in.BehindOK:
+		return MergeDecision{"refresh", "the head does not contain the base branch; a merge of it is clean"}
 	case len(in.MissingChecks) > 0:
 		return MergeDecision{"hold", "required checks missing: " + strings.Join(in.MissingChecks, ", ")}
 	case in.Tier == "":
 		return MergeDecision{"block", "the risk tier cannot be decided; the owner merges"}
-	case tierAbove(in.Tier, MaxMechTier):
+	case tierAbove(in.Tier, MaxMechTier) && !(in.Tier == "T3" && in.T3Auto):
 		return MergeDecision{"block", "tier " + in.Tier + " is above " + MaxMechTier + "; the owner merges"}
 	case in.RedMain && !in.FixTask:
 		return MergeDecision{"hold", "main is red; merges wait for a green push run"}
@@ -109,7 +115,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 		in.CI, _ = run.LocalCI.verdict(pr.HeadRefOid) // read only: Merge runs gate_cmd, the dry run never does
 	} else {
 		in.CI, _ = CIVerdict(pr.Checks)
-		_, in.MissingChecks = r.missingChecks(run.Task, pr.Checks) // required checks are PR checks
+		in.Required, in.MissingChecks = r.missingChecks(run.Task, pr.Checks) // required checks are PR checks
 	}
 	t, _ := r.Store.Task(run.Task)
 	slug := strings.ToLower(run.Repo)
@@ -120,7 +126,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 		in.RedMain = true
 		in.FixTask = fmt.Sprint(st["task"]) == run.Task
 	}
-	wt, base := run.Worktree, run.Base
+	wt, base := run.coordWT(), run.Base
 	r.Tools.Git(wt, "fetch", "-q", "origin", base)
 	_, local, _ := r.Tools.Git(wt, "rev-parse", "HEAD")
 	if local != pr.HeadRefOid {
@@ -137,6 +143,11 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 	}
 	if t != nil {
 		in.Tier = r.tierOf(t.Project, wt, base, pr.HeadRefOid)
+		auto, err := r.Store.CfgErr("t3_auto_merge")
+		in.T3Auto = err == nil && auto == "on" // an unreadable config holds the PR
+		for _, c := range Criteria(t.Acceptance) {
+			in.T3Auto = in.T3Auto && c.Kind != "manual" // a manual: criterion is the owner's to check
+		}
 	}
 	in.MainRun = r.mainRun(slug, wt, base)
 	in.IdentityOK = true
@@ -146,7 +157,7 @@ func (r *Runner) gatherMerge(run *Run) (MergeInput, *PR, error) {
 			in.IdentityOK = false
 		}
 	}
-	in.PublicTextOK, in.PublicTextNote = r.publicText(wt, base, pr)
+	in.PublicTextOK, in.PublicTextNote = r.publicText(run.Repo, wt, base, pr)
 	return in, pr, nil
 }
 
@@ -205,11 +216,28 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 	if len(runs) == 0 {
 		return "none"
 	}
+	// No run for main's head while tests.yml is switched off (gh workflow disable, as during the 2026-11-26 local-CI
+	// period): nothing will ever run, so it counts as a repo without the workflow, not as pending forever.
+	if workflowDisabled(r.Tools, slug, "tests.yml") {
+		return "none"
+	}
 	return "pending"
+}
+
+// workflowDisabled reports whether the repo's workflow is disabled (disabled_manually or disabled_inactivity).
+// Any error answers false: an unknown state keeps the old "pending" behaviour.
+func workflowDisabled(t Tools, slug, file string) bool {
+	rc, out, _ := t.GH("", "api", "repos/"+slug+"/actions/workflows/"+file, "--jq", ".state")
+	return rc == 0 && strings.HasPrefix(strings.TrimSpace(out), "disabled")
 }
 
 // Merge is one merge attempt of a run in state merging.
 func (r *Runner) Merge(run *Run) {
+	defer func() {
+		if run.State != Merging && run.State != Gated {
+			r.endCIWait(run) // `hivemill merge T` has no Advance around it to close the wait's alert
+		}
+	}()
 	if run.Eval {
 		run.MergeHold = "eval run: never merged"
 		r.fail(run, "eval run reached the merge step: refused, eval runs are never merged")
@@ -227,11 +255,30 @@ func (r *Runner) Merge(run *Run) {
 			// a new head (a refresh, a revert): run gate_cmd now and decide on the next pass from fresh PR data
 			if err := r.localCI(run, in.Head); err != nil {
 				run.MergeHold = err.Error()
+				r.localCIWaits(run, in.Head, time.Now())
 				return
 			}
 		}
+		if run.LocalCI != nil && run.LocalCI.Head == in.Head {
+			r.endCIWait(run) // the result is in, whoever read it
+		}
 		r.postLocalCI(run)
 		if d.Why == ciPending {
+			return
+		}
+	}
+	if d.Why == ciPending && !r.ciNone(run.Project) {
+		r.rerunCancelled(run, pr.Checks)
+	}
+	guarded, limits, wait := r.t3Guard(run, in, d)
+	if wait != "" {
+		run.MergeHold = "hold: " + wait
+		return
+	}
+	if guarded {
+		r.guardedEvent(run, in.Head, limits)
+		if len(limits) > 0 {
+			r.holdLimits(run, limits)
 			return
 		}
 	}
@@ -256,10 +303,82 @@ func (r *Runner) Merge(run *Run) {
 		run.History = append(run.History, fmt.Sprintf("round %d: %s", run.Round, d.Why))
 		r.resume(run, d.Why+". Fix it (`git fetch origin && git merge origin/"+run.Base+"` for a conflict), "+r.pushAndStop(run.Project)+".")
 	case "refresh":
+		if h := r.refreshHolder(run); h != "" {
+			run.MergeHold = "hold: waiting for " + h + " to merge (one refresh at a time per repo)"
+			return
+		}
 		r.refresh(run)
 	case "merge":
-		r.mergeNow(run, in.Head)
+		r.mergeNow(run, in.Head, guarded)
 	}
+}
+
+// t3Guard runs the hard limits when a T3 merge is up for decision: Decide would merge, or sends the run back for red CI
+// or a conflict (limit e: a judged T3 run goes to the owner instead). A hold on missing required checks is also looked
+// at, since a PR that removes or renames the job would wait for ever: only a limit c makes that a decision. guarded is
+// false when no T3 decision is due; wait names why one cannot be taken yet. Below T3 only limit f is checked, since the
+// gate's own files are not sensitive paths of the tier rules.
+func (r *Runner) t3Guard(run *Run, in MergeInput, d MergeDecision) (guarded bool, limits []Limit, wait string) {
+	if d.Action == "merge" && !tierAbove(in.Tier, MaxMechTier) {
+		diff, err := r.readDiff(run.Worktree, run.Base, in.Head)
+		if err != nil {
+			return false, nil, "the merge guard cannot read the diff: " + err.Error()
+		}
+		for _, l := range Check(diff, PRStatus{CI: "green", Mergeable: "MERGEABLE"}) {
+			if l.Rule == "f" {
+				limits = append(limits, l)
+			}
+		}
+		return len(limits) > 0, limits, ""
+	}
+	missing := d.Action == "hold" && in.CI == "green" && len(in.MissingChecks) > 0
+	if in.Tier != "T3" || !in.T3Auto || in.PRState != "OPEN" || in.LaneVerdict != "pass" || (d.Action != "merge" && d.Action != "resume" && !missing) {
+		return false, nil, ""
+	}
+	st := PRStatus{CI: in.CI, Mergeable: in.Mergeable, Required: in.Required}
+	if in.Behind && !in.MergeClean {
+		st.Mergeable = "CONFLICTING"
+	}
+	if d.Action == "merge" && st.Mergeable != "MERGEABLE" && st.Mergeable != "CONFLICTING" {
+		return false, nil, "GitHub has not decided yet whether the PR is mergeable"
+	}
+	// off the merge path only a definite state is a limit: pending CI and undecided mergeability just wait
+	if d.Action != "merge" {
+		if st.CI != "red" {
+			st.CI = "green"
+		}
+		if st.Mergeable != "CONFLICTING" {
+			st.Mergeable = "MERGEABLE"
+		}
+	}
+	diff, err := r.readDiff(run.Worktree, run.Base, in.Head)
+	if err != nil {
+		return false, nil, "the T3 guard cannot read the diff: " + err.Error()
+	}
+	limits = Check(diff, st)
+	if missing && !slices.ContainsFunc(limits, func(l Limit) bool { return l.Rule == "c" }) {
+		return false, nil, ""
+	}
+	return true, limits, ""
+}
+
+// guardedEvent records a T3 decision once per head and result, not again on each retry of a failed merge.
+func (r *Runner) guardedEvent(run *Run, head string, limits []Limit) {
+	list := limitList(limits)
+	if key := head + " " + strings.Join(list, "; "); run.Guarded != key {
+		run.Guarded = key
+		_ = r.Log.Emit("merge.guarded", run, Event{Data: map[string]any{"head": head, "pr": run.PRURL, "limits": list}})
+	}
+}
+
+// holdLimits holds a T3 run for the owner: one owner question that lists the limits, and one alert.
+func (r *Runner) holdLimits(run *Run, limits []Limit) {
+	why := "T3 hard limits: " + strings.Join(limitList(limits), "; ")
+	r.hold(run, why)
+	if s, err := r.sq(); err == nil {
+		r.fileHeldAsk(s, run, truncate(why, 1500))
+	}
+	r.ownerAlert("hivemill-t3-held", fmt.Sprintf("%s is held for you: %s. PR %s", run.Task, truncate(why, 500), run.PRURL))
 }
 
 // MergeTask is `hivemill merge T`: one merge step under the task lock, so no pass or stop works on the run meanwhile.
@@ -313,6 +432,7 @@ func (r *Runner) checkHeld(run *Run) {
 	}
 	switch pr.State {
 	case "MERGED":
+		run.Unattended = false // merged by hand
 		_ = r.Log.Emit("run.reconciled", run, Event{Data: map[string]any{"repaired": []string{"held PR merged by the owner"}}})
 		r.finish(run, pr)
 	case "CLOSED":
@@ -323,7 +443,7 @@ func (r *Runner) checkHeld(run *Run) {
 // refresh merges origin/<base> into the branch (a merge commit, never a force-push), pushes it and carries the judge's
 // MERGE to the new head: the judged change is the same, and CI must go green again before the merge.
 func (r *Runner) refresh(run *Run) {
-	wt, base := run.Worktree, run.Base
+	wt, base := run.coordWT(), run.Base
 	email := r.Store.FactoryCfg("noreply_email")
 	if rc, _, errs := gitAs(r.Env, email, wt, "merge", "--no-edit", "origin/"+base); rc != 0 {
 		r.Tools.Git(wt, "merge", "--abort")
@@ -338,6 +458,16 @@ func (r *Runner) refresh(run *Run) {
 	_, run.Head, _ = r.Tools.Git(wt, "rev-parse", "HEAD")
 	run.JudgeHead = run.Head
 	run.Refreshes++
+	if run.cloned() { // a resumed session must start from the refreshed head, and the worktree's removal looks for it
+		at := r.at(run)
+		rc, _, errs := at.git(run.Worktree, "fetch", "-q", "origin", run.Branch, base)
+		if rc == 0 {
+			rc, _, errs = at.git(run.Worktree, "merge", "-q", "--ff-only", "origin/"+run.Branch)
+		}
+		if rc != 0 {
+			r.printf("%s: %s on %s stays behind the refreshed branch: %s\n", run.Task, run.Worktree, run.Machine, firstLine(errs))
+		}
+	}
 	_ = r.Store.Verdict(run.Task, run.PRURL, run.Head, "pass", fmt.Sprintf("carried from %.12s: clean merge of origin/%s only", old, base), "hivemill")
 	_ = r.Log.Emit("pr.refreshed", run, Event{Data: map[string]any{"head": run.Head, "from": old}})
 }
@@ -349,33 +479,46 @@ func nameOf(email string) string {
 	return "hivemill"
 }
 
-// mergeNow merges under the merge lock with --match-head-commit, so a push after the checks cannot slip in.
-func (r *Runner) mergeNow(run *Run, sha string) {
+// mergeNow merges under the merge lock with --match-head-commit, so a push after the checks cannot slip in. Never
+// --admin or --auto. t3 marks a T3 merge, which the digest lists as merged without the owner.
+func (r *Runner) mergeNow(run *Run, sha string, t3 bool) {
 	l := r.lock("merge", true)
 	if l != nil {
 		defer l.Close()
 	}
-	rc, _, errs := r.Tools.GH("", "pr", "merge", run.PRURL, "--squash", "--match-head-commit", sha)
-	if rc != 0 {
-		run.MergeHold = "gh pr merge failed: " + firstLine(errs)
-		return
-	}
+	run.Unattended = t3 // kept when only a later pass confirms the merge
+	rc, _, errs := r.Tools.GH("", "pr", "merge", run.PRURL, "--squash", "--delete-branch", "--match-head-commit", sha)
 	pr, err := PRView(r.Tools, run.PRURL)
-	if err != nil || pr.State != "MERGED" {
+	switch {
+	case err == nil && pr.State == "MERGED": // gh can also fail after the merge, on the branch delete
+		r.finish(run, pr)
+	case rc != 0:
+		if err == nil {
+			run.Unattended = false // not merged: a later merge by hand is not the runner's
+		}
+		run.MergeHold = "gh pr merge failed: " + firstLine(errs)
+	default:
 		run.MergeHold = "merge not confirmed yet"
-		return
 	}
-	r.finish(run, pr)
 }
 
 func (r *Runner) finish(run *Run, pr *PR) {
 	if pr.MergeCommit != nil {
 		run.MergeSHA = pr.MergeCommit.Oid
 	}
+	// merged by hand while a new judge runs: JudgeHead is already the new head and the last verdict is about an old one
+	rejudging := run.State == Judging
 	run.State, run.Outcome, run.Merged, run.Ended, run.MergeHold = Merged, "merged", or(pr.MergedAt, nowISO()), nowISO(), ""
 	_ = r.Store.TaskStatus(run.Task, "done", "")
 	_ = r.Store.Event(r.actor(), "task", run.Task, "merged", fmt.Sprintf("@%.8s by=hivemill: task-judge MERGE, mechanical merge", run.MergeSHA))
-	_ = r.Log.Emit("pr.merged", run, Event{Data: map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL, "merged_at": run.Merged}})
+	data := map[string]any{"merge_sha": run.MergeSHA, "pr": run.PRURL, "merged_at": run.Merged}
+	if run.Unattended {
+		data["unattended"] = true
+	}
+	_ = r.Log.Emit("pr.merged", run, Event{Data: data})
+	if !rejudging {
+		r.reportUnasked(run, pr.HeadRefOid)
+	}
 	r.checkMergeCommit(run)
 	r.closeSessions(run)
 	r.endSessions(run)
@@ -400,11 +543,15 @@ func (r *Runner) GoalCheck(run *Run) {
 		_ = r.Log.Emit("goal.checked", run, Event{Data: map[string]any{"result": "skipped", "why": "no cmd: check in the goal's success criteria"}})
 		return
 	}
-	r.Tools.Git(run.Worktree, "fetch", "-q", "origin", run.Base)
-	r.Tools.Git(run.Worktree, "checkout", "-q", "--detach", "origin/"+run.Base)
+	here := *run // merged main is checked here, for a clone-mode run too
+	if run.cloned() {
+		here.Worktree, here.Mirror, here.Machine = run.Mirror, "", ""
+	}
+	r.Tools.Git(here.Worktree, "fetch", "-q", "origin", run.Base)
+	r.Tools.Git(here.Worktree, "checkout", "-q", "--detach", "origin/"+run.Base)
 	dir := filepath.Join(r.Env.StateDir(), "runs", run.Task)
 	_ = os.MkdirAll(dir, 0o700)
-	res := r.RerunProofs(run, checks, dir)
+	res := r.RerunProofs(&here, checks, dir)
 	ok := true
 	for _, x := range res {
 		ok = ok && x.OK != nil && *x.OK
@@ -508,7 +655,13 @@ func (r *Runner) MergeDecision(run *Run) (MergeInput, MergeDecision, error) {
 	if err != nil {
 		return in, MergeDecision{}, err
 	}
-	return in, Decide(in), nil
+	d := Decide(in)
+	if _, limits, wait := r.t3Guard(run, in, d); wait != "" {
+		d = MergeDecision{"hold", wait}
+	} else if len(limits) > 0 {
+		d = MergeDecision{"block", "T3 hard limits: " + strings.Join(limitList(limits), "; ") + "; the owner merges"}
+	}
+	return in, d, nil
 }
 
 // checkMergeCommit verifies, once the merge commit has landed, that its author is the configured noreply_email and
@@ -558,14 +711,19 @@ func (r *Runner) behindOK(repo, wt, base, head string) bool {
 	return behindSafe(strings.Fields(mainFiles), strings.Fields(prFiles))
 }
 
-// behindSafe: no workflow file changed on main and no file changed on both sides.
+// sharedOK names files that most PRs and most merges both edit, where a clean git merge (MergeClean, checked before
+// behindOK) is all the safety needed: CHANGELOG.md entries never change behaviour. Counting them as overlap made every
+// merge to main refresh every waiting PR and restart its CI (175 refreshes on 2026-11-26, one PR refreshed 17 times).
+var sharedOK = map[string]bool{"CHANGELOG.md": true}
+
+// behindSafe: no workflow file changed on main and no file other than sharedOK changed on both sides.
 func behindSafe(mainFiles, prFiles []string) bool {
 	pr := map[string]bool{}
 	for _, f := range prFiles {
 		pr[f] = true
 	}
 	for _, f := range mainFiles {
-		if strings.HasPrefix(f, ".github/workflows/") || pr[f] {
+		if strings.HasPrefix(f, ".github/workflows/") || (pr[f] && !sharedOK[f]) {
 			return false
 		}
 	}
@@ -589,4 +747,40 @@ func (r *Runner) protectionNotStrict(repo, base string) bool {
 	}
 	_ = r.Store.SetMeta(key, v+" "+time.Now().UTC().Format(time.RFC3339))
 	return v == "false"
+}
+
+// rerunCancelled re-runs the cancelled Actions runs of the head, at most once per run per 10 minutes. A cancelled run is
+// not a failure (the task session is not resumed for it), and without a re-run the PR would wait on it forever.
+func (r *Runner) rerunCancelled(run *Run, checks []map[string]any) {
+	for _, id := range ciCancelledRuns(checks) {
+		key := "ci_rerun:" + id
+		if v := r.Store.Meta(key); v != "" {
+			if t, err := time.Parse(time.RFC3339, v); err == nil && time.Since(t) < 10*time.Minute {
+				continue
+			}
+		}
+		_ = r.Store.SetMeta(key, time.Now().UTC().Format(time.RFC3339))
+		rc, _, errs := r.Tools.GH("", "run", "rerun", id, "--failed", "-R", run.Repo)
+		_ = r.Log.Emit("ci.rerun", run, Event{Data: map[string]any{"run_id": id, "rc": rc, "err": firstLine(errs)}})
+	}
+}
+
+// refreshSlotTTL bounds how long one run may hold its repo's refresh slot (a CI run plus margin).
+const refreshSlotTTL = 40 * time.Minute
+
+// refreshHolder makes refreshes serial per repo, a merge queue of one: the run that holds the slot may refresh, and so
+// may a run that takes a free slot. A slot is free when its holder is no longer merging or held it longer than
+// refreshSlotTTL. Without it every green PR behind main refreshed in the same pass, and each merge sent the others
+// round again (2026-11-26). It returns the holder's task, or "" when this run may refresh.
+func (r *Runner) refreshHolder(run *Run) string {
+	key := "refresh_slot:" + strings.ToLower(run.Repo)
+	if f := strings.SplitN(r.Store.Meta(key), " ", 2); len(f) == 2 && f[0] != run.Task {
+		if t, err := time.Parse(time.RFC3339, f[1]); err == nil && time.Since(t) < refreshSlotTTL {
+			if h, err := r.Store.Run(f[0]); err == nil && h != nil && h.State == Merging {
+				return f[0]
+			}
+		}
+	}
+	_ = r.Store.SetMeta(key, run.Task+" "+time.Now().UTC().Format(time.RFC3339))
+	return ""
 }

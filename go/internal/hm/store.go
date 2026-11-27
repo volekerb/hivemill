@@ -55,9 +55,16 @@ type Run struct {
 	LocalCI  *LocalCI `json:",omitempty"`
 	CIPosted string   `json:",omitempty"`
 	CI       *CIWait  `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	// T3 auto-merge (merge.go)
+	Guarded    string `json:",omitempty"` // head and limits of the last merge.guarded event
+	Unattended bool   `json:",omitempty"` // the runner merges this T3 run without the owner
 	// clone mode (clonemachine.go): Worktree is then a path on Machine, and Mirror this machine's clone of the task
 	Mirror, RemoteHome string `json:",omitempty"`
 	RemoteDone         bool   `json:",omitempty"` // the remote worktree was removed, or kept for good
+	// working time limit (worktime.go), per round: the highest run.long_working percent sent and the one resume
+	LongPct        int    `json:",omitempty"`
+	LongResumed    string `json:",omitempty"`
+	LongSendFailed string `json:",omitempty"` // the first time that message could not be sent
 }
 
 // Session is one Claude session of a run (task, judge).
@@ -78,7 +85,9 @@ type Store interface {
 	GoalOpenTasks(goal string) (int, string, error)
 	DoneTasks() (map[string]bool, error)
 	FactoryCfg(key string) string
+	FactoryCfgErr(key string) (string, error)
 	Cfg(key string) string
+	CfgErr(key string) (string, error)
 	SetCfg(key, value string) error
 	Meta(key string) string
 	SetMeta(key, value string) error
@@ -121,6 +130,10 @@ CREATE TABLE IF NOT EXISTS hm_asks (id INTEGER PRIMARY KEY AUTOINCREMENT, ref TE
   goal TEXT NOT NULL DEFAULT '', task TEXT NOT NULL DEFAULT '', question TEXT NOT NULL, asked_by TEXT NOT NULL, asked TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open', answer TEXT NOT NULL DEFAULT '', answered_by TEXT NOT NULL DEFAULT '', answered TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS hm_asks_status ON hm_asks(status);
+CREATE TABLE IF NOT EXISTS planner_work (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, ref TEXT NOT NULL,
+  opened TEXT NOT NULL, delivered TEXT, attempts INTEGER NOT NULL DEFAULT 0, closed TEXT, close_reason TEXT);
+CREATE UNIQUE INDEX IF NOT EXISTS planner_work_open ON planner_work(kind, ref) WHERE closed IS NULL;
+CREATE TABLE IF NOT EXISTS hm_refile (task TEXT PRIMARY KEY, refile_of TEXT NOT NULL);
 `
 
 // OpenSQLite opens an existing factory DB read-write (never creates one) and makes sure the hm_* tables exist.
@@ -274,9 +287,18 @@ func (s *SQLite) GoalOpenTasks(goal string) (int, string, error) {
 
 // FactoryCfg reads a key of the factory's own config table ("" when unset).
 func (s *SQLite) FactoryCfg(key string) string {
-	var v string
-	_ = s.db.QueryRow(`SELECT value FROM config WHERE key=?`, key).Scan(&v)
+	v, _ := s.FactoryCfgErr(key)
 	return v
+}
+
+// FactoryCfgErr is FactoryCfg for a caller that must not take a failed read for an unset key.
+func (s *SQLite) FactoryCfgErr(key string) (string, error) {
+	var v string
+	err := s.db.QueryRow(`SELECT value FROM config WHERE key=?`, key).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
 }
 
 // Cfg reads an hm_config key, falling back to Defaults.
@@ -286,6 +308,18 @@ func (s *SQLite) Cfg(key string) string {
 		return v
 	}
 	return Defaults[key]
+}
+
+// CfgErr is Cfg for a gate that must fail closed: only a missing row falls back to Defaults, a read error is returned.
+func (s *SQLite) CfgErr(key string) (string, error) {
+	var v string
+	switch err := s.db.QueryRow(`SELECT value FROM hm_config WHERE key=?`, key).Scan(&v); {
+	case errors.Is(err, sql.ErrNoRows):
+		return Defaults[key], nil
+	case err != nil:
+		return "", err
+	}
+	return v, nil
 }
 
 func (s *SQLite) SetCfg(key, value string) error {
@@ -504,6 +538,57 @@ func (s *SQLite) AlertFeed(kind, ref, link string) error {
 	return err
 }
 
+// PlannerWork is one row of the planner's work queue: something the planner was woken for and has not closed yet.
+type PlannerWork struct {
+	ID                int64
+	Kind, Ref         string
+	Opened, Delivered string
+	Attempts          int
+}
+
+// EnqueuePlannerWork opens a work row for (kind, ref) unless one is already open, so a producer may repeat itself.
+func (s *SQLite) EnqueuePlannerWork(kind, ref string) error {
+	_, err := s.db.Exec(`INSERT OR IGNORE INTO planner_work(kind,ref,opened) VALUES(?,?,?)`, kind, ref, s.now())
+	return err
+}
+
+// OpenPlannerWork lists the open rows, oldest first.
+func (s *SQLite) OpenPlannerWork() ([]PlannerWork, error) {
+	rows, err := s.db.Query(`SELECT id,kind,ref,opened,COALESCE(delivered,''),attempts FROM planner_work WHERE closed IS NULL ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PlannerWork
+	for rows.Next() {
+		var w PlannerWork
+		if err := rows.Scan(&w.ID, &w.Kind, &w.Ref, &w.Opened, &w.Delivered, &w.Attempts); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+// ClosePlannerWork closes the open rows ids with a reason. It changes nothing and fails when any id is unknown or already closed.
+func (s *SQLite) ClosePlannerWork(ids []int64, reason string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, id := range ids {
+		res, err := tx.Exec(`UPDATE planner_work SET closed=?, close_reason=? WHERE id=? AND closed IS NULL`, s.now(), reason, id)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return fmt.Errorf("planner work %d is unknown or already closed", id)
+		}
+	}
+	return tx.Commit()
+}
+
 // TaskByTitle is the id of a task of `goal` with exactly this title ("" when none).
 func (s *SQLite) TaskByTitle(goal, title string) (string, error) {
 	var id string
@@ -705,8 +790,9 @@ func (s *SQLite) SetGoalStatus(id, status string) error {
 	return nil
 }
 
-// AddTask files a coder task in an existing goal with the next free T-NNNN id. status is todo or draft.
-func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string, priority int) (string, error) {
+// AddTask files a coder task in an existing goal with the next free T-NNNN id. status is todo or draft. refileOf, when
+// given and not empty, is the task this one files again.
+func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string, priority int, refileOf ...string) (string, error) {
 	var n int
 	if err := s.db.QueryRow(`SELECT count(*) FROM goals WHERE id=?`, goal).Scan(&n); err != nil {
 		return "", err
@@ -722,9 +808,21 @@ func (s *SQLite) AddTask(goal, title, spec, acceptance, status, dependsOn string
 		return "", err
 	}
 	id := fmt.Sprintf("T-%04d", max.Int64+1)
-	_, err := s.db.Exec(`INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,status,depends_on,created,updated,priority)
-		VALUES(?,?,?,?,?,'coder',?,?,?,?,?)`, id, goal, title, spec, acceptance, status, dependsOn, s.now(), s.now(), priority)
-	return id, err
+	tx, err := s.db.Begin() // a task is never filed without its re-file link
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`INSERT INTO tasks(id,goal_id,title,spec,acceptance,role,status,depends_on,created,updated,priority)
+		VALUES(?,?,?,?,?,'coder',?,?,?,?,?)`, id, goal, title, spec, acceptance, status, dependsOn, s.now(), s.now(), priority); err != nil {
+		return "", err
+	}
+	if len(refileOf) > 0 && refileOf[0] != "" {
+		if _, err := tx.Exec(`INSERT OR REPLACE INTO hm_refile(task,refile_of) VALUES(?,?)`, id, refileOf[0]); err != nil {
+			return "", err
+		}
+	}
+	return id, tx.Commit()
 }
 
 // Tasks lists tasks of one goal and/or one status ("" = any), by id.

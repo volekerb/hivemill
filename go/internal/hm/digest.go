@@ -21,11 +21,17 @@ type Digest struct {
 	Asks       []Ask              `json:"asks"` // open owner questions
 	Goals      []DigestGoal       `json:"goals"`
 	Dispatched int                `json:"dispatched"`
+	Unasked    []DigestUnasked    `json:"unasked"` // changes no criterion asked for, merged that day
+}
+
+type DigestUnasked struct {
+	Task, Change, Why string
 }
 
 type DigestMerge struct {
-	Task, PR string
-	USD      float64 // all sessions of the task, any day
+	Task, PR   string
+	USD        float64 // all sessions of the task, any day
+	Unattended bool    // a T3 merge the runner did without the owner
 }
 
 type DigestRun struct {
@@ -62,13 +68,18 @@ func (r *Runner) BuildDigest(day time.Time) (*Digest, error) {
 		switch e.Event {
 		case "pr.merged":
 			pr, _ := e.Data["pr"].(string)
-			d.Merges = append(d.Merges, DigestMerge{Task: e.TaskID, PR: pr})
+			unattended, _ := e.Data["unattended"].(bool)
+			d.Merges = append(d.Merges, DigestMerge{Task: e.TaskID, PR: pr, Unattended: unattended})
 			mergedTasks = append(mergedTasks, e.TaskID)
 		case "task.failed":
 			why, _ := e.Data["reason"].(string)
 			d.Failed = append(d.Failed, DigestRun{Task: e.TaskID, Why: truncate(why, 200), Since: e.TS})
 		case "task.dispatched":
 			d.Dispatched++
+		case "judge.unasked_ok":
+			change, _ := e.Data["change"].(string)
+			why, _ := e.Data["why"].(string)
+			d.Unasked = append(d.Unasked, DigestUnasked{Task: e.TaskID, Change: change, Why: why})
 		}
 	}
 	// $: the sessions started that day, and every session of a task merged that day
@@ -169,6 +180,15 @@ func (d *Digest) Markdown(now time.Time) string {
 	for _, m := range d.Merges {
 		fmt.Fprintf(&b, "- %s %s ($%.2f)\n", m.Task, or(m.PR, "-"), m.USD)
 	}
+	var alone []string
+	for _, m := range d.Merges {
+		if m.Unattended {
+			alone = append(alone, fmt.Sprintf("- %s %s\n", m.Task, or(m.PR, "-")))
+		}
+	}
+	if len(alone) > 0 {
+		fmt.Fprintf(&b, "\n## T3 merged without you (%d)\n%s", len(alone), strings.Join(alone, ""))
+	}
 	roles := make([]string, 0, len(d.USDByRole))
 	for k := range d.USDByRole {
 		roles = append(roles, k)
@@ -177,6 +197,10 @@ func (d *Digest) Markdown(now time.Time) string {
 	var parts []string
 	for _, k := range roles {
 		parts = append(parts, fmt.Sprintf("%s $%.2f", k, d.USDByRole[k]))
+	}
+	fmt.Fprintf(&b, "\n## Unasked changes merged (%d)\n", len(d.Unasked))
+	for _, u := range d.Unasked {
+		fmt.Fprintf(&b, "- %s: %s (why: %s)\n", u.Task, u.Change, u.Why)
 	}
 	fmt.Fprintf(&b, "\n## Spend\n$%.2f in sessions started that day (%s); %d runs dispatched\n", d.USD, or(strings.Join(parts, ", "), "none"), d.Dispatched)
 	fmt.Fprintf(&b, "\n## Failed (%d)\n", len(d.Failed))

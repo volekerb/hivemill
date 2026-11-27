@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -22,7 +23,7 @@ const (
 	Failed    = "failed"
 	Reverted  = "reverted"
 	Cancelled = "cancelled"
-	Held      = "held" // judged MERGE but above the mechanical tier: the owner merges; not a failure, counts against max_waiting
+	Held      = "held" // the owner decides (a hard limit, judge HOLD, a tier the runner does not merge); not a failure, counts against max_waiting
 )
 
 // Active reports whether a run is unfinished and each pass advances it; busy and waiting say which cap it counts against.
@@ -47,10 +48,15 @@ type Runner struct {
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
 	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
-	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	SSH func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	// ObsDial dials the dashboard's address for ObsDown (nil = a TCP connect).
+	ObsDial    func(addr string) error
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
+	TakeOver   bool                   // the daemon starts over another host's fresh daemon lock (daemonlock.go)
+	standby    chan standbyResult     // the standby check running beside the passes (standby.go)
+	takenOver  atomic.Pointer[string] // the host that took the daemon lock over; set once, ends this daemon
 	loads      map[string]loadReading // CPU load per machine, see load.go
 }
 
@@ -442,6 +448,7 @@ func (r *Runner) fail(run *Run, reason string) {
 		return
 	}
 	_ = r.Store.PutRun(run) // before the close: an unsaved state would be resumed by the next pass
+	r.repointRefiles()      // after the save: it reads the run state
 	r.closeSessions(run)
 }
 
@@ -463,6 +470,7 @@ func (r *Runner) resumeAs(run *Run, kind, text string) {
 	}
 	run.State, run.Round, run.GateBlocks, run.BlockStops, run.LastBlock = Working, run.Round+1, 0, 0, ""
 	run.RoundStart = nowISO()
+	run.LongPct, run.LongResumed, run.LongSendFailed = 0, "", ""
 	_ = r.Store.TaskStatus(run.Task, "in_progress", "")
 	send := r.Prompt
 	list, listed := Terminals(r.Tools)
@@ -507,6 +515,10 @@ func (r *Runner) Pass(startNew bool) error {
 	if err != nil {
 		return err
 	}
+	r.sweepLocalCI() // results first: they free job slots, and the runs below read them
+	if runs, err = r.Store.Runs(); err != nil {
+		return err
+	}
 	for _, x := range runs {
 		if heldForOwner(&x) && !x.Eval {
 			if l := r.lock(x.Task, false); l != nil {
@@ -528,6 +540,7 @@ func (r *Runner) Pass(startNew bool) error {
 	if err := r.RevertCheck(); err != nil {
 		r.printf("revert check: %v\n", err)
 	}
+	r.repointRefiles() // a cancel by another tool, or a new dependency on an old id
 	if err := r.reportUnstartable(); err != nil {
 		r.printf("unstartable tasks: %v\n", err)
 	}
@@ -574,7 +587,7 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 		return "", err
 	}
 	defer func() {
-		if run.State != Gated {
+		if run.State != Gated && (run.State != Merging || !r.ciNone(run.Project)) {
 			r.endCIWait(run) // the run left the CI wait, however it did
 		}
 		_ = r.Store.PutRun(run)
@@ -587,7 +600,9 @@ func (r *Runner) Advance(task string, list []Terminal, listed bool) (string, err
 	}
 	switch run.State {
 	case Working:
-		r.idleWatch(run, list)
+		if !listed || !r.workingLimit(run, time.Now()) { // sessions that cannot be listed are never failed on time
+			r.idleWatch(run, list)
+		}
 	case Gated:
 		r.gated(run)
 	case Judging:
