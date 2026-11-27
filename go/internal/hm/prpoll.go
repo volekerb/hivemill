@@ -19,6 +19,21 @@ type prPoll struct {
 	prs   map[string]*PR       // by PR URL
 	errs  map[string]error     // by PR URL: why it could not be read
 	bases map[string]*basePoll // by baseKey
+	off   map[string]bool      // by repo: tests.yml is disabled, read when first needed
+}
+
+// testsOff is workflowDisabled of tests.yml, read once per repo and pass.
+func (p *prPoll) testsOff(t Tools, slug string) bool {
+	k := strings.ToLower(slug)
+	off, ok := p.off[k]
+	if !ok {
+		off = workflowDisabled(t, slug, "tests.yml")
+		if p.off == nil {
+			p.off = map[string]bool{}
+		}
+		p.off[k] = off
+	}
+	return off
 }
 
 type basePoll struct {

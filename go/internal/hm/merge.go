@@ -198,7 +198,13 @@ func (r *Runner) mainRun(slug, wt, base string) string {
 		if b == nil {
 			return "unknown"
 		}
-		return b.mainState(strings.TrimSpace(head))
+		head = strings.TrimSpace(head)
+		state := b.mainState(head)
+		// "pending" with no run for the head comes from older commits' runs: a disabled tests.yml will never add one
+		if state == "pending" && b.pushState(head) == "" && r.poll.testsOff(r.Tools, slug) {
+			return "none"
+		}
+		return state
 	}
 	rc, out, errs := r.Tools.GH("", "run", "list", "-R", slug, "--workflow", "tests.yml", "--branch", base, "--event", "push",
 		"--limit", "10", "--json", "status,conclusion,headSha")

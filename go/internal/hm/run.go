@@ -718,8 +718,10 @@ func (r *Runner) gated(run *Run) {
 				r.fail(run, "the judge did not start: "+err.Error())
 			}
 		default:
-			// in a pass, running Actions checks over budget are re-run (trackFlow); the rest alert the owner
-			if rows, actions := unfinishedActions(pr.Checks); r.poll == nil || run.Eval || none || !actions || !slices.ContainsFunc(rows, onRunner) {
+			// in a pass, running Actions checks over budget are re-run (trackFlow); the rest alert the owner, and so does
+			// a wait of twice the budget, which a series of short jobs can reach without one job running over it
+			capped := now.Unix()-run.CI.Since >= 2*int64(cfgInt(r.Store, "ci_timeout_s"))
+			if rows, actions := unfinishedActions(pr.Checks); capped || r.poll == nil || run.Eval || none || !actions || !slices.ContainsFunc(rows, onRunner) {
 				r.ciOverdue(run, now)
 			}
 		}

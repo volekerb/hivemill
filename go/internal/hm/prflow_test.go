@@ -542,6 +542,75 @@ func TestPRFlowTrainCulpritAndLateConfirm(t *testing.T) {
 	}
 }
 
+func TestPRFlowDisabledTestsWorkflowIsNoMainRun(t *testing.T) {
+	f := flowRunner(t)
+	f.base = []string{baseNode("old", "COMPLETED", "SUCCESS")} // no push run for main's head m0
+	f.add(t, 1, Gated, "")
+	state := "disabled_manually"
+	f.r.Tools.GH = func(dir string, args ...string) (int, string, string) {
+		rc, out, errs := f.gh(dir, args...)
+		if len(args) > 1 && args[0] == "api" && strings.HasSuffix(args[1], "/actions/workflows/tests.yml") {
+			return 0, state + "\n", ""
+		}
+		return rc, out, errs
+	}
+	for _, c := range []struct{ state, want string }{{"disabled_manually", "none"}, {"active", "pending"}} {
+		state = c.state
+		f.r.poll = f.r.pollPRs([]Run{*f.run(t, 1)})
+		for range 2 {
+			if got := f.r.mainRun("zz-test/www", f.repo, "main"); got != c.want {
+				t.Errorf("tests.yml %s: %q, want %q", c.state, got, c.want)
+			}
+		}
+	}
+	if got := f.ghCalls("api repos/"); len(got) != 2 {
+		t.Errorf("one read per pass: %q", got)
+	}
+}
+
+func TestPRFlowShortJobsStillAlert(t *testing.T) {
+	f := flowRunner(t)
+	young := `"startedAt":"` + time.Now().UTC().Format(time.RFC3339) + `"`
+	f.add(t, 1, Gated, regexp.MustCompile(`"startedAt":"[^"]*"`).ReplaceAllString(check("unit", "IN_PROGRESS", "", 7), young))
+	f.pass(t)
+	run := f.run(t, 1)
+	run.CI.Since, run.CI.Polled = time.Now().Add(-2*time.Hour).Unix(), 0
+	f.put(t, run)
+	f.pass(t)
+	if run = f.run(t, 1); run.CI == nil || !run.CI.Alerted {
+		t.Errorf("a gated run over twice the budget: %+v", run.CI)
+	}
+	run.State = Merging
+	run.Flow = &FlowState{State: FlowCIRunning, Since: time.Now().Add(-2 * time.Hour).Format(time.RFC3339), Head: run.Head, BudgetS: 2700}
+	f.r.poll = f.r.pollPRs([]Run{*run})
+	f.r.ciTimedOut(run)
+	if !run.Flow.Alerted {
+		t.Errorf("a merging run over twice the budget: %+v", run.Flow)
+	}
+	if got := f.ghCalls("run "); len(got) != 0 {
+		t.Errorf("no job ran over the budget: %q", got)
+	}
+}
+
+func TestPRFlowHungJobAfterASlowStatus(t *testing.T) {
+	f := flowRunner(t)
+	status := func(state string) string {
+		return `,{"__typename":"StatusContext","context":"ext","state":"` + state + `","targetUrl":"https://zz.invalid/1"}`
+	}
+	f.add(t, 1, Gated, check("unit", "IN_PROGRESS", "", 7)+status("PENDING"))
+	f.pass(t)
+	f.age(t, 1, 2*time.Hour)
+	f.pass(t)
+	if got := f.ghCalls("run "); len(got) != 0 {
+		t.Fatalf("cancelled while a status is unfinished: %q", got)
+	}
+	f.prs[1].checks = check("unit", "IN_PROGRESS", "", 7) + status("SUCCESS")
+	f.pass(t)
+	if got := f.ghCalls("run cancel"); len(got) != 1 {
+		t.Errorf("the hung job is still cancelled: %q", got)
+	}
+}
+
 func TestPRFlowTimeoutOfAJobThatStartedLate(t *testing.T) {
 	f := flowRunner(t)
 	hourAgo := `"startedAt":"` + time.Now().Add(-time.Hour).UTC().Format(time.RFC3339) + `"`
