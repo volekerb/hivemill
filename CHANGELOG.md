@@ -15,6 +15,10 @@ v0.1.0 summarises the changes merged during private development.
 
 ### Added
 
+- **A run cannot stay in working forever.** Past `run_max_working_min` (default 180; `0` or `off` = no limit) without a passing gate, the session gets one resume and the run fails 30 minutes later as `timed out`; `run.long_working` shows on obs Flow. A todo task that depends on a cancelled or failed task makes a planner work item, and `hivemill task list --blocked` lists it as `deps: T-x cancelled` or `deps: T-x failed` (T-2049).
+
+- **Warm standby.** `docs/standby.md` is the failover runbook; `hivemill standby check --from HOST` restores the primary's newest snapshot into a temporary home (the daemon runs it monthly when `standby_from` is set), and a `daemon.lock` stops a second writer on another machine unless `hivemill daemon --take-over` is given (T-2086).
+
 - **Re-filed tasks re-point their dependents.** `hivemill task add --refile-of T-x` (or a title with `(re-file of T-x`) makes every todo or draft task that depends on a cancelled or failed T-x depend on the new task, logged as `task.depends_repointed` (T-2072).
 
 - **A red CI resumes the task session with the failed logs.** The runner names each failed job and sends the last 80 lines of its failed log (read through `ghx`); a session whose pane has closed is relaunched by its session id. A startup failure counts as red. (T-2001)
@@ -66,6 +70,8 @@ v0.1.0 summarises the changes merged during private development.
 - **Scheduled jobs now fire from the tick.** Before, `factory schedule` only stored jobs and nothing fired them. Now the Python tick runs `factory-go schedule due --json` and mails each due job to the director, the run's token cap is applied through the goal's `token_limit`, and days the tick missed are not back-filled. See [docs/schedule.md](https://github.com/volekerb/hivemill/blob/main/docs/schedule.md#tick-claiming-due-jobs) (#777).
 
 ### Changed
+
+- **The tests workflow classifies the tier with the Go `ci-tier`.** The three classify steps and the docs-check step build `go/cmd/ci-tier` from the base commit's archive instead of running `ci/ci_tier.py`, so a PR still cannot loosen its own tier; a base without the Go tool still gets the full suite (T-1933).
 
 - **The hivemill runner waits for CI itself after the gate.** It reads a gated run's PR every `ci_poll_s` (60), starts the judge once the checks are green with the required ones present (without a required list: still green one poll later), and alerts the owner once after `ci_timeout_s` (2700) while the run stays (T-2000).
 
