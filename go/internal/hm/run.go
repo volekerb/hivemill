@@ -907,7 +907,8 @@ func (r *Runner) failUnlessRescued(run *Run, reason string) {
 }
 
 // idleWatch nudges a task session that sits idle with no PR for 15 minutes (it stopped mid-work, e.g. while a
-// background review was running); after a second idle spell the run is FAIL "stalled". A running gate hook is not
+// background review was running); after a second idle spell the run is FAIL "stalled". A session that stopped on a
+// guard block is handled by onGuardBlock instead; one that wrote blocked.md fails at once. A running gate hook is not
 // idleness: a session whose hook passed its timeout without a result fails as "gate hook timed out" instead.
 func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	idle := false
@@ -915,6 +916,9 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 		if t.Name == run.Agent {
 			idle = t.Status == "idle" || t.Status == "done"
 		}
+	}
+	if idle && r.failBlocked(run) {
+		return
 	}
 	if !idle { // a session that works on has left its hook behind; its next stop records a new start
 		run.HookStarted = ""
@@ -942,6 +946,13 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 		return
 	}
 	run.IdleSince = ""
+	if block := r.guardBlock(run); block != "" {
+		if prompt := r.onGuardBlock(run, block); prompt != "" {
+			run.IdleNudges++
+			r.nudge(run, prompt)
+		}
+		return
+	}
 	if run.IdleNudges >= 1 {
 		r.failUnlessRescued(run, "stalled: the task session stayed idle without a passing gate after a nudge")
 		return
@@ -951,12 +962,16 @@ func (r *Runner) idleWatch(run *Run, list []Terminal) {
 	if r.ciNone(run.Project) {
 		wait = "then stop (this project has no PR checks to wait for)"
 	}
-	nudge := "You stopped before your task was finished. Continue your role steps from where you are: finish the " +
-		"review, write the .hivemill files, push, open the PR, " + wait + "."
-	if r.Prompt(run.Agent, nudge) == nil {
-		r.recordPrompt(run, "task", "nudge", nudge)
-	}
+	r.nudge(run, "You stopped before your task was finished. Continue your role steps from where you are: finish the "+
+		"review, write the .hivemill files, push, open the PR, "+wait+".")
 	_ = r.Log.Emit("session.nudged", run, Event{Role: "task"})
+}
+
+// nudge types text into the run's task session and records it.
+func (r *Runner) nudge(run *Run, text string) {
+	if r.Prompt(run.Agent, text) == nil {
+		r.recordPrompt(run, "task", "nudge", text)
+	}
 }
 
 // usageAlert tells the owner once (until the gate opens again) that dispatch is held on usage and no probe can help:

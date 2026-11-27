@@ -30,6 +30,8 @@
 {{- else -}}
 <p class="muted">no task in this range{{if .Wider}}. <a href="{{$.Q "/flow" "days" (print .Wider)}}">Show the last {{.Wider}} days</a>{{end}}.</p>
 {{- end}}
+<h3>Guard blocks ({{.Days}} days)</h3>
+<p>{{range $class, $n := .GuardBlocks}}{{$class}}: {{$n}} {{else}}<span class="muted">no guard block in this range</span>{{end}}</p>
 <h2>Merged per day ({{.Merged}} in {{.Days}} days)</h2>
 {{if .Merged -}}
 <p>{{.Merged}} merged in the last {{.Days}} days; the most in one day: {{.Peak.N}} on {{.Peak.Day}}.</p>

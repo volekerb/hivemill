@@ -119,6 +119,8 @@ type FlowPage struct {
 	PRs         int        `json:"prs"`              // tasks in the window with a PR
 	Rounds2     int        `json:"prs_2plus_rounds"` // of PRs
 	Banners     []string   `json:"banners"`
+	// GuardBlocks counts the window's run.guard_block events by class.
+	GuardBlocks map[string]int `json:"guard_blocks"`
 	// Chart is the merged-per-day SVG.
 	Chart template.HTML `json:"-"`
 	// Peak is the day with the most merges (the latest of equal days), for the chart's text summary.
@@ -159,7 +161,7 @@ func dayList(now time.Time, days int) []string {
 
 // BuildFlow is the Flow page over the last days days and one project (empty = all).
 func (o *Obs) BuildFlow(days int, project string) *FlowPage {
-	p := &FlowPage{Days: days, Stages: FlowStages, StuckAfter: StuckAfter.String(), Wider: widerRange(days)}
+	p := &FlowPage{Days: days, Stages: FlowStages, StuckAfter: StuckAfter.String(), GuardBlocks: map[string]int{}, Wider: widerRange(days)}
 	wN := windowStart(o.Now, days)
 	perDay := map[string]int{}
 	keys := make([]string, 0, len(o.Tasks))
@@ -173,6 +175,10 @@ func (o *Obs) BuildFlow(days int, project string) *FlowPage {
 			continue
 		}
 		for _, e := range t.Events {
+			if e.Event == "run.guard_block" && evTime(e).After(wN) {
+				class, _ := e.Data["class"].(string)
+				p.GuardBlocks[class]++
+			}
 			if e.Event == "pr.merged" && evTime(e).After(wN) {
 				perDay[evTime(e).UTC().Format("2006-01-02")]++
 				p.Merged++

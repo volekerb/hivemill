@@ -765,6 +765,7 @@ func TestObsFlowStages(t *testing.T) {
 	evs = append(evs,
 		ev(ts("04:00"), "task.dispatched", "T-4", "G-1", "www", "", "", nil), // 2.5 h in dispatched: stuck
 		ev(ts("06:00"), "task.dispatched", "T-5", "G-1", "www", "", "", nil), // 30 min: not stuck
+		ev(ts("06:10"), "run.guard_block", "T-5", "G-1", "www", "", "task", map[string]any{"class": "other"}),
 	)
 	for i := range evs {
 		evs[i].Machine = "box-a"
@@ -772,6 +773,9 @@ func TestObsFlowStages(t *testing.T) {
 	now, _ := time.Parse(time.RFC3339, ts("06:30"))
 	o := BuildObs(evs, ObsFilter{}, "box-a", nil, now)
 	f := o.BuildFlow(30, "")
+	if f.GuardBlocks["other"] != 1 {
+		t.Errorf("guard blocks %v", f.GuardBlocks)
+	}
 	by := map[string]FlowTask{}
 	for _, x := range f.Tasks {
 		by[x.Task] = x
