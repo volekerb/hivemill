@@ -36,7 +36,26 @@ type Rerun struct {
 	OK   *bool  `json:"ok"` // nil = not re-run (flow, manual)
 	Note string `json:"note"`
 	Log  string `json:"log,omitempty"`
+	rc   int    // of the proof's command; with out, what a run on the base commit is compared with
+	out  string
+	took time.Duration
 }
+
+// baseRunBudget caps the sum of the time limits of the proofs run again on the base commit, so that pass cannot push a
+// gate with slow or hanging proofs past the Stop hook's timeout.
+var baseRunBudget = 8 * time.Minute
+
+// baseSlack and twice its head run time is what a proof gets on the base commit: one that hangs there is cut.
+var baseSlack = time.Minute
+
+// specDefect starts the problem of a proof that cannot pass as written; reasonSpecDefect is the reason_kind of a task
+// that fails with one.
+const (
+	specDefect       = "spec defect:"
+	reasonSpecDefect = "spec_defect"
+)
+
+var durationRe = regexp.MustCompile(`\b\d+(\.\d+)?(ns|µs|ms|s)\b`)
 
 // GateRecord is what one gate run found (kept on the run for the judge packet and the report).
 type GateRecord struct {
@@ -300,8 +319,8 @@ func (r *Runner) RerunProofs(run *Run, crit []Criterion, logdir string) []Rerun 
 }
 
 // rerunProofs is RerunProofs with the place of the worktree: a clone-mode run's proofs run there over ssh, and the logs
-// are written here.
-func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string) []Rerun {
+// are written here. limits, by criterion id, ends a proof sooner than proofTimeout (exit 124).
+func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string, limits ...map[int]time.Duration) []Rerun {
 	defer r.holdGate(run)()
 	var out []Rerun
 	wt := run.Worktree
@@ -326,14 +345,21 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 		default:
 			argv = []string{"bash", "-c", c.Proof}
 		}
+		if len(limits) > 0 && limits[0][c.ID] > 0 {
+			// where the proof runs there may be no timeout (macOS): then only proofTimeout ends it
+			argv = append([]string{"bash", "-c", `command -v timeout >/dev/null && exec timeout -k 10 "$0" "$@"; exec "$@"`,
+				strconv.Itoa(int(limits[0][c.ID].Seconds()))}, argv...)
+		}
 		var rc int
 		var text string
 		limit := proofTimeout
+		began := time.Now()
 		if run.cloned() {
 			rc, text = at.sh(dir, proofTimeout, cleanEnv(), argv...)
 		} else {
 			rc, text, limit = proofs.sh(c.ID, dir, argv)
 		}
+		x.rc, x.out, x.took = rc, text, time.Since(began)
 		x.Log = filepath.Join(logdir, fmt.Sprintf("proof-%d.log", c.ID))
 		_ = os.WriteFile(x.Log, []byte(text), 0o600)
 		ok := rc == 0
@@ -346,6 +372,64 @@ func (r *Runner) rerunProofs(at place, run *Run, crit []Criterion, logdir string
 		}
 		x.OK = &ok
 		out = append(out, x)
+	}
+	return out
+}
+
+func baseCheckout(wt string) string { return filepath.Join(wt, ".hivemill", "base") }
+
+// dropBaseCheckout removes the base checkout, also one an interrupted gate left half made: a proof that searches the
+// clone must not see the old code.
+func dropBaseCheckout(at place, wt string) {
+	if !at.isDir(baseCheckout(wt)) {
+		return
+	}
+	at.sh(wt, time.Minute, cleanEnv(), "rm", "-rf", baseCheckout(wt))
+	at.git(wt, "worktree", "prune")
+}
+
+// specDefects says which failed proofs are the spec's fault, by criterion id, and why: the command exits 2 or 127 (usage
+// error, command not found), or it fails with the same exit code and output on the base commit mb, checked out under
+// .hivemill for this. A proof that timed out, never ran or is over baseRunBudget is not run on the base.
+func (r *Runner) specDefects(at place, run *Run, crit []Criterion, reruns []Rerun, mb, logdir string) map[int]string {
+	out := map[int]string{}
+	failed := map[int]Rerun{}
+	var onBase []Criterion
+	limits := map[int]time.Duration{}
+	var spent time.Duration
+	for i, x := range reruns { // reruns[i] is the run of crit[i]
+		limit := 2*x.took + baseSlack
+		switch {
+		case x.OK == nil || *x.OK || x.Log == "" || x.rc == 124:
+		case x.rc == 2 || x.rc == 127:
+			out[x.ID] = fmt.Sprintf("exit %d: a usage error or a command that does not exist", x.rc)
+		case spent+limit <= baseRunBudget:
+			spent += limit
+			limits[x.ID] = limit
+			failed[x.ID] = x
+			onBase = append(onBase, crit[i])
+		}
+	}
+	if len(onBase) == 0 || !commitRe.MatchString(mb) {
+		return out
+	}
+	wt := run.Worktree
+	dir := baseCheckout(wt)
+	if rc, _, errs := at.git(wt, "worktree", "add", "-f", "-q", "--detach", dir, mb); rc != 0 { // -f: also over a stale registration
+		r.printf("%s: no checkout of the base commit: %s\n", run.Task, errs)
+		return out
+	}
+	defer dropBaseCheckout(at, wt)
+	base := *run
+	base.Worktree = dir
+	logs := filepath.Join(logdir, "base")
+	_ = os.MkdirAll(logs, 0o700)
+	same := func(s string) string { return durationRe.ReplaceAllString(strings.ReplaceAll(s, dir, wt), "T") }
+	for _, x := range r.rerunProofs(at, &base, onBase, logs, limits) {
+		head := failed[x.ID]
+		if x.OK != nil && !*x.OK && x.Log != "" && x.rc == head.rc && same(x.out) == same(head.out) {
+			out[x.ID] = "it fails the same way on the base commit" // no sha: a repeated block must read the same
+		}
 	}
 	return out
 }
@@ -504,11 +588,13 @@ func (r *Runner) guardText(args []string, text string) (int, string) {
 // Gate runs every check in the task clone and returns the record (Problems empty = pass).
 func (r *Runner) Gate(run *Run) *GateRecord {
 	defer r.holdGate(run)()
+	started := time.Now()
 	at := r.at(run) // the worktree, its commands and its .hivemill files may be on a clone-mode machine
 	lost := false
 	at.lost = &lost
 	g := at.git
 	wt, base := run.Worktree, run.Base
+	dropBaseCheckout(at, wt) // left by an interrupted gate: no check or proof may see the old code
 	rec := &GateRecord{Checks: map[string]string{}}
 	t, err := r.Store.Task(run.Task)
 	if err != nil {
@@ -645,11 +731,24 @@ func (r *Runner) Gate(run *Run) *GateRecord {
 	}
 	if len(ev) == 0 {
 		rec.Reruns = r.rerunProofs(at, run, crit, logdir)
+		onto := mb
+		if time.Since(started) > gateHookTimeout-baseRunBudget-2*time.Minute {
+			onto = "" // too late for a base pass: the Stop hook must still get the block
+		}
+		defects := r.specDefects(at, run, crit, rec.Reruns, onto, logdir)
+		var first []string // spec defects lead, so a cut failure reason still names them
 		for _, x := range rec.Reruns {
-			if x.OK != nil && !*x.OK {
-				rec.Problems = append(rec.Problems, fmt.Sprintf("criterion %d (%s): the factory re-ran its proof and it failed: %s", x.ID, x.Kind, x.Note))
+			if x.OK == nil || *x.OK {
+				continue
+			}
+			p := fmt.Sprintf("criterion %d (%s): the factory re-ran its proof and it failed: %s", x.ID, x.Kind, x.Note)
+			if why := defects[x.ID]; why != "" {
+				first = append(first, fmt.Sprintf("%s %s (%s)", specDefect, p, why))
+			} else {
+				rec.Problems = append(rec.Problems, p)
 			}
 		}
+		rec.Problems = append(first, rec.Problems...)
 	}
 	if lost {
 		rec.Undecided, rec.Problems = true, []string{"machine: ssh to " + run.Machine + " failed during the checks; the gate is not decided"}
@@ -934,6 +1033,7 @@ func (r *Runner) GateHook(in io.Reader, out io.Writer) error {
 	}
 	if len(rec.Problems) == 0 {
 		run.State, run.Head, run.PRURL, run.Tier, run.Gated, run.LastGate = Gated, rec.Head, rec.PRURL, rec.Tier, nowISO(), rec
+		run.LastBlock = "" // a later failure is not about an earlier block
 		fixed := 0
 		for _, f := range rec.Findings {
 			if strings.HasPrefix(strings.ToLower(f.Resolution), "fixed") {
