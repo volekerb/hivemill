@@ -120,15 +120,11 @@ func evalBase(run *Run, t *Task) (string, string) {
 // steps are still to do. It does not say the run is an eval.
 func EvalKickoff(run *Run, t *Task) string {
 	k, end := evalBase(run, t)
-	last := "push, wait for CI once and stop"
-	if run.CINone {
-		last = "push and stop (this project has no PR checks to wait for)"
-	}
 	return strings.TrimSuffix(k, end) +
 		fmt.Sprintf("\nBranch %s, base %s. An earlier session of this task has ended after the implementation: the change is committed "+
 			"on the branch and its draft PR %s is open. Do not start over. Continue your role steps from there: check the change "+
 			"against the spec and the criteria, run the affected tests, run /code-review, fix the findings, write the .hivemill files, "+
-			"%s.", run.Branch, run.Base, run.PRURL, last)
+			"%s.", run.Branch, run.Base, run.PRURL, pushAndStop)
 }
 
 // EvalReviewKickoff asks only for the review: /code-review on the committed change, findings written, no code change.

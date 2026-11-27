@@ -101,11 +101,11 @@ func (r *Runner) redCI(run *Run, failed []string) {
 	run.History = append(run.History, fmt.Sprintf("round %d: CI red (%s)", run.Round, strings.Join(failed, ", ")))
 	if r.ciNone(run.Project) && run.LocalCI != nil {
 		r.resumeAs(run, "ci", "The project gate command (this project's CI) failed on your PR head: "+strings.Join(failed, ", ")+
-			". Its log ends:\n"+run.LocalCI.Tail+"\nFix it, "+r.pushAndStop(run.Project)+".")
+			". Its log ends:\n"+run.LocalCI.Tail+"\nFix it, "+pushAndStop+".")
 		return
 	}
 	r.resumeAs(run, "ci", "CI is red on your PR: "+strings.Join(failed, ", ")+". Read the failing log (`gh run view --log-failed`), "+
-		"fix it, push, wait for CI once with one blocking command, and stop.")
+		"fix it, "+pushAndStop+".")
 }
 
 func (r *Runner) logDir(run *Run) string {
@@ -159,10 +159,6 @@ func (r *Runner) postLocalCI(run *Run) {
 	run.CIPosted = key
 }
 
-// pushAndStop is how a resumed session ends its round: without PR checks there is no CI to wait for.
-func (r *Runner) pushAndStop(project string) string {
-	if r.ciNone(project) {
-		return "push and stop (this project has no PR checks to wait for)"
-	}
-	return "push, wait for CI once and stop"
-}
+// pushAndStop is how a task session ends a round: it never waits for the checks. A literal, so that no resume text can
+// drift from it.
+const pushAndStop = "push and stop; the runner watches CI"
