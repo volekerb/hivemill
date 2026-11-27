@@ -48,7 +48,9 @@ type Runner struct {
 	// RemoteUsage reads the usage file of a session machine (nil = the local reading only).
 	RemoteUsage func(machine string) ([]byte, error)
 	// SSH runs command on a clone-mode session machine, with stdin (clonemachine.go).
-	SSH        func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	SSH func(machine, stdin string, timeout time.Duration, command string) (int, string, string)
+	// ObsDial dials the dashboard's address for ObsDown (nil = a TCP connect).
+	ObsDial    func(addr string) error
 	usageFiles [][]byte               // the remote usage files of this pass
 	usageRead  bool                   // usageFiles has been read in this pass
 	inDaemon   bool                   // this process runs the daemon's passes
