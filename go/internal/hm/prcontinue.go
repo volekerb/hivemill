@@ -484,6 +484,11 @@ func (r *Runner) closePR(run *Run, why, landedPR string) (called bool) {
 	settled()
 	_ = r.Store.SetMeta(prClosedKey+url, nowISO())
 	if heldForOwner(run) { // else the next pass would read the close as the owner's and block the task again
+		r.closeSessions(run) // as Stop does
+		r.endCIWait(run)
+		if run.Flow != nil {
+			r.enterFlow(run, "", "")
+		}
 		run.State, run.Outcome, run.Ended = Cancelled, "cancelled", nowISO()
 		r.endSessions(run)
 		_ = r.Log.Emit("task.cancelled", run, Event{})

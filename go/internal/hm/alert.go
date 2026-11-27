@@ -23,7 +23,7 @@ var GOOS = runtime.GOOS
 // AlertLog is the file every alert is appended to.
 func (e Env) AlertLog() string { return filepath.Join(e.Home, "logs", "alerts.log") }
 
-// ownerAlert sends a feed row that was just opened (hivemill-idle, -asks, -planner, -digest, -ci) through Alert. A delivery
+// ownerAlert sends a feed row that was just opened (hivemill-idle, -asks, -planner, -digest, -ci, -held) through Alert. A delivery
 // failure is printed; the feed row stays open either way.
 func (r *Runner) ownerAlert(kind, text string) {
 	if _, err := r.Alert(kind, text); err != nil {

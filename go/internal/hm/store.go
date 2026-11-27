@@ -56,6 +56,12 @@ type Run struct {
 	LocalCI  *LocalCI `json:",omitempty"`
 	CIPosted string   `json:",omitempty"`
 	CI       *CIWait  `json:",omitempty"` // the wait for the gated head's checks (ciwait.go)
+	// the PR flow controller (prflow.go): the flow state, what it re-ran, and a merge that rode the train
+	Flow       *FlowState  `json:",omitempty"`
+	Rerun      *RerunState `json:",omitempty"`
+	Rode       bool        `json:",omitempty"`
+	Car        *trainCar   `json:",omitempty"` // a merge asked of gh and not yet on the train
+	mergeStage string      // set by Merge for the flow state of this step
 	// T3 auto-merge (merge.go)
 	Guarded    string `json:",omitempty"` // head and limits of the last merge.guarded event
 	Unattended bool   `json:",omitempty"` // the runner merges this T3 run without the owner
