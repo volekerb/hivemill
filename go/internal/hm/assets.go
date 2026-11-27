@@ -15,9 +15,11 @@ import (
 //go:generate sh -c "cp ../../../roles/hivemill/task.md ../../../roles/hivemill/task-judge.md ../../../roles/hivemill/task.json.in ../../../roles/hivemill/task-judge.json.in ../../../launchd/hivemill.daemon.plist.in assets/"
 //go:generate sh -c "cp ../../../roles/hivemill/planner.md ../../../roles/hivemill/planner.json.in ../../../launchd/hivemill.digest.plist.in assets/"
 //go:generate sh -c "cp ../../../launchd/hivemill.health.plist.in ../../../ci/tier_rules.json ../../../kit/skills.json assets/"
+//go:generate sh -c "cp ../../../launchd/hivemill.obs.plist.in ../../../systemd/hivemill-obs.service assets/"
 //go:embed assets/task.md assets/task-judge.md assets/task.json.in assets/task-judge.json.in assets/hivemill.daemon.plist.in
 //go:embed assets/planner.md assets/planner.json.in assets/hivemill.digest.plist.in
 //go:embed assets/hivemill.health.plist.in assets/tier_rules.json assets/skills.json
+//go:embed assets/hivemill.obs.plist.in assets/hivemill-obs.service
 var assets embed.FS
 
 // AssetNames are the files in assets/, with the repo path each one is copied from.
@@ -33,6 +35,8 @@ var AssetNames = map[string]string{
 	"planner.md":               "roles/hivemill/planner.md",
 	"planner.json.in":          "roles/hivemill/planner.json.in",
 	"hivemill.digest.plist.in": "launchd/hivemill.digest.plist.in",
+	"hivemill.obs.plist.in":    "launchd/hivemill.obs.plist.in",
+	"hivemill-obs.service":     "systemd/hivemill-obs.service",
 }
 
 // Asset returns a built-in file by its name in assets/.
